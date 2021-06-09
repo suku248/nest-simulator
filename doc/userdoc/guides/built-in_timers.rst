@@ -47,6 +47,8 @@ In the context of NEST performance monitoring, other useful kernel-dictionary it
    ``nest.ResetKernel()`` resets all time measurements as well as ``biological_time`` and ``local_spike_counter``.
 
 
+.. _sec_detailed_timers:
+
 Detailed timers
 ---------------
 

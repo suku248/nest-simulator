@@ -26,13 +26,14 @@ line::
 Options for configuring NEST
 ----------------------------
 
-NEST allows for several configuration options for custom builds:
+NEST allows for several configuration options for custom builds.
 
 Change NEST behavior::
 
-    -Dtics_per_ms=[number]     Specify elementary unit of time. [default 1000.0]
-    -Dtics_per_step=[number]   Specify resolution. [default 100]
-    -Dwith-ps-arrays=[OFF|ON]  Use PS array construction semantics. [default=ON]
+    -Dtics_per_ms=[number]           Specify elementary unit of time. [default 1000.0]
+    -Dtics_per_step=[number]         Specify resolution. [default 100]
+    -Dwith-ps-arrays=[OFF|ON]        Use PS array construction semantics. [default=ON]
+    -Dwith-detailed-timers=[OFF|ON]  Activate detailed timers. [default=OFF]
 
 Add user modules::
 
@@ -57,6 +58,7 @@ Set default libraries::
 
     -Dwith-gsl=[OFF|ON|</path/to/gsl>]           Find a gsl library. To set a specific
                                                  library, set install path.[default=ON]
+    -Dwith-sionlib=[OFF|<path/to/sionlib>]       Build NEST with SIONLib. [default=OFF]
     -Dwith-readline=[OFF|ON|</path/to/readline>] Find a GNU Readline library. To set
                                                  a specific library, set install path.
                                                  [default=ON]
@@ -120,8 +122,9 @@ neurons, writing to ASCII files might become prohibitively slow due to
 the large number of resulting files. By installing the `SIONlib
 library <http://www.fz-juelich.de/jsc/sionlib>`_ and supplying its
 installation path to the ``-Dwith-sionlib=<path>`` option when calling
-`cmake`, you can enable the :ref:`recording backend for binary files
-<recording_backend_sionlib>`, which solves this problem.
+`cmake`, you can enable the
+:ref:`recording backend for binary files <recording_backend_sionlib>`,
+which solves this problem.
 
 If you compiled NEST with support for MPI and also want to run the
 corresponding tests, you have to tell it about how your

@@ -26,13 +26,13 @@ namespace nest
 {
 
 BoolIndicatorUInt64::BoolIndicatorUInt64()
-  : status_( false_uint64 )
 {
+  status_[0] = false_uint64;
 }
 
 BoolIndicatorUInt64::BoolIndicatorUInt64( const bool status )
-  : status_( status )
 {
+  status_[0] = status;
 }
 
 BoolIndicatorUInt64& PerThreadBoolIndicator::operator[]( const thread tid )

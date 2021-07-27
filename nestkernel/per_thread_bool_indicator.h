@@ -41,7 +41,10 @@ namespace nest
 /**
  * A wrapper class for an integer that is only allowed to take the
  * values 0 and 1. Used by PerThreadBoolIndicator to create a
- * thread-safe vector indicating per-thread status. See issue #1394.
+ * thread-safe vector indicating per-thread status. A padding of 7
+ * additional ints is used to avoid false sharing by threads.
+ * See issue #1394.
+
  */
 class BoolIndicatorUInt64
 {
@@ -60,37 +63,37 @@ public:
 private:
   static constexpr std::uint_fast64_t true_uint64 = true;
   static constexpr std::uint_fast64_t false_uint64 = false;
-  std::uint_fast64_t status_;
+  std::uint_fast64_t status_[8]; // only status[0] in use; padding of 7 extra ints
 };
 
 inline bool
 BoolIndicatorUInt64::is_true() const
 {
-  return ( status_ == true_uint64 );
+  return ( status_[0] == true_uint64 );
 }
 
 inline bool
 BoolIndicatorUInt64::is_false() const
 {
-  return ( status_ == false_uint64 );
+  return ( status_[0] == false_uint64 );
 }
 
 inline void
 BoolIndicatorUInt64::set_true()
 {
-  status_ = true_uint64;
+  status_[0] = true_uint64;
 }
 
 inline void
 BoolIndicatorUInt64::set_false()
 {
-  status_ = false_uint64;
+  status_[0] = false_uint64;
 }
 
 inline void
 BoolIndicatorUInt64::logical_and( const bool status )
 {
-  status_ = ( static_cast< bool >( status_ ) and status );
+  status_[0] = ( static_cast< bool >( status_[0] ) and status );
 }
 
 /**

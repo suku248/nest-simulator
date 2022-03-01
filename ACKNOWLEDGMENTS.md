@@ -14,7 +14,7 @@ Framework Programme for Research and Innovation under Specific Grant Agreement:
 - No. 800858 (ICEI).
 
 The NEST developers gratefully acknowledge the support and funding received 
-from:ssss
+from:
 
 - Jülich Aachen Research Alliance (JARA),
 - computing time granted by the JARA-HPC Vergabegremium and provided on the

@@ -28,6 +28,7 @@
 
 // Includes from nestkernel:
 #include "connection.h"
+#include "adjustentry.h"
 
 namespace nest
 {
@@ -332,7 +333,7 @@ stdp_pl_synapse_hom_ax_delay< targetidentifierT >::set_status( const DictionaryD
 
 inline
 void STDPPLConnection::adjust_weight(double t_lastspike, double old_weight,
-				     double t_spike_arr, double missing_spike)
+				     double t_spike_arr, double missing_spike, const STDPPLHomAxDelayCommonProperties& cp)
 {
   std::cout << "adjusting weights\n";
   weight_ = old_weight; // removes the last depressive step
@@ -354,10 +355,11 @@ void STDPPLConnection::adjust_weight(double t_lastspike, double old_weight,
   {
     minus_dt = t_lastspike + axonal_delay_ - (start->t_ + dendritic_delay);
     start++;
-    if ( minus_dt == 0 )
-      continue;
-    double_t Kplus_corr = ( Kplus_- 1.0 ) / std::exp( ( t_lastspike-t_spike ) / tau_plus_ );
-    weight_ = facilitate_(weight_, Kplus_corr * std::exp( minus_dt / tau_plus_ ) );
+    /*if ( minus_dt == 0 )
+      continue;*/
+    assert( minus_dt < -1.0 * kernel().connection_manager.get_stdp_eps() );
+    double Kplus_corr = ( Kplus_- 1.0 ) / std::exp( ( t_lastspike - t_spike ) / cp.tau_plus_ );
+    weight_ = facilitate_(weight_, Kplus_corr * std::exp( minus_dt / cp.tau_plus_ ) );
   }
 
   // depression due to new pre-synaptic spike

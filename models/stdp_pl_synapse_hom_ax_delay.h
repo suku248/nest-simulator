@@ -117,6 +117,7 @@ public:
   double lambda_;
   double alpha_;
   double mu_;
+  double axonal_delay_; // Axonal Delay Parameter
 };
 
 
@@ -287,7 +288,7 @@ stdp_pl_synapse_hom_ax_delay< targetidentifierT >::send( Event& e, thread t, con
   {
     std::cout << "axonal_delay_ > dendritic_delay\n";
 
-    adjustentry a = adjustentry(t_lastspike, old_weight,
+    adjustentry a = adjustentry( t_lastspike_, old_weight,
 				t_spike + axonal_delay_ + dendritic_delay, this);
     target_->add_synapse_to_check(a);
   }

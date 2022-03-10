@@ -27,14 +27,14 @@ namespace nest
   {
     adjustentry();
 
-    adjustentry(double_t t_lastspike,
-		double_t old_weight,
-		double_t t_received,
+    adjustentry(double t_lastspike,
+		double old_weight,
+		double t_received, 
 		Connection* c);
 
-      double_t t_lastspike_;
-      double_t old_weight_;
-      double_t t_received_;
+      double t_lastspike_;
+      double old_weight_;
+      double t_received_;
       Connection* c_;
   };
 }

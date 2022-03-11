@@ -18,10 +18,11 @@
 #define ADJUSTENTRY_H
 
 #include "nest.h"
+#include "connection.h"
 
 namespace nest
 {
-  class Connection;
+  //class Connection;
 
   struct adjustentry
   {

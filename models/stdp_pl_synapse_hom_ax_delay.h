@@ -1,5 +1,5 @@
 /*
- *  stdp_pl_synapse_hom.h
+ *  stdp_pl_synapse_hom_ax_delay.h
  *
  *  This file is part of NEST.
  *

@@ -289,9 +289,11 @@ stdp_pl_synapse_hom_ax_delay< targetidentifierT >::send( Event& e, thread t, con
   if ( axonal_delay_ > dendritic_delay )
   {
     std::cout << "axonal_delay_ > dendritic_delay\n";
-
+	
+	sender_spike_data_ = e.get_sender_spike_data();
     adjustentry a = adjustentry( t_lastspike_, old_weight,
-				t_spike + axonal_delay_ + dendritic_delay, this);
+				t_spike + axonal_delay_ + dendritic_delay, sender_spike_data_::get_tid(), sender_spike_data_::get_syn_id(),
+				sender_spike_data_::get_lcid());
     target->add_synapse_to_check(a);
   }
 

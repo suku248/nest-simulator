@@ -1,4 +1,3 @@
-
 /*
  *  adjustentry.h
  *
@@ -24,12 +23,11 @@
 #ifndef ADJUSTENTRY_H
 #define ADJUSTENTRY_H
 
-#include "nest.h"
-#include "connection.h"
+#include "nest_types.h"
 
 namespace nest
 {
-  //class Connection;
+
 
   struct adjustentry
   {
@@ -37,13 +35,17 @@ namespace nest
 
     adjustentry(double t_lastspike,
 		double old_weight,
-		double t_received, 
-		Connection* c);
+		double t_received,
+		const thread tid,
+		const synindex syn_id,
+		const index lcid);
 
       double t_lastspike_;
       double old_weight_;
       double t_received_;
-      Connection* c_;
+	  thread tid_;
+	  synindex syn_id_;
+	  index lcid_;
   };
 }
 

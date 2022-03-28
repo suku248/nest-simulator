@@ -295,7 +295,7 @@ public:
    * Returns the sender_spike_data_
    * The sender_spike_data_ is a SpikeData object
    */
-  SpikeData&  get_sender_spike_data() const;
+  SpikeData get_sender_spike_data() const;
   
 protected:
   index sender_node_id_;        //!< node ID of sender or 0
@@ -1427,10 +1427,10 @@ Event::set_rport( rport rp )
   rp_ = rp;
 }
 
-inline SpikeData&
+inline SpikeData
 Event::get_sender_spike_data() const
 {
-	return *sender_spike_data_;
+	return sender_spike_data_;
 }
 }
 

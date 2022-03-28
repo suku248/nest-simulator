@@ -38,6 +38,7 @@
 #include "nest_time.h"
 #include "nest_types.h"
 #include "node_collection.h"
+#include "adjustentry.h"
 
 #include "deprecation_warning.h"
 
@@ -53,6 +54,7 @@ namespace nest
 class Model;
 class ArchivingNode;
 class TimeConverter;
+class adjustentry;
 
 
 /**
@@ -816,7 +818,12 @@ public:
    * @see set_local_device_id
    */
   virtual index get_local_device_id() const;
-
+  
+  /**
+   * Adds synapses to be checked for missed spike data.
+   */
+  virtual void add_synapse_to_check(adjustentry &);
+  
   /**
    * Member of DeprecationWarning class to be used by models if parameters are
    * deprecated.

@@ -31,8 +31,9 @@ namespace nest
 
   struct adjustentry
   {
-    adjustentry();
-
+	adjustentry()
+	{} //TODO: Should be safely removed
+    
     adjustentry(double t_lastspike,
 		double old_weight,
 		double t_received,

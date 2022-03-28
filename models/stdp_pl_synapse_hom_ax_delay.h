@@ -170,6 +170,12 @@ public:
    * \param e The event to send
    */
   void send( Event& e, thread t, const STDPPLHomAxDelayCommonProperties& );
+  
+  /**
+   * Adjusts the weight according to the missed spike.
+   */
+  void adjust_weight( const adjustentry &a, const double missing_spike,
+					  const STDPPLHomAxDelayCommonProperties& cp );
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
   {
@@ -244,7 +250,8 @@ private:
  */
 template < typename targetidentifierT >
 inline void
-stdp_pl_synapse_hom_ax_delay< targetidentifierT >::send( Event& e, thread t, const STDPPLHomAxDelayCommonProperties& cp )
+stdp_pl_synapse_hom_ax_delay< targetidentifierT >::send( Event& e, thread t,
+													const STDPPLHomAxDelayCommonProperties& cp )
 {
   // synapse STDP depressing/facilitation dynamics
 
@@ -254,18 +261,18 @@ stdp_pl_synapse_hom_ax_delay< targetidentifierT >::send( Event& e, thread t, con
 
   Node* target = get_target( t );
 
-  double dendritic_delay = get_delay() - axonal_delay_;
+  double dendritic_delay = get_delay() - cp.axonal_delay_;
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
   std::deque< histentry >::iterator start;
   std::deque< histentry >::iterator finish;
-  target->get_history( t_lastspike_ - dendritic_delay + axonal_delay_, t_spike - dendritic_delay + axonal_delay_, &start, &finish );
+  target->get_history( t_lastspike_ - dendritic_delay + cp.axonal_delay_, t_spike - dendritic_delay + cp.axonal_delay_, &start, &finish );
 
   // facilitation due to postsynaptic spikes since last pre-synaptic spike
   double minus_dt;
   while ( start != finish )
   {
-    minus_dt = t_lastspike_ + axonal_delay_ - ( start->t_ + dendritic_delay );
+    minus_dt = t_lastspike_ + cp.axonal_delay_ - ( start->t_ + dendritic_delay );
     start++;
     // get_history() should make sure that
     // start->t_ > t_lastspike - dendritic_delay, i.e. minus_dt < 0
@@ -274,9 +281,9 @@ stdp_pl_synapse_hom_ax_delay< targetidentifierT >::send( Event& e, thread t, con
   }
 
   // depression due to new pre-synaptic spike
-  weight_ = depress_( weight_, target->get_K_value( t_spike + axonal_delay_ - dendritic_delay ), cp );
+  weight_ = depress_( weight_, target->get_K_value( t_spike + cp.axonal_delay_ - dendritic_delay ), cp );
   
-  double old_weight = weight_
+  double old_weight = weight_;
 
   e.set_receiver( *target );
   e.set_weight( weight_ );
@@ -284,16 +291,16 @@ stdp_pl_synapse_hom_ax_delay< targetidentifierT >::send( Event& e, thread t, con
   e.set_rport( get_rport() );
   e();
   
-  std::cout << "axonal delay = " <<  axonal_delay_ << " dendritic delay = " << dendritic_delay << std::endl;
+  std::cout << "axonal delay = " <<  cp.axonal_delay_ << " dendritic delay = " << dendritic_delay << std::endl;
   
-  if ( axonal_delay_ > dendritic_delay )
+  if ( cp.axonal_delay_ > dendritic_delay )
   {
     std::cout << "axonal_delay_ > dendritic_delay\n";
 	
-	sender_spike_data_ = e.get_sender_spike_data();
+	SpikeData sender_spike_data_ = e.get_sender_spike_data();
     adjustentry a = adjustentry( t_lastspike_, old_weight,
-				t_spike + axonal_delay_ + dendritic_delay, sender_spike_data_::get_tid(), sender_spike_data_::get_syn_id(),
-				sender_spike_data_::get_lcid());
+				t_spike + cp.axonal_delay_ + dendritic_delay, sender_spike_data_.get_tid(), sender_spike_data_.get_syn_id(),
+				sender_spike_data_.get_lcid());
     target->add_synapse_to_check(a);
   }
 
@@ -336,44 +343,47 @@ stdp_pl_synapse_hom_ax_delay< targetidentifierT >::set_status( const DictionaryD
   updateValue< double >( d, names::Kplus, Kplus_ );
 }
 
+template < typename targetidentifierT >
 inline
-void stdp_pl_synapse_hom_ax_delay::adjust_weight(double t_lastspike, double old_weight,
-				     double t_spike_arr, double missing_spike, const STDPPLHomAxDelayCommonProperties& cp)
+void stdp_pl_synapse_hom_ax_delay< targetidentifierT >::adjust_weight( const adjustentry &a, 
+  const double missing_spike, const STDPPLHomAxDelayCommonProperties& cp )
 {
   std::cout << "adjusting weights\n";
-  double weight_ = old_weight; // removes the last depressive step
+  double weight_ = a.old_weight_; // removes the last depressive step
+  
+  Node* target = get_target( a.tid_ );
 
-  double dendritic_delay = get_delay() - axonal_delay_;
-  double t_spike = t_spike_arr - axonal_delay_ - dendritic_delay;
+  double dendritic_delay = get_delay() - cp.axonal_delay_;
+  double t_spike = a.t_received_ - cp.axonal_delay_ - dendritic_delay;
 
   std::deque<histentry>::iterator start;
   std::deque<histentry>::iterator finish;
 
   // we know the time but read it anyway as this then keeps the access counter correct
-  target->get_history( missing_spike - get_delay() ,
-		       t_spike + axonal_delay_ - dendritic_delay,
+  target->get_history( missing_spike - get_delay() , //TODO: Subtract entire delay??
+		       t_spike + cp.axonal_delay_ - dendritic_delay,
 		       &start, &finish);
 
   // facilitation due to post-synaptic spikes since last pre-synaptic spike
   double minus_dt;
   while ( start != finish )
   {
-    minus_dt = t_lastspike_ + axonal_delay_ - (start->t_ + dendritic_delay);
+    minus_dt = a.t_lastspike_ + cp.axonal_delay_ - (start->t_ + dendritic_delay);
     start++;
     /*if ( minus_dt == 0 )
       continue;*/
     assert( minus_dt < -1.0 * kernel().connection_manager.get_stdp_eps() );
-    double Kplus_corr = ( Kplus_- 1.0 ) / std::exp( ( t_lastspike_ - t_spike ) / cp.tau_plus_ );
+    double Kplus_corr = ( Kplus_- 1.0 ) / std::exp( ( a.t_lastspike_ - t_spike ) / cp.tau_plus_ );//TODO: check with test
     weight_ = facilitate_(weight_, Kplus_corr * std::exp( minus_dt / cp.tau_plus_ ) );
   }
 
   // depression due to new pre-synaptic spike
-  weight_ = depress_( weight_, target->get_K_value( t_spike + axonal_delay_ - dendritic_delay ) );
+  weight_ = depress_( weight_, target->get_K_value( t_spike + cp.axonal_delay_ - dendritic_delay ) );
 
   SpikeEvent e;
   e.set_receiver( *target );
-  e.set_weight( weight_ - old_weight );
-  e.set_delay( get_delay_steps() );
+  e.set_weight( weight_ - a.old_weight_ );
+  e.set_delay_steps( get_delay_steps() );
   e.set_rport( get_rport() );
   e.set_stamp( Time::ms_stamp( t_spike ) );
   e();

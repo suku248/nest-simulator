@@ -264,6 +264,32 @@ nest::ArchivingNode::set_status( const DictionaryDatum& d )
 }
 
 void
+ArchivingNode::add_synapse_to_check( adjustentry& a )
+{
+
+    to_check_idx_++;
+    assert ( to_check_idx_ > -1 && to_check_idx_ < 1000 );
+    to_check_[to_check_idx_] = a;
+    std::cout << "to check " << to_check_[to_check_idx_].t_received_ << std::endl;
+}
+
+void
+nest::ArchivingNode::adjust_weights()
+{
+
+  while ( to_check_idx_ > -1 )
+    {
+      if ( to_check_[to_check_idx_].t_received_ > last_spike_ )
+      {
+        std::cout << "adjust weights\n";
+        //to_check_[to_check_idx_].c_->adjust_weight(to_check_[to_check_idx_], last_spike_);
+		kernel().connection_manager.adjust_weight( to_check_[to_check_idx_], last_spike_ );
+      to_check_idx_--;
+	  }
+   }
+}
+
+void
 nest::ArchivingNode::clear_history()
 {
   last_spike_ = -1.0;

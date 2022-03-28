@@ -24,26 +24,19 @@
 
 namespace nest
 {
-  adjustentry::adjustentry() :
-    t_lastspike_( -1.0 ),
-    old_weight_( -1.0 ),
-    t_received_( -1.0 ),
-	tid_ (),
-	syn_id_ (),
-	lcid_ ()
-  { }
 
-  adjustentry::adjustentry(double t_lastspike,
-			   double old_weight,
-			   double t_received,
+	
+  adjustentry::adjustentry(const double t_lastspike,
+			   const double old_weight,
+			   const double t_received,
 			   const thread tid,
 			   const synindex syn_id,
 			   const index lcid) :
     t_lastspike_( t_lastspike ),
     old_weight_( old_weight ),
     t_received_( t_received ),
-	tid_ (tid),
-	syn_id_ (syn_id),
-	lcid_ (lcid)
+	tid_ ( tid ),
+	syn_id_ ( syn_id ),
+	lcid_ ( lcid )
   { } 
 }

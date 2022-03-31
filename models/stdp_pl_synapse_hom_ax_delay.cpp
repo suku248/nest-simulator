@@ -78,7 +78,8 @@ STDPPLHomAxDelayCommonProperties::set_status( const DictionaryDatum& d, Connecto
   updateValue< double >( d, names::lambda, lambda_ );
   updateValue< double >( d, names::alpha, alpha_ );
   updateValue< double >( d, names::mu, mu_ );
-  updateValue< double >( d, names::axonal_delay, axonal_delay_ );
+  bool ax_updated = updateValue< double >( d, names::axonal_delay, axonal_delay_ );
+  
   if ( axonal_delay_ < 0. ) //TODO Check also upper bounday with delay
   {
 	throw BadProperty( "axonal_delay >= 0. required." );

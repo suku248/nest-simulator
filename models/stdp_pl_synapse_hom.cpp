@@ -83,5 +83,6 @@ STDPPLHomCommonProperties::set_status( const DictionaryDatum& d, ConnectorModel&
   {
     throw BadProperty( "axonal_delay >= 0. required." );
   }
+}
 
 } // of namespace nest

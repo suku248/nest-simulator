@@ -25,6 +25,7 @@
 
 // C++ includes:
 #include <cmath>
+#include <iomanip>
 
 // Includes from nestkernel:
 #include "connection.h"
@@ -266,15 +267,18 @@ stdp_pl_synapse_hom< targetidentifierT >::send( Event& e, thread t, const STDPPL
   while ( start != finish )
   {
     minus_dt = t_lastspike_ + cp.axonal_delay_ - ( start->t_ + dendritic_delay );
-    start++;
     // get_history() should make sure that
     // start->t_ > t_lastspike - dendritic_delay, i.e. minus_dt < 0
     assert( minus_dt < -1.0 * kernel().connection_manager.get_stdp_eps() );
     weight_ = facilitate_( weight_, Kplus_ * std::exp( minus_dt * cp.tau_plus_inv_ ), cp );
+    std::cout << std::setprecision(15) << "facilitation\t" << t_lastspike_ + cp.axonal_delay_ << "\t" << start->t_ + dendritic_delay << "\t" << Kplus_ * std::exp( minus_dt * cp.tau_plus_inv_) << "\t" << weight_ << std::endl;
+    start++;
   }
 
   // depression due to new pre-synaptic spike
-  weight_ = depress_( weight_, target->get_K_value( t_spike + cp.axonal_delay_ - dendritic_delay ), cp );
+  const double K_minus = target->get_K_value( t_spike + cp.axonal_delay_ - dendritic_delay );
+  weight_ = depress_( weight_, K_minus, cp );
+  std::cout << std::setprecision(15) << "depression\t" << t_lastspike_ + cp.axonal_delay_ - minus_dt << "\t" << t_spike + cp.axonal_delay_ << "\t" << K_minus << "\t" << weight_ << std::endl;
 
   e.set_receiver( *target );
   e.set_weight( weight_ );

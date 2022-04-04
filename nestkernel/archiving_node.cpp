@@ -20,6 +20,8 @@
  *
  */
 
+#include <iomanip>
+
 #include "archiving_node.h"
 
 // Includes from nestkernel:
@@ -97,7 +99,8 @@ nest::ArchivingNode::get_K_value( double t )
   int i = history_.size() - 1;
   while ( i >= 0 )
   {
-    if ( t - history_[ i ].t_ > kernel().connection_manager.get_stdp_eps() )
+    //std::cout << "while: i = " << i << ", t = " << t << ", history_[ i ].t_ = " << history_[ i ].t_ << std::endl;
+    if ( std::abs( t - history_[ i ].t_ ) > kernel().connection_manager.get_stdp_eps() )
     {
       trace_ = ( history_[ i ].Kminus_ * std::exp( ( history_[ i ].t_ - t ) * tau_minus_inv_ ) );
       return trace_;
@@ -161,9 +164,11 @@ nest::ArchivingNode::get_history( double t1,
     *start = *finish;
     return;
   }
+  
   std::deque< histentry >::reverse_iterator runner = history_.rbegin();
   const double t2_lim = t2 + kernel().connection_manager.get_stdp_eps();
   const double t1_lim = t1 + kernel().connection_manager.get_stdp_eps();
+  //std::cout << std::setprecision(15)  << "t2 = " << t2 << ", t2_lim = " << t2_lim << ", runner->t_ = " << runner->t_ << ", runner != history_.rend() = " << ( runner != history_.rend() ) << ", runner->t_ >= t2_lim = " << ( runner->t_ >= t2_lim ) << std::endl;
   while ( runner != history_.rend() and runner->t_ >= t2_lim )
   {
     ++runner;

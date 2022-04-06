@@ -374,11 +374,11 @@ void stdp_pl_synapse_hom_ax_delay< targetidentifierT >::adjust_weight( const adj
       continue;*/
     assert( minus_dt < -1.0 * kernel().connection_manager.get_stdp_eps() );
     double Kplus_corr = ( Kplus_- 1.0 ) / std::exp( ( a.t_lastspike_ - t_spike ) / cp.tau_plus_ );//TODO: check with test
-    weight_ = facilitate_(weight_, Kplus_corr * std::exp( minus_dt / cp.tau_plus_ ) );
+    weight_ = facilitate_(weight_, Kplus_corr * std::exp( minus_dt / cp.tau_plus_ ), cp );
   }
 
   // depression due to new pre-synaptic spike
-  weight_ = depress_( weight_, target->get_K_value( t_spike + cp.axonal_delay_ - dendritic_delay ) );
+  weight_ = depress_( weight_, target->get_K_value( t_spike + cp.axonal_delay_ - dendritic_delay ), cp );
 
   SpikeEvent e;
   e.set_receiver( *target );

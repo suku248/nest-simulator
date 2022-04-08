@@ -90,6 +90,7 @@ nest::ArchivingNode::get_K_value( double t )
   // case when the neuron has not yet spiked
   if ( history_.empty() )
   {
+    std::cout << "get_K_value hsitory empty" << std::endl;
     trace_ = 0.;
     return trace_;
   }
@@ -110,6 +111,7 @@ nest::ArchivingNode::get_K_value( double t )
 
   // this case occurs when the trace was requested at a time precisely at or
   // before the first spike in the history
+  std::cout << "get_K_value trace was requested at a time precisely at or before the first spike in the history" << std::endl;
   trace_ = 0.;
   return trace_;
 }
@@ -295,17 +297,17 @@ nest::ArchivingNode::adjust_weights()
 void
 ArchivingNode::reset_syns_to_check()
 {
-  std::vector< adjustentry > tmp_syns_to_check;
-  for ( auto it = syns_to_check_.begin(); it < syns_to_check_.end(); ++it )
-  {
-    if ( ( it->t_received_ - Time( Time::step( kernel().simulation_manager.get_slice_origin().get_steps() ) ).get_ms() - kernel().connection_manager.get_min_delay() ) > kernel().connection_manager.get_stdp_eps() )
-    {
-      tmp_syns_to_check.push_back( *it );
-    }
-  }
+  // std::vector< adjustentry > tmp_syns_to_check;
+  // for ( auto it = syns_to_check_.begin(); it < syns_to_check_.end(); ++it )
+  // {
+  //   if ( ( it->t_received_ - Time( Time::step( kernel().simulation_manager.get_slice_origin().get_steps() ) ).get_ms() - kernel().connection_manager.get_min_delay() ) > kernel().connection_manager.get_stdp_eps() )
+  //   {
+  //     tmp_syns_to_check.push_back( *it );
+  //   }
+  // }
   syns_to_check_.clear();
-  syns_to_check_.swap( tmp_syns_to_check );
-  std::cout << "reset_syns_to_check size = " << syns_to_check_.size() << std::endl;
+  //syns_to_check_.swap( tmp_syns_to_check );
+  //std::cout << "reset_syns_to_check size = " << syns_to_check_.size() << std::endl;
 }
 
 void

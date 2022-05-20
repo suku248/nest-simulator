@@ -84,7 +84,7 @@ public:
    */
   bool are_all_chunks_filled() const;
 
-  void increase( const thread rank );
+  void increase( const thread rank, const long summand = 1 );
 };
 
 inline SendBufferPosition::SendBufferPosition( const AssignedRanks& assigned_ranks,
@@ -148,10 +148,10 @@ SendBufferPosition::are_all_chunks_filled() const
 }
 
 inline void
-SendBufferPosition::increase( const thread rank )
+SendBufferPosition::increase( const thread rank, const long summand )
 {
-  ++idx_[ rank_to_index_( rank ) ];
-  ++num_spike_data_written_;
+  idx_[ rank_to_index_( rank ) ] += summand;
+  num_spike_data_written_ += summand;
 }
 
 } // namespace nest

@@ -351,14 +351,8 @@ EventDeliveryManager::gather_spike_data_( const thread tid,
 {
 #pragma omp master
   {
-    const AssignedRanks assigned_ranks = kernel().vp_manager.get_assigned_ranks( tid );
-
     kernel().mpi_manager.set_buffer_size_spike_data( 8388608 );
     resize_send_recv_buffers_spike_data_();
-
-    // Need to get new positions in case buffer size has changed
-    SendBufferPosition send_buffer_position(
-      assigned_ranks, kernel().mpi_manager.get_send_recv_count_spike_data_per_rank() );
 
 #ifdef TIMER_DETAILED
     {
@@ -366,11 +360,16 @@ EventDeliveryManager::gather_spike_data_( const thread tid,
     }
 #endif
   }
+#pragma omp barrier
+    const AssignedRanks assigned_ranks = kernel().vp_manager.get_assigned_ranks( tid );
+    // Need to get new positions in case buffer size has changed
+    SendBufferPosition send_buffer_position(
+      assigned_ranks, kernel().mpi_manager.get_send_recv_count_spike_data_per_rank() );
+
     // Collocate spikes to send buffer
     collocate_spike_data_buffers_( tid, assigned_ranks, send_buffer_position, spike_register_, send_buffer );
 
-#pragma omg master
-  {
+#pragma omp barrier
     // Set markers to signal end of valid spikes, and remove spikes
     // from register that have been collected in send buffer.
     set_end_and_invalid_markers_( assigned_ranks, send_buffer_position, send_buffer );
@@ -379,6 +378,8 @@ EventDeliveryManager::gather_spike_data_( const thread tid,
     // send buffer.
     set_complete_marker_spike_data_( assigned_ranks, send_buffer_position, send_buffer );
 
+#pragma omp master
+  {
 #ifdef TIMER_DETAILED
     {
       sw_collocate_spike_data_.stop();
@@ -459,9 +460,15 @@ EventDeliveryManager::collocate_spike_data_buffers_( const thread tid,
       send_buffer[ buffer_pos ].set(
         ( *iiit ).get_tid(), ( *iiit ).get_syn_id(), ( *iiit ).get_lcid(), lag, ( *iiit ).get_offset() );
       ( *iiit ).set_status( TARGET_ID_PROCESSED ); // mark entry for removal
+      
+      ++buffer_pos;  
     }
   }
 
+  if ( tid == kernel().vp_manager.get_num_threads() - 1 )
+  {
+    send_buffer_position.increase( 0, buffer_pos );
+  }
   return is_spike_register_empty;
 }
 

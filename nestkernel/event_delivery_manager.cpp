@@ -365,10 +365,12 @@ EventDeliveryManager::gather_spike_data_( const thread tid,
       sw_collocate_spike_data_.start();
     }
 #endif
-
+  }
     // Collocate spikes to send buffer
     collocate_spike_data_buffers_( tid, assigned_ranks, send_buffer_position, spike_register_, send_buffer );
 
+#pragma omg master
+  {
     // Set markers to signal end of valid spikes, and remove spikes
     // from register that have been collected in send buffer.
     set_end_and_invalid_markers_( assigned_ranks, send_buffer_position, send_buffer );
@@ -427,9 +429,12 @@ EventDeliveryManager::collocate_spike_data_buffers_( const thread tid,
   // not be fit into the MPI buffer.
   bool is_spike_register_empty = true;
 
+  index buffer_pos = 0;
+  auto end_tid = spike_register.begin() + tid + 1;
+
   // First dimension: loop over writing thread
   for ( typename std::vector< std::vector< std::vector< TargetT > >* >::iterator it = spike_register.begin();
-        it != spike_register.end();
+        it != end_tid;
         ++it )
   {
     // Second dimension: fixed reading thread --> REMOVE in this branch for testing
@@ -437,35 +442,23 @@ EventDeliveryManager::collocate_spike_data_buffers_( const thread tid,
     // Third dimension: loop over lags
     for ( unsigned int lag = 0; lag < ( *it )->size(); ++lag )
     {
-      // Fourth dimension: loop over entries
-      for ( typename std::vector< TargetT >::iterator iiit = ( *( *it ) )[ lag ].begin();
-            iiit < ( *( *it ) )[ lag ].end();
-            ++iiit )
-      {
-        assert( not iiit->is_processed() );
+      buffer_pos += ( *( *it ) )[ lag ].size();
+    }
+  }
 
-        const thread rank = iiit->get_rank();
+  for ( unsigned int lag = 0; lag < spike_register[ tid ]->size(); ++lag )
+  {
+    // Fourth dimension: loop over entries
+    for ( typename std::vector< TargetT >::iterator iiit = ( *spike_register[ tid ] )[ lag ].begin();
+          iiit < ( *spike_register[ tid ] )[ lag ].end();
+          ++iiit )
+    {
+      assert( not iiit->is_processed() );
+      assert( buffer_pos < send_buffer.size() );
 
-        if ( send_buffer_position.is_chunk_filled( rank ) )
-        {
-          is_spike_register_empty = false;
-          if ( send_buffer_position.are_all_chunks_filled() )
-          {
-            return is_spike_register_empty;
-          }
-          else
-          {
-            continue;
-          }
-        }
-        else
-        {
-          send_buffer[ send_buffer_position.idx( rank ) ].set(
-            ( *iiit ).get_tid(), ( *iiit ).get_syn_id(), ( *iiit ).get_lcid(), lag, ( *iiit ).get_offset() );
-          ( *iiit ).set_status( TARGET_ID_PROCESSED ); // mark entry for removal
-          send_buffer_position.increase( rank );
-        }
-      }
+      send_buffer[ buffer_pos ].set(
+        ( *iiit ).get_tid(), ( *iiit ).get_syn_id(), ( *iiit ).get_lcid(), lag, ( *iiit ).get_offset() );
+      ( *iiit ).set_status( TARGET_ID_PROCESSED ); // mark entry for removal
     }
   }
 

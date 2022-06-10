@@ -770,178 +770,12 @@ nest::SimulationManager::wfr_update_( Node* n )
 void
 nest::SimulationManager::update_()
 {
-  // to store done values of the different threads
-  std::vector< bool > done;
-  bool done_all = true;
-  delay old_to_step;
-
-  double start_current_update = sw_simulate_.elapsed();
-  bool update_time_limit_exceeded = false;
-
-  std::vector< std::shared_ptr< WrappedThreadException > > exceptions_raised( kernel().vp_manager.get_num_threads() );
-// parallel section begins
 #pragma omp parallel
   {
     const thread tid = kernel().vp_manager.get_thread_id();
 
     do
     {
-      if ( print_time_ )
-      {
-        gettimeofday( &t_slice_begin_, NULL );
-      }
-
-      if ( kernel().sp_manager.is_structural_plasticity_enabled()
-        and ( std::fmod( Time( Time::step( clock_.get_steps() + from_step_ ) ).get_ms(),
-                kernel().sp_manager.get_structural_plasticity_update_interval() )
-          == 0 ) )
-      {
-        for ( SparseNodeArray::const_iterator i = kernel().node_manager.get_local_nodes( tid ).begin();
-              i != kernel().node_manager.get_local_nodes( tid ).end();
-              ++i )
-        {
-          Node* node = i->get_node();
-          node->update_synaptic_elements( Time( Time::step( clock_.get_steps() + from_step_ ) ).get_ms() );
-        }
-#pragma omp barrier
-#pragma omp single
-        {
-          kernel().sp_manager.update_structural_plasticity();
-        }
-        // Remove 10% of the vacant elements
-        for ( SparseNodeArray::const_iterator i = kernel().node_manager.get_local_nodes( tid ).begin();
-              i != kernel().node_manager.get_local_nodes( tid ).end();
-              ++i )
-        {
-          Node* node = i->get_node();
-          node->decay_synaptic_elements_vacant();
-        }
-
-        // after structural plasticity has created and deleted
-        // connections, update the connection infrastructure; implies
-        // complete removal of presynaptic part and reconstruction
-        // from postsynaptic data
-        update_connection_infrastructure( tid );
-
-      } // of structural plasticity
-
-      if ( from_step_ == 0 )
-      {
-#ifdef HAVE_MUSIC
-// advance the time of music by one step (min_delay * h) must
-// be done after deliver_events_() since it calls
-// music_event_out_proxy::handle(), which hands the spikes over to
-// MUSIC *before* MUSIC time is advanced
-
-// wait until all threads are done -> synchronize
-#pragma omp barrier
-// the following block is executed by the master thread only
-// the other threads are enforced to wait at the end of the block
-#pragma omp master
-        {
-          // advance the time of music by one step (min_delay * h) must
-          // be done after deliver_events_() since it calls
-          // music_event_out_proxy::handle(), which hands the spikes over to
-          // MUSIC *before* MUSIC time is advanced
-          if ( slice_ > 0 )
-          {
-            kernel().music_manager.advance_music_time();
-          }
-
-          // the following could be made thread-safe
-          kernel().music_manager.update_music_event_handlers( clock_, from_step_, to_step_ );
-        }
-// end of master section, all threads have to synchronize at this point
-#pragma omp barrier
-#endif
-      }
-
-      // preliminary update of nodes that use waveform relaxtion, only
-      // necessary if secondary connections exist and any node uses
-      // wfr
-      if ( kernel().connection_manager.secondary_connections_exist() and kernel().node_manager.wfr_is_used() )
-      {
-#pragma omp single
-        {
-          // if the end of the simulation is in the middle
-          // of a min_delay_ step, we need to make a complete
-          // step in the wfr_update and only do
-          // the partial step in the final update
-          // needs to be done in omp single since to_step_ is a scheduler
-          // variable
-          old_to_step = to_step_;
-          if ( to_step_ < kernel().connection_manager.get_min_delay() )
-          {
-            to_step_ = kernel().connection_manager.get_min_delay();
-          }
-        }
-
-        bool max_iterations_reached = true;
-        const std::vector< Node* >& thread_local_wfr_nodes = kernel().node_manager.get_wfr_nodes_on_thread( tid );
-        for ( long n = 0; n < wfr_max_iterations_; ++n )
-        {
-          bool done_p = true;
-
-          // this loop may be empty for those threads
-          // that do not have any nodes requiring wfr_update
-          for ( std::vector< Node* >::const_iterator i = thread_local_wfr_nodes.begin();
-                i != thread_local_wfr_nodes.end();
-                ++i )
-          {
-            done_p = wfr_update_( *i ) and done_p;
-          }
-
-// add done value of thread p to done vector
-#pragma omp critical
-          done.push_back( done_p );
-// parallel section ends, wait until all threads are done -> synchronize
-#pragma omp barrier
-
-// the following block is executed by a single thread
-// the other threads wait at the end of the block
-#pragma omp single
-          {
-            // check whether all threads are done
-            for ( size_t i = 0; i < done.size(); ++i )
-            {
-              done_all = done[ i ] and done_all;
-            }
-
-            // gather SecondaryEvents (e.g. GapJunctionEvents)
-            kernel().event_delivery_manager.gather_secondary_events( done_all );
-
-            // reset done and done_all
-            //(needs to be in the single threaded part)
-            done_all = true;
-            done.clear();
-          }
-
-          // deliver SecondaryEvents generated during wfr_update
-          // returns the done value over all threads
-          done_p = kernel().event_delivery_manager.deliver_secondary_events( tid, true );
-
-          if ( done_p )
-          {
-            max_iterations_reached = false;
-            break;
-          }
-        } // of for (wfr_max_iterations) ...
-
-#pragma omp single
-        {
-          to_step_ = old_to_step;
-          if ( max_iterations_reached )
-          {
-            std::string msg = String::compose( "Maximum number of iterations reached at interval %1-%2 ms",
-              clock_.get_ms(),
-              clock_.get_ms() + to_step_ * Time::get_resolution().get_ms() );
-            LOG( M_WARNING, "SimulationManager::wfr_update", msg );
-          }
-        }
-
-      } // of if(wfr_is_used)
-        // end of preliminary update
-
 #ifdef TIMER_DETAILED
 #pragma omp barrier
       if ( tid == 0 )
@@ -953,21 +787,9 @@ nest::SimulationManager::update_()
 
       for ( SparseNodeArray::const_iterator n = thread_local_nodes.begin(); n != thread_local_nodes.end(); ++n )
       {
-        // We update in a parallel region. Therefore, we need to catch
-        // exceptions here and then handle them after the parallel region.
-        try
-        {
-          Node* node = n->get_node();
-          if ( not( node )->is_frozen() )
-          {
-            ( node )->update( clock_, from_step_, to_step_ );
-          }
-        }
-        catch ( std::exception& e )
-        {
-          // so throw the exception after parallel region
-          exceptions_raised.at( tid ) = std::shared_ptr< WrappedThreadException >( new WrappedThreadException( e ) );
-        }
+	Node* node = n->get_node();
+
+	( node )->update( clock_, from_step_, to_step_ );
       }
 
 // parallel section ends, wait until all threads are done -> synchronize
@@ -979,22 +801,11 @@ nest::SimulationManager::update_()
         sw_gather_spike_data_.start();
       }
 #endif
-
+      
       // gather and deliver only at end of slice, i.e., end of min_delay step
       if ( to_step_ == kernel().connection_manager.get_min_delay() )
       {
-        if ( kernel().connection_manager.has_primary_connections() )
-        {
-          kernel().event_delivery_manager.gather_spike_data( tid );
-        }
-        if ( kernel().connection_manager.secondary_connections_exist() )
-        {
-#pragma omp single
-          {
-            kernel().event_delivery_manager.gather_secondary_events( true );
-          }
-          kernel().event_delivery_manager.deliver_secondary_events( tid, false );
-        }
+	kernel().event_delivery_manager.gather_spike_data( tid );
       }
 
 #pragma omp barrier
@@ -1010,63 +821,15 @@ nest::SimulationManager::update_()
 #pragma omp master
       {
         advance_time_();
-
-        if ( print_time_ )
-        {
-          gettimeofday( &t_slice_end_, NULL );
-          print_progress_();
-        }
-
-        // We cannot throw exception inside master, would not get caught.
-        const double end_current_update = sw_simulate_.elapsed();
-        const double update_time = end_current_update - start_current_update;
-        update_time_limit_exceeded = update_time > update_time_limit_;
-        min_update_time_ = std::min( min_update_time_, update_time );
-        max_update_time_ = std::max( max_update_time_, update_time );
-        start_current_update = end_current_update;
       }
 // end of master section, all threads have to synchronize at this point
 #pragma omp barrier
       kernel().io_manager.post_step_hook();
 // enforce synchronization after post-step activities of the recording backends
 #pragma omp barrier
-      const double end_current_update = sw_simulate_.elapsed();
-      if ( end_current_update - start_current_update > update_time_limit_ )
-      {
-        LOG( M_ERROR, "SimulationManager::update", "Update time limit exceeded." );
-        throw KernelException();
-      }
-      start_current_update = end_current_update;
 
-    } while ( to_do_ > 0 and not update_time_limit_exceeded and not exceptions_raised.at( tid ) );
-
-    // End of the slice, we update the number of synaptic elements
-    for ( SparseNodeArray::const_iterator i = kernel().node_manager.get_local_nodes( tid ).begin();
-          i != kernel().node_manager.get_local_nodes( tid ).end();
-          ++i )
-    {
-      Node* node = i->get_node();
-      node->update_synaptic_elements( Time( Time::step( clock_.get_steps() + to_step_ ) ).get_ms() );
-    }
-
+    } while ( to_do_ > 0 );
   } // of omp parallel
-
-  if ( update_time_limit_exceeded )
-  {
-    LOG( M_ERROR, "SimulationManager::update", "Update time limit exceeded." );
-    throw KernelException();
-  }
-
-  // check if any exceptions have been raised
-  for ( thread tid = 0; tid < kernel().vp_manager.get_num_threads(); ++tid )
-  {
-    if ( exceptions_raised.at( tid ).get() )
-    {
-      simulating_ = false; // must mark this here, see #311
-      inconsistent_state_ = true;
-      throw WrappedThreadException( *( exceptions_raised.at( tid ) ) );
-    }
-  }
 }
 
 void

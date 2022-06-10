@@ -180,6 +180,32 @@ EventDeliveryManager::write_toggle() const
   return kernel().simulation_manager.get_slice() % 2;
 }
 
+inline void
+EventDeliveryManager::reset_spike_register_( const thread )
+{
+#pragma omp parallel
+  {
+    const thread tid = kernel().vp_manager.get_thread_id();
+
+    for ( std::vector< std::vector< Target > >::iterator it = spike_register_[ tid ]->begin();
+	  it < spike_register_[ tid ]->end();
+	  ++it )
+    {
+      ( *it ).clear();
+    }
+
+    for ( std::vector< std::vector< std::vector< OffGridTarget > > >::iterator it =
+	    off_grid_spike_register_[ tid ].begin();
+	  it < off_grid_spike_register_[ tid ].end();
+	  ++it )
+    {
+      for ( std::vector< std::vector< OffGridTarget > >::iterator iit = it->begin(); iit < it->end(); ++iit )
+      {
+	iit->clear();
+      }
+    }
+  } // end parallel
+}
 
 } // of namespace nest
 

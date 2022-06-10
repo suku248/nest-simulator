@@ -296,7 +296,7 @@ private:
    * nodes.
    */
   template < typename SpikeDataT >
-  bool deliver_events_( const thread tid, const std::vector< SpikeDataT >& recv_buffer );
+  bool deliver_events_( const thread, const std::vector< SpikeDataT >& recv_buffer );
 
   /**
    * Deletes all spikes from spike registers and resets spike
@@ -444,28 +444,6 @@ private:
   Stopwatch sw_communicate_target_data_;
 #endif
 };
-
-inline void
-EventDeliveryManager::reset_spike_register_( const thread tid )
-{
-  for ( std::vector< std::vector< Target > >::iterator it = spike_register_[ tid ]->begin();
-        it < spike_register_[ tid ]->end();
-        ++it )
-  {
-    ( *it ).clear();
-  }
-
-  for ( std::vector< std::vector< std::vector< OffGridTarget > > >::iterator it =
-          off_grid_spike_register_[ tid ].begin();
-        it < off_grid_spike_register_[ tid ].end();
-        ++it )
-  {
-    for ( std::vector< std::vector< OffGridTarget > >::iterator iit = it->begin(); iit < it->end(); ++iit )
-    {
-      iit->clear();
-    }
-  }
-}
 
 inline bool
 EventDeliveryManager::is_marked_for_removal_( const Target& target )

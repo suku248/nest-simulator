@@ -770,19 +770,16 @@ nest::SimulationManager::wfr_update_( Node* n )
 void
 nest::SimulationManager::update_()
 {
-#pragma omp parallel
+  do
   {
-    const thread tid = kernel().vp_manager.get_thread_id();
-
-    do
-    {
 #ifdef TIMER_DETAILED
-#pragma omp barrier
-      if ( tid == 0 )
-      {
-        sw_update_.start();
-      }
+      sw_update_.start();
 #endif
+
+#pragma omp parallel
+    {
+      const thread tid = kernel().vp_manager.get_thread_id();
+
       const SparseNodeArray& thread_local_nodes = kernel().node_manager.get_local_nodes( tid );
 
       for ( SparseNodeArray::const_iterator n = thread_local_nodes.begin(); n != thread_local_nodes.end(); ++n )
@@ -791,45 +788,28 @@ nest::SimulationManager::update_()
 
 	( node )->update( clock_, from_step_, to_step_ );
       }
+    } // end of parallel
 
-// parallel section ends, wait until all threads are done -> synchronize
-#pragma omp barrier
 #ifdef TIMER_DETAILED
-      if ( tid == 0 )
-      {
-        sw_update_.stop();
-        sw_gather_spike_data_.start();
-      }
-#endif
-      
-      // gather and deliver only at end of slice, i.e., end of min_delay step
-      if ( to_step_ == kernel().connection_manager.get_min_delay() )
-      {
-	kernel().event_delivery_manager.gather_spike_data( tid );
-      }
-
-#pragma omp barrier
-#ifdef TIMER_DETAILED
-      if ( tid == 0 )
-      {
-        sw_gather_spike_data_.stop();
-      }
+    sw_update_.stop();
+    sw_gather_spike_data_.start();
 #endif
 
-// the following block is executed by the master thread only
-// the other threads are enforced to wait at the end of the block
-#pragma omp master
-      {
-        advance_time_();
-      }
-// end of master section, all threads have to synchronize at this point
-#pragma omp barrier
-      kernel().io_manager.post_step_hook();
-// enforce synchronization after post-step activities of the recording backends
-#pragma omp barrier
+    // gather and deliver only at end of slice, i.e., end of min_delay step
+    if ( to_step_ == kernel().connection_manager.get_min_delay() )
+    {
+      kernel().event_delivery_manager.gather_spike_data( 0 );
+    }
 
-    } while ( to_do_ > 0 );
-  } // of omp parallel
+#ifdef TIMER_DETAILED
+    sw_gather_spike_data_.stop();
+#endif
+
+    advance_time_();
+
+    kernel().io_manager.post_step_hook();
+  }
+  while ( to_do_ > 0 );
 }
 
 void

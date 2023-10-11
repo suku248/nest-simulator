@@ -26,6 +26,9 @@
 #include <algorithm> // rotate
 #include <numeric>   // accumulate
 
+// Includes from libnestutil:
+#include "nvtx_macros.h"
+
 // Includes from nestkernel:
 #include "connection_manager.h"
 #include "connection_manager_impl.h"
@@ -407,6 +410,7 @@ EventDeliveryManager::gather_spike_data_( std::vector< SpikeDataT >& send_buffer
 #ifdef TIMER_DETAILED
     {
       sw_collocate_spike_data_.start();
+      PUSH_RANGE("collocate_spike_data", 0) // NVTX code annotation
     }
 #endif
 
@@ -433,7 +437,9 @@ EventDeliveryManager::gather_spike_data_( std::vector< SpikeDataT >& send_buffer
 #ifdef TIMER_DETAILED
     {
       sw_collocate_spike_data_.stop();
+      POP_RANGE // NVTX code annotation
       sw_communicate_spike_data_.start();
+      PUSH_RANGE("communicate_spike_data", 0) // NVTX code annotation
     }
 #endif
 
@@ -450,6 +456,7 @@ EventDeliveryManager::gather_spike_data_( std::vector< SpikeDataT >& send_buffer
 #ifdef TIMER_DETAILED
     {
       sw_communicate_spike_data_.stop();
+      POP_RANGE // NVTX code annotation
     }
 #endif
 
@@ -836,10 +843,12 @@ EventDeliveryManager::gather_target_data( const size_t tid )
     {
 #ifdef TIMER_DETAILED
       sw_communicate_target_data_.start();
+      PUSH_RANGE("communicate_target_data", 0) // NVTX code annotation
 #endif
       kernel().mpi_manager.communicate_target_data_Alltoall( send_buffer_target_data_, recv_buffer_target_data_ );
 #ifdef TIMER_DETAILED
       sw_communicate_target_data_.stop();
+      POP_RANGE // NVTX code annotation
 #endif
     } // of omp single (implicit barrier)
 
@@ -905,10 +914,12 @@ EventDeliveryManager::gather_target_data_compressed( const size_t tid )
     {
 #ifdef TIMER_DETAILED
       sw_communicate_target_data_.start();
+      PUSH_RANGE("communicate_target_data", 0) // NVTX code annotation
 #endif
       kernel().mpi_manager.communicate_target_data_Alltoall( send_buffer_target_data_, recv_buffer_target_data_ );
 #ifdef TIMER_DETAILED
       sw_communicate_target_data_.stop();
+      POP_RANGE // NVTX code annotation
 #endif
     } // of omp single (implicit barrier)
 

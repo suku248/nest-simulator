@@ -40,6 +40,13 @@ if( NOT IS_ABSOLUTE ${CMAKE_INSTALL_PREFIX})
     printInfo("Relative CMAKE_INSTALL_PREFIX has been converted to absolute path ${CMAKE_INSTALL_PREFIX}")
 endif()
 
+include ( CPM )
+CPMAddPackage(
+    NAME NVTX
+    GITHUB_REPOSITORY NVIDIA/NVTX
+    GIT_TAG v3.1.0-c-cpp
+    GIT_SHALLOW TRUE)
+
 ################################################################################
 ##################         All User Defined options           ##################
 ################################################################################

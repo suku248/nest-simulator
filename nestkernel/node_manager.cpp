@@ -29,6 +29,7 @@
 // Includes from libnestutil:
 #include "compose.hpp"
 #include "logging.h"
+#include "nvtx_macros.h"
 
 // Includes from nestkernel:
 #include "event_delivery_manager.h"
@@ -109,6 +110,7 @@ NodeCollectionPTR
 NodeManager::add_node( size_t model_id, long n )
 {
   sw_construction_create_.start();
+  PUSH_RANGE("construction_create", 3) // NVTX code annotation
 
   have_nodes_changed_ = true;
 
@@ -182,7 +184,7 @@ NodeManager::add_node( size_t model_id, long n )
   kernel().connection_manager.resize_target_table_devices_to_number_of_synapse_types();
 
   sw_construction_create_.stop();
-
+  POP_RANGE // NVTX code annotation
   return nc_ptr;
 }
 

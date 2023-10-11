@@ -28,6 +28,7 @@ set( nestutil_sources
     logging_event.h logging_event.cpp
     logging.h
     numerics.h numerics.cpp
+    nvtx_macros.h
     regula_falsi.h
     sort.h
     stopwatch.h stopwatch.cpp

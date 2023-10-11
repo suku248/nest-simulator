@@ -145,6 +145,7 @@ set_target_properties( nestkernel
     )
 
 target_link_libraries( nestkernel
+    PRIVATE nvtx3-cpp
     nestutil sli_lib
     ${LTDL_LIBRARIES} ${MPI_CXX_LIBRARIES} ${MUSIC_LIBRARIES} ${SIONLIB_LIBRARIES} ${LIBNEUROSIM_LIBRARIES} ${HDF5_LIBRARIES}
     )

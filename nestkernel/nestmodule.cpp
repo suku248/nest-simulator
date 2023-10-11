@@ -27,6 +27,7 @@
 
 // Includes from libnestutil:
 #include "logging.h"
+#include "nvtx_macros.h"
 
 // Includes from nestkernel:
 #include "conn_builder.h"
@@ -723,6 +724,7 @@ void
 NestModule::Connect_g_g_D_DFunction::execute( SLIInterpreter* i ) const
 {
   kernel().connection_manager.sw_construction_connect.start();
+  PUSH_RANGE("construction_connect", 2) // NVTX code annotation
 
   i->assert_stack_load( 4 );
 
@@ -738,12 +740,14 @@ NestModule::Connect_g_g_D_DFunction::execute( SLIInterpreter* i ) const
   i->EStack.pop();
 
   kernel().connection_manager.sw_construction_connect.stop();
+  POP_RANGE // NVTX code annotation
 }
 
 void
 NestModule::Connect_g_g_D_aFunction::execute( SLIInterpreter* i ) const
 {
   kernel().connection_manager.sw_construction_connect.start();
+  PUSH_RANGE("construction_connect", 2) // NVTX code annotation
 
   i->assert_stack_load( 4 );
 
@@ -765,12 +769,14 @@ NestModule::Connect_g_g_D_aFunction::execute( SLIInterpreter* i ) const
   i->EStack.pop();
 
   kernel().connection_manager.sw_construction_connect.stop();
+  POP_RANGE // NVTX code annotation
 }
 
 void
 NestModule::ConnectSonata_D_Function::execute( SLIInterpreter* i ) const
 {
   kernel().connection_manager.sw_construction_connect.start();
+  PUSH_RANGE("construction_connect", 2) // NVTX code annotation
 
   i->assert_stack_load( 2 );
 
@@ -783,6 +789,7 @@ NestModule::ConnectSonata_D_Function::execute( SLIInterpreter* i ) const
   i->EStack.pop();
 
   kernel().connection_manager.sw_construction_connect.stop();
+  POP_RANGE // NVTX code annotation
 }
 
 /** @BeginDocumentation
@@ -1870,6 +1877,7 @@ void
 NestModule::ConnectLayers_g_g_DFunction::execute( SLIInterpreter* i ) const
 {
   kernel().connection_manager.sw_construction_connect.start();
+  PUSH_RANGE("construction_connect", 2) // NVTX code annotation
 
   i->assert_stack_load( 3 );
 
@@ -1883,6 +1891,7 @@ NestModule::ConnectLayers_g_g_DFunction::execute( SLIInterpreter* i ) const
   i->EStack.pop();
 
   kernel().connection_manager.sw_construction_connect.stop();
+  POP_RANGE // NVTX code annotation
 }
 
 void

@@ -37,6 +37,7 @@
 // Includes from libnestutil:
 #include "compose.hpp"
 #include "logging.h"
+#include "nvtx_macros.h"
 
 // Includes from nestkernel:
 #include "clopath_archiving_node.h"
@@ -565,6 +566,7 @@ nest::ConnectionManager::connect_arrays( long* sources,
 {
   // only place, where stopwatch sw_construction_connect is needed in addition to nestmodule.cpp
   sw_construction_connect.start();
+  PUSH_RANGE("construction_connect", 2) // NVTX code annotation
 
   // Mapping pointers to the first parameter value of each parameter to their respective names.
   // The bool indicates whether the value is an integer or not, and is determined at a later point.
@@ -726,6 +728,7 @@ nest::ConnectionManager::connect_arrays( long* sources,
   }
 
   sw_construction_connect.stop();
+  POP_RANGE // NVTX code annotation
 }
 
 void

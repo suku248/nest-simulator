@@ -32,6 +32,7 @@
 // Includes from libnestutil:
 #include "compose.hpp"
 #include "numerics.h"
+#include "nvtx_macros.h"
 
 // Includes from nestkernel:
 #include "connection_manager_impl.h"
@@ -579,6 +580,7 @@ nest::SimulationManager::run( Time const& t )
   kernel().event_delivery_manager.reset_counters();
 
   sw_simulate_.start();
+  PUSH_RANGE("simulate", 0) // NVTX code annotation
 
   // from_step_ is not touched here.  If we are at the beginning
   // of a simulation, it has been reset properly elsewhere.  If
@@ -609,6 +611,7 @@ nest::SimulationManager::run( Time const& t )
   kernel().random_manager.check_rng_synchrony();
 
   sw_simulate_.stop();
+  POP_RANGE // NVTX code annotation
 }
 
 void
@@ -694,6 +697,7 @@ nest::SimulationManager::update_connection_infrastructure( const size_t tid )
   if ( tid == 0 )
   {
     sw_communicate_prepare_.start();
+    PUSH_RANGE("communicate_prepare", 2)
   }
 
   kernel().connection_manager.restructure_connection_tables( tid );
@@ -729,6 +733,7 @@ nest::SimulationManager::update_connection_infrastructure( const size_t tid )
   if ( tid == 0 )
   {
     sw_gather_target_data_.start();
+    PUSH_RANGE("gather_target_data", 3) // NVTX code annotation
   }
 #endif
 
@@ -753,6 +758,7 @@ nest::SimulationManager::update_connection_infrastructure( const size_t tid )
   if ( tid == 0 )
   {
     sw_gather_target_data_.stop();
+    POP_RANGE // NVTX code annotation
   }
 #endif
 
@@ -773,6 +779,7 @@ nest::SimulationManager::update_connection_infrastructure( const size_t tid )
   if ( tid == 0 )
   {
     sw_communicate_prepare_.stop();
+    POP_RANGE // NVTX code annotation
   }
 }
 
@@ -822,6 +829,7 @@ nest::SimulationManager::update_()
             if ( tid == 0 )
             {
               sw_deliver_spike_data_.start();
+	      PUSH_RANGE("deliver_spike_data", 4) // NVTX code annotation
             }
 #endif
             // Deliver spikes from receive buffer to ring buffers.
@@ -831,6 +839,7 @@ nest::SimulationManager::update_()
             if ( tid == 0 )
             {
               sw_deliver_spike_data_.stop();
+	      POP_RANGE // NVTX code annotation
             }
 #endif
           }
@@ -996,6 +1005,7 @@ nest::SimulationManager::update_()
         if ( tid == 0 )
         {
           sw_update_.start();
+	  PUSH_RANGE("update", 1) // NVTX code annotation
         }
 #endif
         const SparseNodeArray& thread_local_nodes = kernel().node_manager.get_local_nodes( tid );
@@ -1016,6 +1026,7 @@ nest::SimulationManager::update_()
         if ( tid == 0 )
         {
           sw_update_.stop();
+	  POP_RANGE // NVTX code annotation
         }
 #endif
 
@@ -1030,11 +1041,13 @@ nest::SimulationManager::update_()
             {
 #ifdef TIMER_DETAILED
               sw_gather_spike_data_.start();
+	      PUSH_RANGE("gather_spike_data", 1) // NVTX code annotation
 #endif
 
               kernel().event_delivery_manager.gather_spike_data();
 #ifdef TIMER_DETAILED
               sw_gather_spike_data_.stop();
+	      POP_RANGE // NVTX code annotation
 #endif
             }
             if ( kernel().connection_manager.secondary_connections_exist() )

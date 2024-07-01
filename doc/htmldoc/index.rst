@@ -1,130 +1,147 @@
-********************************************
-Welcome to the NEST simulator documentation!
-********************************************
+Welcome to the NEST Simulator documentation!
+============================================
+
+
+.. grid::
+  :gutter: 2
+
+  .. grid-item::
+
+     .. grid:: 1 1 1 1
+       :gutter: 2
+
+       .. grid-item::
+
+          NEST is used in computational neuroscience to model and study behavior of large networks of neurons.
+
+          The models describe single neuron and synapse behavior and their connections.
+          Different mechanisms of plasticity can be used to investigate learning
+          and help to shed light on the fundamental principles of how the brain works.
+
+          NEST offers convenient and efficient commands to define and connect large networks,
+          ranging from algorithmically determined connections to data-driven connectivity.
+          Create connections between neurons using numerous synapse models from STDP to gap junctions.
+
+       .. grid-item::
+
+          .. button-ref:: tutorials_guides
+             :ref-type: ref
+             :shadow:
+             :color: primary
+
+             Start exploring NEST
+
+  .. grid-item::
+
+     .. grid:: 1 1 1 1
+       :gutter: 2
+
+       .. grid-item-card::
+
+          .. carousel::
+              :show_indicators:
+              :show_fade:
+              :show_dark:
+              :data-bs-ride: carousel
+
+                .. figure:: static/img/network_model_sketch_mesocircuit.png
+
+
+                  Create spatially structured networks
+
+
+                .. figure:: static/img/astrocyte_interaction.png
+
+
+                  Inspect neuron and astrocyte interactions
+
+
+                .. figure:: static/img/hpc_benchmark_connectivity.svg
+
+
+                  Test perfomance and benchmarks
+
+                .. figure:: static/img/pong_sim.gif
+
+
+                  Simulate a game of PONG with NEST
+
+                .. figure:: static/img/gapjunctions.png
+
+
+                  Explore synapse types like gap junctions
+
+       .. grid-item::
+
+          .. button-ref:: pynest_examples
+             :ref-type: ref
+             :color: info
+             :align: center
+             :shadow:
+
+             Discover all our examples!
+
+
+How NEST works --- The Big Picture
+----------------------------------
+
+.. grid::
+
+    .. grid-item::
+
+        .. raw:: html
+
+           <object data="_static/img/excalidraw_nestconcept_horiz.svg" type="image/svg+xml"></object>
+
+
+.. grid::
+
+    .. grid-item::
+
+
+        A NEST simulation is created with input from :doc:`stimulation devices </models/index_generator>`,
+        :doc:`neuron models </models/index_neuron>`, and :doc:`synapse models </models/index_synapse>`,
+        along with  :ref:`connection rules <connectivity_concepts>`.
+        You can choose what data to record with :doc:`recording devices </models/index_recorder>`.
+        After simulation, the output is ready for analysis with NEST's built in :py:mod:`.raster_plot` and :py:mod:`.voltage_trace`
+        modules or external tools such as :doc:`Elephant <elephant:index>`.
+
+
+        You can find these components in NEST or you can implement your own custom
+        models and extend NEST's functionalities using :doc:`NESTML <nestml:index>` and the :doc:`NEST extension module <extmod:index>`, respectively.
+        Check out our wide-ranging list of :doc:`network model <examples/index>` examples.
 
 
 .. toctree::
-   :maxdepth: 1
+   :caption: USAGE
+   :hidden:
+   :glob:
+
+   Install <installation/index>
+   Tutorials and Guides <get-started_index>
+   Examples <examples/index>
+   Models <models/index>
+   Python API <ref_material/pynest_api/index>
+   ref_material/glossary
+   Cite NEST <citing-nest>
+   License <license>
+
+
+.. toctree::
+   :caption: COMMUNITY
+   :hidden:
+   :glob:
+
+   Contact us <community>
+   Contribute <developer_space/index>
+   What's new? <whats_new/index>
+   NEST Homepage <https://nest-simulator.org>
+   Acknowledgments <https://github.com/nest/nest-simulator/blob/master/ACKNOWLEDGMENTS.md>
+
+.. toctree::
+   :caption: RELATED PROJECTS
    :hidden:
 
-   Install NEST <installation/index>
-   Tutorials and examples <get-started_index>
-   Understand how NEST works <understand_index>
-   API <ref_material/pynest_apis>
-   Model directory <models/index>
-   Contribute <developer_space/contribute>
-   Community <community>
-   license
-
-In our :ref:`release notes <release_notes>`, you can find an overview of the newest changes and features for NEST 3.x.
-
-If you are transitioning from NEST 2.x to NEST 3.x, check out our :ref:`reference guide <refguide_2_3>`.
-
-
-+------------------------------------+---------------------------------------+
-|                                    |                                       |
-|    :ref:`Download <download>`      |  :ref:`Install <install_nest>`  |
-|                                    |                                       |
-+------------------------------------+---------------------------------------+
-
-NEST is a simulator for **spiking neural network models**, ideal for networks of any size, for example:
-
-1.  Models of information processing e.g., in the visual or auditory cortex of
-    mammals,
-
-2.  Models of network activity dynamics, e.g., laminar cortical networks or
-    balanced random networks,
-
-3.  Models of learning and plasticity.
-
-**New to NEST?**
-    Start here at our :ref:`getting_started` page
-
-
-**Know which model you need?**
-    NEST comes packaged with a large collection of neuron and synaptic plasticity models.
-    You can find a list of all available models in our :doc:`model directory <models/index>`,
-    or select a model category by clicking one of the images:
-
-If you use NEST for your project, don't forget to :ref:`cite NEST <cite_nest>`!
-
-.. raw:: html
-
- <embed>
-
- <a href="models/index_neuron.html">
-    <img src="_static/img/neuron.png" alt="Neuron Models" style="width:150px;height:150px;border:0;">
-  </a>
-  <a href="models/index_synapse.html">
-    <img src="_static/img/synapse1.png" alt="Synapse Models" style="width:150px;height:150px;border:0;">
-  </a>
-  <a href="models/index_device.html">
-    <img src="_static/img/oscilloscope.png" alt="Devices" style="width:150px;height:150px;border:0;">
-  </a>
-  </embed>
-
-**Create complex networks using the Microcircuit Model:**
-
-.. raw:: html
-
-  <embed>
-  <a href="examples/cortical_microcircuit_index.html">
-    <img src="_images/microcircuit.png" alt="Microcircuit" style="width:150px;height:150px;border:0;">
-  </a>
-  </embed>
-
-**Need a different model?**
-    To customize or combine features of neuron and synapse models, we recommend
-    using the `NESTML modeling language <https://nestml.readthedocs.io/>`_.
-
-**Have a question or issue with NEST?**
-    See our :ref:`Getting Help <getting_help>` page.
-
-Where to find what
-------------------
-
-* :ref:`Tutorials <tutorials>` show you step by step instructions using NEST. If you haven't used NEST before, the PyNEST tutorial is a good place to start.
-
-* :ref:`Example Networks <pynest_examples>`  demonstrate the use of dozens of the neural network models implemented in NEST.
-
-* :ref:`Topical Guides <toc_guides>` provide deeper insight into several topics and concepts from :ref:`Parallel Computing <parallel_computing>`
-  to handling :ref:`Gap Junction Simulations <sim_gap_junctions>` and :ref:`setting up a spatially-structured network <spatial_networks>`.
-
-* :ref:`Reference Material <pynest_api>` provides a quick look up of definitions, functions and terms.
-
-Interested in contributing?
----------------------------
-
-* Have you used NEST in an article or presentation? :ref:`Let us know <community>` and we will add it to our list of `publications <https://www.nest-simulator.org/publications/>`_.
-  Find out how to :ref:`cite NEST <cite_nest>` in your work.
-
-* If you have any comments or suggestions, please share them on our :ref:`Mailing List <community>`.
-
-* Want to contribute code? Visit out our :ref:`Contributing <contribute>` pages to get started!
-
-* Interested in creating or editing documentation? Check out our :ref:`Documentation workflows <doc_workflow>`.
-
-* For more info about our larger community and the history of NEST check out the `NEST Initiative <https://www.nest-initiative.org>`_ website
-
-Related projects
-----------------
-
-* :ref:`Discover related projects here <related_projects>`
-
-License
--------
-
-NEST is available under the :ref:`GNU General Public License 2 or later <license>`. This means that you can
-
--  use NEST for your research,
--  modify and improve NEST according to your needs,
--  distribute NEST to others under the same license.
-
-.. include::  ACKNOWLEDGMENTS.md
-
-.. image:: static/img/HBP.png
-  :width: 55 %
-  :target: https://www.humanbrainproject.eu/
-.. image:: static/img/EBRAINS.svg
-  :width: 25 %
-  :target: https://ebrains.eu/
+   NEST Desktop <https://nest-desktop.readthedocs.io/en/latest/>
+   NESTML <https://nestml.readthedocs.io/en/latest/>
+   NESTGPU <https://nest-gpu.readthedocs.io/en/latest/>

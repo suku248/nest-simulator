@@ -76,12 +76,12 @@ The following parameters can be set in the status dictionary:
 
 ========  ======  ========================================================
  U        real    Parameter determining the increase in u with each spike
-                  (U1) [0,1], default=0.5
+                  (U1) [0,1], default = 0.5
  u        real    The probability of release (U_se) [0,1],
-                  default=0.5
- x        real    Current scaling factor of the weight, default=U
- tau_fac  ms      Time constant for facilitation, default = 0(off)
- tau_rec  ms      Time constant for depression, default = 800ms
+                  default = U
+ x        real    Current scaling factor of the weight, default = 1.0
+ tau_fac  ms      Time constant for facilitation, default = 0 (off)
+ tau_rec  ms      Time constant for depression, default = 800
 ========  ======  ========================================================
 
 References
@@ -109,7 +109,14 @@ See also
 
 tsodyks_synapse, stdp_synapse, static_synapse
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: tsodyks2_synapse
+
 EndUserDocs */
+
+void register_tsodyks2_synapse( const std::string& name );
 
 template < typename targetidentifierT >
 class tsodyks2_synapse : public Connection< targetidentifierT >
@@ -117,6 +124,10 @@ class tsodyks2_synapse : public Connection< targetidentifierT >
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
   typedef Connection< targetidentifierT > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
@@ -142,7 +153,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places these
   // functions are used. Since ConnectionBase depends on the template parameter,
   // they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -162,8 +173,7 @@ public:
    * \param e The event to send
    * \param cp Common properties to all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
-
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
   {
@@ -171,19 +181,19 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
   }
 
   void
@@ -203,6 +213,8 @@ private:
   double t_lastspike_; //!< time point of last spike emitted
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties tsodyks2_synapse< targetidentifierT >::properties;
 
 /**
  * Send an event to the receiver of this connection.
@@ -210,8 +222,8 @@ private:
  * \param p The port under which this connection is stored in the Connector.
  */
 template < typename targetidentifierT >
-inline void
-tsodyks2_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+tsodyks2_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
   Node* target = get_target( t );
   const double t_spike = e.get_stamp().get_ms();
@@ -232,6 +244,8 @@ tsodyks2_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSyn
   u_ = U_ + u_ * ( 1. - U_ ) * u_decay;      // Eq. 4 from [3]_
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 template < typename targetidentifierT >
@@ -240,7 +254,7 @@ tsodyks2_synapse< targetidentifierT >::tsodyks2_synapse()
   , weight_( 1.0 )
   , U_( 0.5 )
   , u_( U_ )
-  , x_( 1 )
+  , x_( 1.0 )
   , tau_rec_( 800.0 )
   , tau_fac_( 0.0 )
   , t_lastspike_( 0.0 )
@@ -270,27 +284,27 @@ tsodyks2_synapse< targetidentifierT >::set_status( const DictionaryDatum& d, Con
   updateValue< double >( d, names::weight, weight_ );
 
   updateValue< double >( d, names::dU, U_ );
-  if ( U_ > 1.0 || U_ < 0.0 )
+  if ( U_ > 1.0 or U_ < 0.0 )
   {
-    throw BadProperty( "U must be in [0,1]." );
+    throw BadProperty( "'U' must be in [0,1]." );
   }
 
   updateValue< double >( d, names::u, u_ );
-  if ( u_ > 1.0 || u_ < 0.0 )
+  if ( u_ > 1.0 or u_ < 0.0 )
   {
-    throw BadProperty( "u must be in [0,1]." );
+    throw BadProperty( "'u' must be in [0,1]." );
   }
 
   updateValue< double >( d, names::tau_rec, tau_rec_ );
   if ( tau_rec_ <= 0.0 )
   {
-    throw BadProperty( "tau_rec must be > 0." );
+    throw BadProperty( "'tau_rec' must be > 0." );
   }
 
   updateValue< double >( d, names::tau_fac, tau_fac_ );
   if ( tau_fac_ < 0.0 )
   {
-    throw BadProperty( "tau_fac must be >= 0." );
+    throw BadProperty( "'tau_fac' must be >= 0." );
   }
 
   updateValue< double >( d, names::x, x_ );

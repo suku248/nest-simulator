@@ -32,17 +32,27 @@
 // Includes from nestkernel:
 #include "event_delivery_manager_impl.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
 
 // Includes from sli:
 #include "dict.h"
 #include "doubledatum.h"
 
+void
+nest::register_ppd_sup_generator( const std::string& name )
+{
+  register_node_model< ppd_sup_generator >( name );
+}
+
+
+namespace nest
+{
 
 /* ----------------------------------------------------------------
  * Constructor of age distribution class
  * ---------------------------------------------------------------- */
 
-nest::ppd_sup_generator::Age_distribution_::Age_distribution_( size_t num_age_bins,
+ppd_sup_generator::Age_distribution_::Age_distribution_( size_t num_age_bins,
   unsigned long ini_occ_ref,
   unsigned long ini_occ_act )
 {
@@ -56,7 +66,7 @@ nest::ppd_sup_generator::Age_distribution_::Age_distribution_( size_t num_age_bi
  * ---------------------------------------------------------------- */
 
 unsigned long
-nest::ppd_sup_generator::Age_distribution_::update( double hazard_step, RngPtr rng )
+ppd_sup_generator::Age_distribution_::update( double hazard_step, RngPtr rng )
 {
   unsigned long n_spikes; // only set from poisson_dev, bino_dev or 0, thus >= 0
   if ( occ_active_ > 0 )
@@ -69,7 +79,7 @@ nest::ppd_sup_generator::Age_distribution_::update( double hazard_step, RngPtr r
     of thumb, this approximation is good if n >= 20 and p <= 0.05, or if
     n >= 100 and np <= 10. Source:
     http://en.wikipedia.org/wiki/Binomial_distribution#Poisson_approximation */
-    if ( ( occ_active_ >= 100 && hazard_step <= 0.01 ) || ( occ_active_ >= 500 && hazard_step * occ_active_ <= 0.1 ) )
+    if ( ( occ_active_ >= 100 and hazard_step <= 0.01 ) or ( occ_active_ >= 500 and hazard_step * occ_active_ <= 0.1 ) )
     {
       poisson_distribution::param_type param( hazard_step * occ_active_ );
       n_spikes = poisson_dist_( rng, param );
@@ -103,7 +113,7 @@ nest::ppd_sup_generator::Age_distribution_::update( double hazard_step, RngPtr r
  * Default constructors defining default parameter
  * ---------------------------------------------------------------- */
 
-nest::ppd_sup_generator::Parameters_::Parameters_()
+ppd_sup_generator::Parameters_::Parameters_()
   : rate_( 0.0 )      // Hz
   , dead_time_( 0.0 ) // ms
   , n_proc_( 1 )
@@ -118,7 +128,7 @@ nest::ppd_sup_generator::Parameters_::Parameters_()
  * ---------------------------------------------------------------- */
 
 void
-nest::ppd_sup_generator::Parameters_::get( DictionaryDatum& d ) const
+ppd_sup_generator::Parameters_::get( DictionaryDatum& d ) const
 {
   ( *d )[ names::rate ] = rate_;
   ( *d )[ names::dead_time ] = dead_time_;
@@ -128,9 +138,8 @@ nest::ppd_sup_generator::Parameters_::get( DictionaryDatum& d ) const
 }
 
 void
-nest::ppd_sup_generator::Parameters_::set( const DictionaryDatum& d, Node* node )
+ppd_sup_generator::Parameters_::set( const DictionaryDatum& d, Node* node )
 {
-
   updateValueParam< double >( d, names::dead_time, dead_time_, node );
   if ( dead_time_ < 0 )
   {
@@ -168,13 +177,13 @@ nest::ppd_sup_generator::Parameters_::set( const DictionaryDatum& d, Node* node 
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::ppd_sup_generator::ppd_sup_generator()
+ppd_sup_generator::ppd_sup_generator()
   : StimulationDevice()
   , P_()
 {
 }
 
-nest::ppd_sup_generator::ppd_sup_generator( const ppd_sup_generator& n )
+ppd_sup_generator::ppd_sup_generator( const ppd_sup_generator& n )
   : StimulationDevice( n )
   , P_( n.P_ )
 {
@@ -186,19 +195,19 @@ nest::ppd_sup_generator::ppd_sup_generator( const ppd_sup_generator& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::ppd_sup_generator::init_state_()
+ppd_sup_generator::init_state_()
 {
   StimulationDevice::init_state();
 }
 
 void
-nest::ppd_sup_generator::init_buffers_()
+ppd_sup_generator::init_buffers_()
 {
   StimulationDevice::init_buffers();
 }
 
 void
-nest::ppd_sup_generator::pre_run_hook()
+ppd_sup_generator::pre_run_hook()
 {
   StimulationDevice::pre_run_hook();
 
@@ -229,12 +238,9 @@ nest::ppd_sup_generator::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::ppd_sup_generator::update( Time const& T, const long from, const long to )
+ppd_sup_generator::update( Time const& T, const long from, const long to )
 {
-  assert( to >= 0 && ( delay ) from < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
-  if ( P_.rate_ <= 0 || P_.num_targets_ == 0 )
+  if ( P_.rate_ <= 0 or P_.num_targets_ == 0 )
   {
     return;
   }
@@ -249,7 +255,7 @@ nest::ppd_sup_generator::update( Time const& T, const long from, const long to )
     }
 
     // get current (time-dependent) hazard rate and store it.
-    if ( P_.amplitude_ > 0.0 && ( P_.frequency_ > 0.0 || P_.frequency_ < 0.0 ) )
+    if ( P_.amplitude_ > 0.0 and P_.frequency_ != 0.0 )
     {
       double t_ms = t.get_ms();
       V_.hazard_step_t_ = V_.hazard_step_ * ( 1.0 + P_.amplitude_ * std::sin( V_.omega_ * t_ms ) );
@@ -266,13 +272,13 @@ nest::ppd_sup_generator::update( Time const& T, const long from, const long to )
 
 
 void
-nest::ppd_sup_generator::event_hook( DSSpikeEvent& e )
+ppd_sup_generator::event_hook( DSSpikeEvent& e )
 {
   // get port number
-  const port prt = e.get_port();
+  const size_t prt = e.get_port();
 
   // we handle only one port here, get reference to vector element
-  assert( 0 <= prt && static_cast< size_t >( prt ) < B_.age_distributions_.size() );
+  assert( prt < B_.age_distributions_.size() );
 
   // age_distribution object propagates one time step and returns number of
   // spikes
@@ -291,7 +297,7 @@ nest::ppd_sup_generator::event_hook( DSSpikeEvent& e )
  * ---------------------------------------------------------------- */
 
 void
-nest::ppd_sup_generator::set_data_from_stimulation_backend( std::vector< double >& input_param )
+ppd_sup_generator::set_data_from_stimulation_backend( std::vector< double >& input_param )
 {
   Parameters_ ptmp = P_; // temporary copy in case of errors
 
@@ -316,3 +322,5 @@ nest::ppd_sup_generator::set_data_from_stimulation_backend( std::vector< double 
   // if we get here, temporary contains consistent set of properties
   P_ = ptmp;
 }
+
+} // namespace nest

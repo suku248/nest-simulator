@@ -49,73 +49,42 @@ namespace nest
 class ArchivingNode : public StructuralPlasticityNode
 {
 public:
-  /**
-   * \fn ArchivingNode()
-   * Constructor.
-   */
   ArchivingNode();
 
-  /**
-   * \fn ArchivingNode()
-   * Copy Constructor.
-   */
   ArchivingNode( const ArchivingNode& );
 
   /**
-   * \fn double get_K_value(long t)
-   * return the Kminus (synaptic trace) value at t (in ms). When the trace is
-   * requested at the exact same time that the neuron emits a spike, the trace
-   * value as it was just before the spike is returned.
+   * Return the Kminus (synaptic trace) value at time t (given in ms).
+   *
+   * When the trace is requested at the exact same time that the neuron emits a spike,
+   * the trace value as it was just before the spike is returned.
    */
-  double get_K_value( double t );
+  double get_K_value( double t ) override;
 
   /**
-   * \fn void get_K_values( double t,
-   *   double& Kminus,
-   *   double& nearest_neighbor_Kminus,
-   *   double& Kminus_triplet )
-   * write the Kminus (eligibility trace for STDP),
-   * nearest_neighbour_Kminus (eligibility trace for nearest-neighbour STDP:
-   *   like Kminus, but increased to 1, rather than by 1, on a spike
-   *   occurrence),
-   * and Kminus_triplet
-   * values at t (in ms) to the provided locations.
+   * Write the different STDP K values at time t (in ms) to the provided locations.
+   *
+   * @param Kminus the eligibility trace for STDP
+   * @param nearest_neighbour_Kminus eligibility trace for nearest-neighbour STDP, like Kminus,
+                                     but increased to 1, rather than by 1, when a spike occurs
+   * @param Kminus_triplet eligibility trace for triplet STDP
+   *
    * @throws UnexpectedEvent
    */
-  void get_K_values( double t, double& Kminus, double& nearest_neighbor_Kminus, double& Kminus_triplet );
+  void get_K_values( double t, double& Kminus, double& nearest_neighbor_Kminus, double& Kminus_triplet ) override;
 
   /**
-   * \fn void get_K_values( double t,
-   *   double& Kminus,
-   *   double& Kminus_triplet )
-   * The legacy version of the function, kept for compatibility
-   * after changing the function signature in PR #865.
-   * @throws UnexpectedEvent
-   */
-  void
-  get_K_values( double t, double& Kminus, double& Kminus_triplet )
-  {
-    double nearest_neighbor_Kminus_to_discard;
-    get_K_values( t, Kminus, nearest_neighbor_Kminus_to_discard, Kminus_triplet );
-  }
-
-  /**
-   * \fn double get_K_triplet_value(std::deque<histentry>::iterator &iter)
-   * return the triplet Kminus value for the associated iterator.
+   * Return the triplet Kminus value for the associated iterator.
    */
   double get_K_triplet_value( const std::deque< histentry >::iterator& iter );
 
   /**
-   * \fn void get_history(long t1, long t2,
-   * std::deque<Archiver::histentry>::iterator* start,
-   * std::deque<Archiver::histentry>::iterator* finish)
-   * return the spike times (in steps) of spikes which occurred in the range
-   * (t1,t2].
+   * Return the spike times (in steps) of spikes which occurred in the range [t1,t2].
    */
   void get_history( double t1,
     double t2,
     std::deque< histentry >::iterator* start,
-    std::deque< histentry >::iterator* finish );
+    std::deque< histentry >::iterator* finish ) override;
 
   /**
    * Register a new incoming STDP connection.
@@ -123,44 +92,49 @@ public:
    * t_first_read: The newly registered synapse will read the history entries
    * with t > t_first_read.
    */
-  void register_stdp_connection( double t_first_read, double delay );
+  void register_stdp_connection( const double t_first_read,
+    const double dendritic_delay,
+    const double axonal_delay ) override;
 
-  void get_status( DictionaryDatum& d ) const;
-  void set_status( const DictionaryDatum& d );
+  void get_status( DictionaryDatum& d ) const override;
+  void set_status( const DictionaryDatum& d ) override;
 
   /**
    * Framework for STDP with predominantly axonal delays:
    * Buffer a correction entry for a short time window.
    */
-  void add_correction_entry_stdp_ax_delay( SpikeEvent& spike_event, const double t_last_pre_spike, const double weight_revert );
+  void add_correction_entry_stdp_ax_delay( SpikeEvent& spike_event,
+    const double t_last_pre_spike,
+    const double weight_revert,
+    const double time_until_uncritical );
 
 
 protected:
   void pre_run_hook_();
 
   /**
-   * \fn void set_spiketime(Time const & t_sp, double offset)
-   * record spike history
+   * Record spike history
    */
   void set_spiketime( Time const& t_sp, double offset = 0.0 );
 
   /**
-   * \fn double get_spiketime()
-   * return most recent spike time in ms
+   * Return most recent spike time in ms
    */
   inline double get_spiketime_ms() const;
 
   /**
-   * \fn void clear_history()
-   * clear spike history
+   * Clear spike history
    */
   void clear_history();
 
   void reset_correction_entries_stdp_ax_delay_();
 
-  // number of incoming connections from stdp connectors.
-  // needed to determine, if every incoming connection has
-  // read the spikehistory for a given point in time
+  /**
+   * Number of incoming connections from STDP connectors.
+   *
+   * This variable is needed to determine if every incoming connection has
+   * read the spikehistory for a given point in time
+   */
   size_t n_incoming_;
 
 private:
@@ -194,31 +168,41 @@ private:
    */
   struct CorrectionEntrySTDPAxDelay
   {
-    CorrectionEntrySTDPAxDelay( const SpikeData& spike_data, const double t_last_pre_spike, const double weight_revert )
-      : spike_data_( spike_data )
+    CorrectionEntrySTDPAxDelay( const size_t lcid,
+      const synindex syn_id,
+      const double t_last_pre_spike,
+      const double weight_revert )
+      : lcid_( lcid )
+      , syn_id_( syn_id )
       , t_last_pre_spike_( t_last_pre_spike )
       , weight_revert_( weight_revert )
     {
     }
 
-    SpikeData spike_data_;    //!< data of incoming spike including synapse location (tid|syn_id|lcid)
+    unsigned int lcid_;       //!< local connection index
+    synindex syn_id_;         //!< synapse-type index
     double t_last_pre_spike_; //!< time of the last pre-synaptic spike before this spike
     double weight_revert_;    //!< synaptic weight to revert to (STDP depression needs to be undone)
   };
 
+  //! check for correct correction entry size
+  using correction_entry_size = StaticAssert< sizeof( ArchivingNode::CorrectionEntrySTDPAxDelay ) == 24 >::success;
+
+protected:
   /**
    * Framework for STDP with predominantly axonal delays:
    * Buffer of correction entries sorted by t_spike_pre + delay
    * (i.e., the actual arrival time at this neuron).
    */
   std::vector< std::vector< CorrectionEntrySTDPAxDelay > > correction_entries_stdp_ax_delay_;
-  bool has_stdp_ax_delay_; //!< false by default and set to true after the first entry was added to correction_entries_stdp_ax_delay_
+  bool has_stdp_ax_delay_; //!< false by default and set to true after the first entry was added to
+                           //!< correction_entries_stdp_ax_delay_
 
   /**
    * Framework for STDP with predominantly axonal delays:
    * Triggered when this neuron spikes, to correct all relevant incoming STDP synapses with predominantly axonal delays
    * and corresponding received spikes. */
-  void correct_synapses_stdp_ax_delay_( const Time& t_spike );
+  virtual void correct_synapses_stdp_ax_delay_( const Time& t_spike );
 };
 
 inline double

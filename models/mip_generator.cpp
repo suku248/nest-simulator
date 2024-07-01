@@ -30,12 +30,23 @@
 #include "event_delivery_manager_impl.h"
 #include "exceptions.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
+
+void
+nest::register_mip_generator( const std::string& name )
+{
+  register_node_model< mip_generator >( name );
+}
+
+
+namespace nest
+{
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameter
  * ---------------------------------------------------------------- */
 
-nest::mip_generator::Parameters_::Parameters_()
+mip_generator::Parameters_::Parameters_()
   : rate_( 0.0 ) // Hz
   , p_copy_( 1.0 )
 {
@@ -46,14 +57,14 @@ nest::mip_generator::Parameters_::Parameters_()
  * ---------------------------------------------------------------- */
 
 void
-nest::mip_generator::Parameters_::get( DictionaryDatum& d ) const
+mip_generator::Parameters_::get( DictionaryDatum& d ) const
 {
   ( *d )[ names::rate ] = rate_;
   ( *d )[ names::p_copy ] = p_copy_;
 }
 
 void
-nest::mip_generator::Parameters_::set( const DictionaryDatum& d, Node* node )
+mip_generator::Parameters_::set( const DictionaryDatum& d, Node* node )
 {
   updateValueParam< double >( d, names::rate, rate_, node );
   updateValueParam< double >( d, names::p_copy, p_copy_, node );
@@ -73,13 +84,13 @@ nest::mip_generator::Parameters_::set( const DictionaryDatum& d, Node* node )
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::mip_generator::mip_generator()
+mip_generator::mip_generator()
   : StimulationDevice()
   , P_()
 {
 }
 
-nest::mip_generator::mip_generator( const mip_generator& n )
+mip_generator::mip_generator( const mip_generator& n )
   : StimulationDevice( n )
   , P_( n.P_ ) // also causes deep copy of random nnumber generator
 {
@@ -90,19 +101,19 @@ nest::mip_generator::mip_generator( const mip_generator& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::mip_generator::init_state_()
+mip_generator::init_state_()
 {
   StimulationDevice::init_state();
 }
 
 void
-nest::mip_generator::init_buffers_()
+mip_generator::init_buffers_()
 {
   StimulationDevice::init_buffers();
 }
 
 void
-nest::mip_generator::pre_run_hook()
+mip_generator::pre_run_hook()
 {
   StimulationDevice::pre_run_hook();
 
@@ -117,14 +128,11 @@ nest::mip_generator::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::mip_generator::update( Time const& T, const long from, const long to )
+mip_generator::update( Time const& T, const long from, const long to )
 {
-  assert( to >= 0 and static_cast< delay >( from ) < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
   for ( long lag = from; lag < to; ++lag )
   {
-    if ( not StimulationDevice::is_active( T ) || P_.rate_ <= 0 )
+    if ( not StimulationDevice::is_active( T ) or P_.rate_ <= 0 )
     {
       return; // no spikes to be generated
     }
@@ -143,7 +151,7 @@ nest::mip_generator::update( Time const& T, const long from, const long to )
 }
 
 void
-nest::mip_generator::event_hook( DSSpikeEvent& e )
+mip_generator::event_hook( DSSpikeEvent& e )
 {
   /*
      We temporarily set the spike multiplicity here to the number of
@@ -181,7 +189,7 @@ nest::mip_generator::event_hook( DSSpikeEvent& e )
  * Other functions
  * ---------------------------------------------------------------- */
 void
-nest::mip_generator::set_data_from_stimulation_backend( std::vector< double >& input_param )
+mip_generator::set_data_from_stimulation_backend( std::vector< double >& input_param )
 {
   Parameters_ ptmp = P_; // temporary copy in case of errors
 
@@ -204,3 +212,5 @@ nest::mip_generator::set_data_from_stimulation_backend( std::vector< double >& i
   // if we get here, temporary contains consistent set of properties
   P_ = ptmp;
 }
+
+} // namespace nest

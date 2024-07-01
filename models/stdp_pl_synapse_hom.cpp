@@ -26,10 +26,16 @@
 #include "common_synapse_properties.h"
 #include "connector_model.h"
 #include "event.h"
+#include "nest_impl.h"
 
 // Includes from sli:
 #include "dictdatum.h"
 
+void
+nest::register_stdp_pl_synapse_hom( const std::string& name )
+{
+  register_connection_model< stdp_pl_synapse_hom >( name );
+}
 
 namespace nest
 {
@@ -45,7 +51,6 @@ STDPPLHomCommonProperties::STDPPLHomCommonProperties()
   , lambda_( 0.1 )
   , alpha_( 1.0 )
   , mu_( 0.4 )
-  , axonal_delay_( 0.0 )
 {
 }
 
@@ -58,7 +63,6 @@ STDPPLHomCommonProperties::get_status( DictionaryDatum& d ) const
   def< double >( d, names::lambda, lambda_ );
   def< double >( d, names::alpha, alpha_ );
   def< double >( d, names::mu, mu_ );
-  def< double >( d, names::axonal_delay, axonal_delay_ );
 }
 
 void
@@ -78,11 +82,6 @@ STDPPLHomCommonProperties::set_status( const DictionaryDatum& d, ConnectorModel&
   updateValue< double >( d, names::lambda, lambda_ );
   updateValue< double >( d, names::alpha, alpha_ );
   updateValue< double >( d, names::mu, mu_ );
-  updateValue< double >( d, names::axonal_delay, axonal_delay_ );
-  if ( axonal_delay_ < 0.0 ) // consistency with overall delay is checked in check_connection()
-  {
-    throw BadProperty( "Axonal delay should not be negative." );
-  }
 }
 
 } // of namespace nest

@@ -66,7 +66,8 @@ recordables to have them sampled during simulation.
 
 ::
 
-   mm = nest.Create('multimeter', 1, {'record_from': ['V_m', 'g_ex']})
+   mm = nest.Create('multimeter', 1, {'record_from': ['V_m', 'g_ex'],
+   'record_to': memory})
 
 The sampling interval for recordings (given in ms) can be controlled
 using the ``multimeter`` parameter ``interval``. The default value of
@@ -96,8 +97,8 @@ it should record from by using the standard ``Connect`` routine.
     nest.Connect(mm, neurons)
 
 To learn more about possible connection patterns and additional
-options when using ``Connect``, see the guide on :ref:`connection
-management <connection_management>`.
+options when using ``Connect``, see the guide on :ref:`connectivity
+concepts <connectivity_concepts>`.
 
 The above call to ``Connect`` would fail if the neurons would not
 support the sampling of the values ``V_m`` and ``g_ex``. It would also
@@ -124,10 +125,18 @@ interval
 See also
 ++++++++
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: multimeter
+
 EndUserDocs */
 
 namespace nest
 {
+
+void register_multimeter( const std::string& name );
+void register_voltmeter( const std::string& name );
 
 class multimeter : public RecordingDevice
 {
@@ -141,13 +150,13 @@ public:
    *       sample their targets through local communication.
    */
   bool
-  has_proxies() const
+  has_proxies() const override
   {
     return false;
   }
 
   Name
-  get_element_type() const
+  get_element_type() const override
   {
     return names::recorder;
   }
@@ -161,20 +170,20 @@ public:
   using Node::handles_test_event;
   using Node::sends_signal;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( DataLoggingReply& );
+  void handle( DataLoggingReply& ) override;
 
-  SignalType sends_signal() const;
+  SignalType sends_signal() const override;
 
-  Type get_type() const;
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  Type get_type() const override;
+  void get_status( DictionaryDatum& ) const override;
+  void set_status( const DictionaryDatum& ) override;
 
-  void calibrate_time( const TimeConverter& tc );
+  void calibrate_time( const TimeConverter& tc ) override;
 
 protected:
-  void pre_run_hook();
+  void pre_run_hook() override;
 
   /**
    * Collect and output membrane potential information.
@@ -183,7 +192,7 @@ protected:
    * that information. The sampled nodes must provide data from
    * the previous time slice.
    */
-  void update( Time const&, const long, const long );
+  void update( Time const&, const long, const long ) override;
 
 private:
   struct Buffers_;
@@ -252,7 +261,7 @@ nest::multimeter::set_status( const DictionaryDatum& d )
 {
   // protect multimeter from being frozen
   bool freeze = false;
-  if ( updateValue< bool >( d, names::frozen, freeze ) && freeze )
+  if ( updateValue< bool >( d, names::frozen, freeze ) and freeze )
   {
     throw BadProperty( "multimeter cannot be frozen." );
   }

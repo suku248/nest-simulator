@@ -1,3 +1,5 @@
+:orphan:
+
 .. _troubleshooting:
 
 Troubleshooting
@@ -8,7 +10,7 @@ Here you can find some tips to try to find out why your installation of NEST did
 Please make sure you have:
 
 * Followed the :ref:`installation instructions <install_nest>`
-* Installed the required :ref:`dependencies <standard>`
+* Installed the required `dependencies <https://github.com/nest/nest-simulator/blob/master/environment.yml>`_
 * Viewed the :ref:`CMake options <cmake_options>`
 
 You can also check our `Mailing List Archive <https://www.nest-initiative.org/mailinglist/hyperkitty/list/
@@ -116,7 +118,7 @@ This error message means something in your environment is not set correctly, dep
 
 1. Check which Python version you are running
 
-   You must use **Python 3.8** or newer if you installed NEST with
+   You must use Python :version:`python` or newer if you installed NEST with
 
    a. the Ubuntu PPA,
    b. the conda-forge package,
@@ -201,7 +203,7 @@ If your Python version is correct and you still have the same error, then try on
 
     .. code-block:: bash
 
-        docker pull nestsim/nest:<version>
+        docker pull nest/nest-simulator:<version>
 
     replacing ``<version>`` with the actual version you want to use.
 
@@ -209,7 +211,7 @@ If your Python version is correct and you still have the same error, then try on
 
     .. code-block:: bash
 
-       docker run --rm -e LOCAL_USER_ID=`id -u $USER` -v $(pwd):/opt/data -p 8080:8080 nestsim/nest:<version> notebook
+       docker run --rm -e LOCAL_USER_ID=`id -u $USER` -v $(pwd):/opt/data -p 8080:8080 nest/nest-simulator:<version> notebook
 
 Can't find an answer to your question?
 --------------------------------------

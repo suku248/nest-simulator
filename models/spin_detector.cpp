@@ -22,32 +22,36 @@
 
 #include "spin_detector.h"
 
-// C++ includes:
-#include <numeric>
 
 // Includes from libnestutil:
 #include "compose.hpp"
-#include "dict_util.h"
-#include "logging.h"
 
 // Includes from nestkernel:
 #include "event_delivery_manager_impl.h"
 #include "kernel_manager.h"
+#include "model_manager_impl.h"
+#include "nest_impl.h"
 
 // Includes from sli:
-#include "arraydatum.h"
 #include "dict.h"
 #include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
 
-nest::spin_detector::spin_detector()
+namespace nest
+{
+
+void
+register_spin_detector( const std::string& name )
+{
+  register_node_model< spin_detector >( name );
+}
+
+spin_detector::spin_detector()
   : last_in_node_id_( 0 )
   , t_last_in_spike_( Time::neg_inf() )
 {
 }
 
-nest::spin_detector::spin_detector( const spin_detector& n )
+spin_detector::spin_detector( const spin_detector& n )
   : RecordingDevice( n )
   , last_in_node_id_( 0 )
   , t_last_in_spike_( Time::neg_inf() ) // mark as not initialized
@@ -55,18 +59,18 @@ nest::spin_detector::spin_detector( const spin_detector& n )
 }
 
 void
-nest::spin_detector::init_buffers_()
+spin_detector::init_buffers_()
 {
 }
 
 void
-nest::spin_detector::pre_run_hook()
+spin_detector::pre_run_hook()
 {
-  RecordingDevice::pre_run_hook( RecordingBackend::NO_DOUBLE_VALUE_NAMES, { nest::names::state } );
+  RecordingDevice::pre_run_hook( RecordingBackend::NO_DOUBLE_VALUE_NAMES, { names::state } );
 }
 
 void
-nest::spin_detector::update( Time const&, const long, const long )
+spin_detector::update( Time const&, const long, const long )
 {
   if ( last_in_node_id_ != 0 ) // if last_* is empty we dont write
   {
@@ -75,14 +79,14 @@ nest::spin_detector::update( Time const&, const long, const long )
   }
 }
 
-nest::RecordingDevice::Type
-nest::spin_detector::get_type() const
+RecordingDevice::Type
+spin_detector::get_type() const
 {
   return RecordingDevice::SPIN_DETECTOR;
 }
 
 void
-nest::spin_detector::get_status( DictionaryDatum& d ) const
+spin_detector::get_status( DictionaryDatum& d ) const
 {
   // get the data from the device
   RecordingDevice::get_status( d );
@@ -106,14 +110,14 @@ nest::spin_detector::get_status( DictionaryDatum& d ) const
 }
 
 void
-nest::spin_detector::set_status( const DictionaryDatum& d )
+spin_detector::set_status( const DictionaryDatum& d )
 {
   RecordingDevice::set_status( d );
 }
 
 
 void
-nest::spin_detector::handle( SpikeEvent& e )
+spin_detector::handle( SpikeEvent& e )
 {
   // accept spikes only if detector was active when spike was
   // emitted
@@ -132,9 +136,9 @@ nest::spin_detector::handle( SpikeEvent& e )
     // are conveyed by setting the multiplicity accordingly.
 
     long m = e.get_multiplicity();
-    index node_id = e.get_sender_node_id();
+    size_t node_id = e.get_sender_node_id();
     const Time& t_spike = e.get_stamp();
-    if ( m == 1 && node_id == last_in_node_id_ && t_spike == t_last_in_spike_ )
+    if ( m == 1 and node_id == last_in_node_id_ and t_spike == t_last_in_spike_ )
     {
       // received twice the same node ID, so transition 0->1
       // revise the last event
@@ -168,3 +172,5 @@ nest::spin_detector::handle( SpikeEvent& e )
     }
   }
 }
+
+} // namespace nest

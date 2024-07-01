@@ -19,12 +19,11 @@
 # You should have received a copy of the GNU General Public License
 # along with NEST.  If not, see <http://www.gnu.org/licenses/>.
 
+from cpython.ref cimport PyObject
 from libcpp cimport bool as cbool
-
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 
-from cpython.ref cimport PyObject
 
 cdef extern from "name.h":
     cppclass Name:
@@ -149,7 +148,7 @@ cdef extern from "neststartup.h":
 cdef extern from "nest.h" namespace "nest":
     Datum* node_collection_array_index(const Datum* node_collection, const long* array, unsigned long n) except +
     Datum* node_collection_array_index(const Datum* node_collection, const cbool* array, unsigned long n) except +
-    void connect_arrays( long* sources, long* targets, double* weights, double* delays, vector[string]& p_keys, double* p_values, size_t n, string syn_model ) except +
+    void connect_arrays( long* sources, long* targets, double* weights, double* delays, double* axonal_delays, vector[string]& p_keys, double* p_values, size_t n, string syn_model ) except +
 
 cdef extern from *:
 

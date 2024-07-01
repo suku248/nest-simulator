@@ -22,55 +22,61 @@
 
 #include "spike_recorder.h"
 
-// C++ includes:
-#include <numeric>
 
 // Includes from libnestutil:
 #include "compose.hpp"
-#include "dict_util.h"
-#include "logging.h"
 
 // Includes from nestkernel:
 #include "event_delivery_manager_impl.h"
 #include "kernel_manager.h"
+#include "model_manager_impl.h"
+#include "nest_impl.h"
 
 // Includes from sli:
-#include "arraydatum.h"
 #include "dict.h"
 #include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
 
-nest::spike_recorder::spike_recorder()
+
+namespace nest
+{
+
+void
+register_spike_recorder( const std::string& name )
+{
+  register_node_model< spike_recorder >( name );
+}
+
+
+spike_recorder::spike_recorder()
   : RecordingDevice()
 {
 }
 
-nest::spike_recorder::spike_recorder( const spike_recorder& n )
+spike_recorder::spike_recorder( const spike_recorder& n )
   : RecordingDevice( n )
 {
 }
 
 void
-nest::spike_recorder::pre_run_hook()
+spike_recorder::pre_run_hook()
 {
   RecordingDevice::pre_run_hook( RecordingBackend::NO_DOUBLE_VALUE_NAMES, RecordingBackend::NO_LONG_VALUE_NAMES );
 }
 
 void
-nest::spike_recorder::update( Time const&, const long, const long )
+spike_recorder::update( Time const&, const long, const long )
 {
   // Nothing to do. Writing to the backend happens in handle().
 }
 
-nest::RecordingDevice::Type
-nest::spike_recorder::get_type() const
+RecordingDevice::Type
+spike_recorder::get_type() const
 {
   return RecordingDevice::SPIKE_RECORDER;
 }
 
 void
-nest::spike_recorder::get_status( DictionaryDatum& d ) const
+spike_recorder::get_status( DictionaryDatum& d ) const
 {
   RecordingDevice::get_status( d );
 
@@ -92,22 +98,24 @@ nest::spike_recorder::get_status( DictionaryDatum& d ) const
 }
 
 void
-nest::spike_recorder::set_status( const DictionaryDatum& d )
+spike_recorder::set_status( const DictionaryDatum& d )
 {
   RecordingDevice::set_status( d );
 }
 
 void
-nest::spike_recorder::handle( SpikeEvent& e )
+spike_recorder::handle( SpikeEvent& e )
 {
   // accept spikes only if detector was active when spike was emitted
   if ( is_active( e.get_stamp() ) )
   {
     assert( e.get_multiplicity() > 0 );
 
-    for ( int i = 0; i < e.get_multiplicity(); ++i )
+    for ( size_t i = 0; i < e.get_multiplicity(); ++i )
     {
       write( e, RecordingBackend::NO_DOUBLE_VALUES, RecordingBackend::NO_LONG_VALUES );
     }
   }
 }
+
+} // namespace nest

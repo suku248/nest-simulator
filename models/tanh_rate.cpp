@@ -22,8 +22,31 @@
 
 #include "tanh_rate.h"
 
+// Includes from nestkernel
+#include "kernel_manager.h"
+#include "model_manager_impl.h"
+#include "nest_impl.h"
+
 namespace nest
 {
+void
+register_tanh_rate_ipn( const std::string& name )
+{
+  register_node_model< tanh_rate_ipn >( name );
+}
+
+void
+register_tanh_rate_opn( const std::string& name )
+{
+  register_node_model< tanh_rate_opn >( name );
+}
+
+void
+register_rate_transformer_tanh( const std::string& name )
+{
+  register_node_model< rate_transformer_tanh >( name );
+}
+
 
 void
 nonlinearities_tanh_rate::get( DictionaryDatum& d ) const
@@ -45,29 +68,29 @@ nonlinearities_tanh_rate::set( const DictionaryDatum& d, Node* node )
  */
 template <>
 void
-RecordablesMap< nest::tanh_rate_ipn >::create()
+RecordablesMap< tanh_rate_ipn >::create()
 {
-  // use standard names whereever you can for consistency!
-  insert_( names::rate, &nest::tanh_rate_ipn::get_rate_ );
-  insert_( names::noise, &nest::tanh_rate_ipn::get_noise_ );
+  // use standard names wherever you can for consistency!
+  insert_( names::rate, &tanh_rate_ipn::get_rate_ );
+  insert_( names::noise, &tanh_rate_ipn::get_noise_ );
 }
 
 template <>
 void
-RecordablesMap< nest::tanh_rate_opn >::create()
+RecordablesMap< tanh_rate_opn >::create()
 {
-  // use standard names whereever you can for consistency!
-  insert_( names::rate, &nest::tanh_rate_opn::get_rate_ );
-  insert_( names::noise, &nest::tanh_rate_opn::get_noise_ );
-  insert_( names::noisy_rate, &nest::tanh_rate_opn::get_noisy_rate_ );
+  // use standard names wherever you can for consistency!
+  insert_( names::rate, &tanh_rate_opn::get_rate_ );
+  insert_( names::noise, &tanh_rate_opn::get_noise_ );
+  insert_( names::noisy_rate, &tanh_rate_opn::get_noisy_rate_ );
 }
 
 template <>
 void
-RecordablesMap< nest::rate_transformer_tanh >::create()
+RecordablesMap< rate_transformer_tanh >::create()
 {
-  // use standard names whereever you can for consistency!
-  insert_( names::rate, &nest::rate_transformer_tanh::get_rate_ );
+  // use standard names wherever you can for consistency!
+  insert_( names::rate, &rate_transformer_tanh::get_rate_ );
 }
 
 } // namespace nest

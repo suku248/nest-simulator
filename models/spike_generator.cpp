@@ -26,6 +26,7 @@
 #include "event_delivery_manager_impl.h"
 #include "exceptions.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
 
 // Includes from libnestutil:
 #include "dict_util.h"
@@ -36,12 +37,21 @@
 #include "dict.h"
 #include "dictutils.h"
 
+void
+nest::register_spike_generator( const std::string& name )
+{
+  register_node_model< spike_generator >( name );
+}
+
+
+namespace nest
+{
 
 /* ----------------------------------------------------------------
- * Default constructors defining default parameters and state
+ * Default constructor defining default parameters
  * ---------------------------------------------------------------- */
 
-nest::spike_generator::Parameters_::Parameters_()
+spike_generator::Parameters_::Parameters_()
   : spike_stamps_()
   , spike_offsets_()
   , spike_weights_()
@@ -52,26 +62,18 @@ nest::spike_generator::Parameters_::Parameters_()
 {
 }
 
-nest::spike_generator::State_::State_()
-  : position_( 0 )
-{
-}
-
 
 /* ----------------------------------------------------------------
  * Parameter extraction and manipulation functions
  * ---------------------------------------------------------------- */
 
 void
-nest::spike_generator::Parameters_::get( DictionaryDatum& d ) const
+spike_generator::Parameters_::get( DictionaryDatum& d ) const
 {
   const size_t n_spikes = spike_stamps_.size();
-  const size_t n_offsets = spike_offsets_.size();
-
-  assert( ( precise_times_ && n_offsets == n_spikes ) || ( not precise_times_ && n_offsets == 0 ) );
-
   auto* times_ms = new std::vector< double >();
   times_ms->reserve( n_spikes );
+
   for ( size_t n = 0; n < n_spikes; ++n )
   {
     times_ms->push_back( spike_stamps_[ n ].get_ms() );
@@ -80,6 +82,7 @@ nest::spike_generator::Parameters_::get( DictionaryDatum& d ) const
       ( *times_ms )[ n ] -= spike_offsets_[ n ];
     }
   }
+
   ( *d )[ names::spike_times ] = DoubleVectorDatum( times_ms );
   ( *d )[ names::spike_weights ] = DoubleVectorDatum( new std::vector< double >( spike_weights_ ) );
   ( *d )[ names::spike_multiplicities ] = IntVectorDatum( new std::vector< long >( spike_multiplicities_ ) );
@@ -89,9 +92,9 @@ nest::spike_generator::Parameters_::get( DictionaryDatum& d ) const
 }
 
 void
-nest::spike_generator::Parameters_::assert_valid_spike_time_and_insert_( double t, const Time& origin, const Time& now )
+spike_generator::Parameters_::assert_valid_spike_time_and_insert_( double t, const Time& origin, const Time& now )
 {
-  if ( t == 0.0 && not shift_now_spikes_ )
+  if ( t == 0.0 and not shift_now_spikes_ )
   {
     throw BadProperty( "spike time cannot be set to 0." );
   }
@@ -124,7 +127,7 @@ nest::spike_generator::Parameters_::assert_valid_spike_time_and_insert_( double 
     }
 
     assert( t_spike.is_grid_time() );
-    if ( origin + t_spike == now && shift_now_spikes_ )
+    if ( origin + t_spike == now and shift_now_spikes_ )
     {
       t_spike.advance();
     }
@@ -143,7 +146,7 @@ nest::spike_generator::Parameters_::assert_valid_spike_time_and_insert_( double 
 
     // The second part of the test handles subnormal values of offset.
     if ( ( std::fabs( offset ) < std::numeric_limits< double >::epsilon() * std::fabs( t_spike.get_ms() + t ) * 2.0 )
-      || ( std::fabs( offset ) < std::numeric_limits< double >::min() ) )
+      or ( std::fabs( offset ) < std::numeric_limits< double >::min() ) )
     {
       // if difference is smaller than scaled epsilon it is zero
       offset = 0.0;
@@ -154,7 +157,7 @@ nest::spike_generator::Parameters_::assert_valid_spike_time_and_insert_( double 
 }
 
 void
-nest::spike_generator::Parameters_::set( const DictionaryDatum& d,
+spike_generator::Parameters_::set( const DictionaryDatum& d,
   State_& s,
   const Time& origin,
   const Time& now,
@@ -165,7 +168,7 @@ nest::spike_generator::Parameters_::set( const DictionaryDatum& d,
   bool allow_offgrid_times_changed =
     updateValueParam< bool >( d, names::allow_offgrid_times, allow_offgrid_times_, node );
   bool flags_changed = precise_times_changed or shift_now_spikes_changed or allow_offgrid_times_changed;
-  if ( precise_times_ && ( allow_offgrid_times_ || shift_now_spikes_ ) )
+  if ( precise_times_ and ( allow_offgrid_times_ or shift_now_spikes_ ) )
   {
     throw BadProperty(
       "Option precise_times cannot be set to true when either "
@@ -173,7 +176,7 @@ nest::spike_generator::Parameters_::set( const DictionaryDatum& d,
   }
 
   const bool updated_spike_times = d->known( names::spike_times );
-  if ( flags_changed && not( updated_spike_times || spike_stamps_.empty() ) )
+  if ( flags_changed and not( updated_spike_times or spike_stamps_.empty() ) )
   {
     throw BadProperty(
       "Options can only be set together with spike times or if no "
@@ -264,7 +267,7 @@ nest::spike_generator::Parameters_::set( const DictionaryDatum& d,
   }
 
   // Set position to start if something changed
-  if ( updated_spike_times || updated_spike_weights || updated_spike_multiplicities || d->known( names::origin ) )
+  if ( updated_spike_times or updated_spike_weights or updated_spike_multiplicities or d->known( names::origin ) )
   {
     s.position_ = 0;
   }
@@ -272,17 +275,27 @@ nest::spike_generator::Parameters_::set( const DictionaryDatum& d,
 
 
 /* ----------------------------------------------------------------
+ * Default constructor defining default state
+ * ---------------------------------------------------------------- */
+
+spike_generator::State_::State_()
+  : position_( 0 )
+{
+}
+
+
+/* ----------------------------------------------------------------
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::spike_generator::spike_generator()
+spike_generator::spike_generator()
   : StimulationDevice()
   , P_()
   , S_()
 {
 }
 
-nest::spike_generator::spike_generator( const spike_generator& n )
+spike_generator::spike_generator( const spike_generator& n )
   : StimulationDevice( n )
   , P_( n.P_ )
   , S_( n.S_ )
@@ -295,19 +308,19 @@ nest::spike_generator::spike_generator( const spike_generator& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::spike_generator::init_state_()
+spike_generator::init_state_()
 {
   StimulationDevice::init_state();
 }
 
 void
-nest::spike_generator::init_buffers_()
+spike_generator::init_buffers_()
 {
   StimulationDevice::init_buffers();
 }
 
 void
-nest::spike_generator::pre_run_hook()
+spike_generator::pre_run_hook()
 {
   StimulationDevice::pre_run_hook();
 }
@@ -317,16 +330,16 @@ nest::spike_generator::pre_run_hook()
  * Other functions
  * ---------------------------------------------------------------- */
 void
-nest::spike_generator::update( Time const& sliceT0, const long from, const long to )
+spike_generator::update( Time const& sliceT0, const long from, const long to )
 {
   if ( P_.spike_stamps_.empty() )
   {
     return;
   }
 
-  assert( not P_.precise_times_ || P_.spike_stamps_.size() == P_.spike_offsets_.size() );
-  assert( P_.spike_weights_.empty() || P_.spike_stamps_.size() == P_.spike_weights_.size() );
-  assert( P_.spike_multiplicities_.empty() || P_.spike_stamps_.size() == P_.spike_multiplicities_.size() );
+  assert( not P_.precise_times_ or P_.spike_stamps_.size() == P_.spike_offsets_.size() );
+  assert( P_.spike_weights_.empty() or P_.spike_stamps_.size() == P_.spike_weights_.size() );
+  assert( P_.spike_multiplicities_.empty() or P_.spike_stamps_.size() == P_.spike_multiplicities_.size() );
 
   const Time tstart = sliceT0 + Time::step( from );
   const Time tstop = sliceT0 + Time::step( to );
@@ -387,18 +400,19 @@ nest::spike_generator::update( Time const& sliceT0, const long from, const long 
 }
 
 void
-nest::spike_generator::event_hook( DSSpikeEvent& e )
+spike_generator::event_hook( DSSpikeEvent& e )
 {
   e.set_weight( P_.spike_weights_[ S_.position_ ] * e.get_weight() );
   e.get_receiver().handle( e );
 }
+
 
 /* ----------------------------------------------------------------
  * Other functions
  * ---------------------------------------------------------------- */
 
 void
-nest::spike_generator::set_data_from_stimulation_backend( std::vector< double >& input_spikes )
+spike_generator::set_data_from_stimulation_backend( std::vector< double >& input_spikes )
 {
   Parameters_ ptmp = P_; // temporary copy in case of errors
 
@@ -429,3 +443,5 @@ nest::spike_generator::set_data_from_stimulation_backend( std::vector< double >&
   // if we get here, temporary contains consistent set of properties
   P_ = ptmp;
 }
+
+} // namespace nest

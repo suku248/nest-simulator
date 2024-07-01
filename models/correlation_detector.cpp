@@ -25,24 +25,36 @@
 // C++ includes:
 #include <cmath>      // for less
 #include <functional> // for bind2nd
-#include <numeric>
 
 // Includes from libnestutil:
 #include "compose.hpp"
 #include "dict_util.h"
 #include "logging.h"
 
+// Includes from nestkernel:
+#include "model_manager_impl.h"
+#include "nest_impl.h"
+
 // Includes from sli:
 #include "arraydatum.h"
 #include "dict.h"
 #include "dictutils.h"
 
+void
+nest::register_correlation_detector( const std::string& name )
+{
+  register_node_model< correlation_detector >( name );
+}
+
+
+namespace nest
+{
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::correlation_detector::Parameters_::Parameters_()
+correlation_detector::Parameters_::Parameters_()
   : delta_tau_( get_default_delta_tau() )
   , tau_max_( 10 * delta_tau_ )
   , Tstart_( Time::ms( 0.0 ) )
@@ -50,7 +62,7 @@ nest::correlation_detector::Parameters_::Parameters_()
 {
 }
 
-nest::correlation_detector::Parameters_::Parameters_( const Parameters_& p )
+correlation_detector::Parameters_::Parameters_( const Parameters_& p )
   : delta_tau_( p.delta_tau_ )
   , tau_max_( p.tau_max_ )
   , Tstart_( p.Tstart_ )
@@ -70,8 +82,8 @@ nest::correlation_detector::Parameters_::Parameters_( const Parameters_& p )
   Tstop_.calibrate();
 }
 
-nest::correlation_detector::Parameters_&
-nest::correlation_detector::Parameters_::operator=( const Parameters_& p )
+correlation_detector::Parameters_&
+correlation_detector::Parameters_::operator=( const Parameters_& p )
 {
   delta_tau_ = p.delta_tau_;
   tau_max_ = p.tau_max_;
@@ -86,7 +98,7 @@ nest::correlation_detector::Parameters_::operator=( const Parameters_& p )
   return *this;
 }
 
-nest::correlation_detector::State_::State_()
+correlation_detector::State_::State_()
   : n_events_( 2, 0 )
   , incoming_( 2 )
   , histogram_()
@@ -101,7 +113,7 @@ nest::correlation_detector::State_::State_()
  * ---------------------------------------------------------------- */
 
 void
-nest::correlation_detector::Parameters_::get( DictionaryDatum& d ) const
+correlation_detector::Parameters_::get( DictionaryDatum& d ) const
 {
   ( *d )[ names::delta_tau ] = delta_tau_.get_ms();
   ( *d )[ names::tau_max ] = tau_max_.get_ms();
@@ -110,7 +122,7 @@ nest::correlation_detector::Parameters_::get( DictionaryDatum& d ) const
 }
 
 void
-nest::correlation_detector::State_::get( DictionaryDatum& d ) const
+correlation_detector::State_::get( DictionaryDatum& d ) const
 {
   ( *d )[ names::n_events ] = IntVectorDatum( new std::vector< long >( n_events_ ) );
   ( *d )[ names::histogram ] = DoubleVectorDatum( new std::vector< double >( histogram_ ) );
@@ -119,7 +131,7 @@ nest::correlation_detector::State_::get( DictionaryDatum& d ) const
 }
 
 bool
-nest::correlation_detector::Parameters_::set( const DictionaryDatum& d, const correlation_detector& n, Node* node )
+correlation_detector::Parameters_::set( const DictionaryDatum& d, const correlation_detector& n, Node* node )
 {
   bool reset = false;
   double t;
@@ -161,12 +173,12 @@ nest::correlation_detector::Parameters_::set( const DictionaryDatum& d, const co
 }
 
 void
-nest::correlation_detector::State_::set( const DictionaryDatum& d, const Parameters_& p, bool reset_required, Node* )
+correlation_detector::State_::set( const DictionaryDatum& d, const Parameters_& p, bool reset_required, Node* )
 {
   std::vector< long > nev;
   if ( updateValue< std::vector< long > >( d, names::n_events, nev ) )
   {
-    if ( nev.size() == 2 && nev[ 0 ] == 0 && nev[ 1 ] == 0 )
+    if ( nev.size() == 2 and nev[ 0 ] == 0 and nev[ 1 ] == 0 )
     {
       reset_required = true;
     }
@@ -182,7 +194,7 @@ nest::correlation_detector::State_::set( const DictionaryDatum& d, const Paramet
 }
 
 void
-nest::correlation_detector::State_::reset( const Parameters_& p )
+correlation_detector::State_::reset( const Parameters_& p )
 {
   n_events_.clear();
   n_events_.resize( 2, 0 );
@@ -205,7 +217,7 @@ nest::correlation_detector::State_::reset( const Parameters_& p )
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::correlation_detector::correlation_detector()
+correlation_detector::correlation_detector()
   : Node()
   , device_()
   , P_()
@@ -213,7 +225,7 @@ nest::correlation_detector::correlation_detector()
 {
 }
 
-nest::correlation_detector::correlation_detector( const correlation_detector& n )
+correlation_detector::correlation_detector( const correlation_detector& n )
   : Node( n )
   , device_( n.device_ )
   , P_( n.P_ )
@@ -227,20 +239,20 @@ nest::correlation_detector::correlation_detector( const correlation_detector& n 
  * ---------------------------------------------------------------- */
 
 void
-nest::correlation_detector::init_state_()
+correlation_detector::init_state_()
 {
   device_.init_state();
 }
 
 void
-nest::correlation_detector::init_buffers_()
+correlation_detector::init_buffers_()
 {
   device_.init_buffers();
   S_.reset( P_ );
 }
 
 void
-nest::correlation_detector::pre_run_hook()
+correlation_detector::pre_run_hook()
 {
   device_.pre_run_hook();
 }
@@ -251,20 +263,20 @@ nest::correlation_detector::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::correlation_detector::update( Time const&, const long, const long )
+correlation_detector::update( Time const&, const long, const long )
 {
 }
 
 void
-nest::correlation_detector::handle( SpikeEvent& e )
+correlation_detector::handle( SpikeEvent& e )
 {
   // The receiver port identifies the sending node in our
   // sender list.
-  const rport sender = e.get_rport();
+  const size_t sender = e.get_rport();
 
   // If this assertion breaks, the sender does not honor the
   // receiver port during connection or sending.
-  assert( 0 <= sender && sender <= 1 );
+  assert( sender <= 1 );
 
   // accept spikes only if detector was active when spike was emitted
   Time const stamp = e.get_stamp();
@@ -273,14 +285,14 @@ nest::correlation_detector::handle( SpikeEvent& e )
   {
 
     const long spike_i = stamp.get_steps();
-    const port other = 1 - sender; // port of the neuron not sending
+    const size_t other = 1 - sender; // port of the neuron not sending
     SpikelistType& otherSpikes = S_.incoming_[ other ];
     const double tau_edge = P_.tau_max_.get_steps() + 0.5 * P_.delta_tau_.get_steps();
 
     // throw away all spikes of the other neuron which are too old to
     // enter the correlation window
     // subtract 0.5*other to make left interval closed, keep right interval open
-    while ( not otherSpikes.empty() && ( spike_i - otherSpikes.front().timestep_ ) - 0.5 * other >= tau_edge )
+    while ( not otherSpikes.empty() and ( spike_i - otherSpikes.front().timestep_ ) - 0.5 * other >= tau_edge )
     {
       otherSpikes.pop_front();
     }
@@ -295,7 +307,7 @@ nest::correlation_detector::handle( SpikeEvent& e )
     // only count events in histogram, if the current event is within the time
     // window [Tstart, Tstop]
     // this is needed in order to prevent boundary effects
-    if ( P_.Tstart_ <= stamp && stamp <= P_.Tstop_ )
+    if ( P_.Tstart_ <= stamp and stamp <= P_.Tstop_ )
     {
       // calculate the effect of this spike immediately with respect to all
       // spikes in the past of the respectively other source
@@ -345,7 +357,7 @@ nest::correlation_detector::handle( SpikeEvent& e )
 }
 
 void
-nest::correlation_detector::calibrate_time( const TimeConverter& tc )
+correlation_detector::calibrate_time( const TimeConverter& tc )
 {
   if ( P_.delta_tau_.is_step() )
   {
@@ -362,4 +374,6 @@ nest::correlation_detector::calibrate_time( const TimeConverter& tc )
   P_.tau_max_ = tc.from_old_tics( P_.tau_max_.get_tics() );
   P_.Tstart_ = tc.from_old_tics( P_.Tstart_.get_tics() );
   P_.Tstop_ = tc.from_old_tics( P_.Tstop_.get_tics() );
+}
+
 }

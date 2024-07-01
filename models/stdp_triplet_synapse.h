@@ -107,11 +107,19 @@ See also
 
 stdp_triplet_synapse_hpc, stdp_synapse, static_synapse
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: stdp_triplet_synapse
+
+
 EndUserDocs */
 
 // connections are templates of target identifier type
 // (used for pointer / target index addressing)
 // derived from generic connection template
+
+void register_stdp_triplet_synapse( const std::string& name );
 
 template < typename targetidentifierT >
 class stdp_triplet_synapse : public Connection< targetidentifierT >
@@ -120,6 +128,10 @@ class stdp_triplet_synapse : public Connection< targetidentifierT >
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
   typedef Connection< targetidentifierT > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
@@ -145,7 +157,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places
   // these functions are used. Since ConnectionBase depends on the template
   // parameter, they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -165,7 +177,7 @@ public:
    * \param e The event to send
    * \param cp common properties of all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
   {
@@ -173,10 +185,10 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
@@ -194,13 +206,13 @@ public:
    * \param receptor_type The ID of the requested receptor type
    */
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
 
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    t.register_stdp_connection( t_lastspike_ - get_delay(), get_delay() );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
   void
@@ -238,6 +250,9 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties stdp_triplet_synapse< targetidentifierT >::properties;
+
 /**
  * Send an event to the receiver of this connection.
  * \param e The event to send
@@ -245,12 +260,11 @@ private:
  * \param cp Common properties object, containing the stdp parameters.
  */
 template < typename targetidentifierT >
-inline void
-stdp_triplet_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+stdp_triplet_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
-
   double t_spike = e.get_stamp().get_ms();
-  double dendritic_delay = get_delay();
+  double dendritic_delay = get_delay_ms();
   Node* target = get_target( t );
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
@@ -294,6 +308,8 @@ stdp_triplet_synapse< targetidentifierT >::send( Event& e, thread t, const Commo
   e();
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 // Defaults come from reference [1]_ data fitting and table 3.
@@ -358,7 +374,7 @@ stdp_triplet_synapse< targetidentifierT >::set_status( const DictionaryDatum& d,
     throw BadProperty( "State Kplus must be positive." );
   }
 
-  if ( not( Kplus_triplet_ >= 0 ) )
+  if ( Kplus_triplet_ < 0 )
   {
     throw BadProperty( "State Kplus_triplet must be positive." );
   }

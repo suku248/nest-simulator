@@ -77,11 +77,19 @@ References
        inhibition in sensory pathways and memory networks. Science,
        334(6062):1569-1573. DOI: https://doi.org/10.1126/science.1211095
 
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: vogels_sprekeler_synapse
+
 EndUserDocs */
 
 // connections are templates of target identifier type (used for pointer /
 // target index addressing)
 // derived from generic connection template
+
+void register_vogels_sprekeler_synapse( const std::string& name );
 
 template < typename targetidentifierT >
 class vogels_sprekeler_synapse : public Connection< targetidentifierT >
@@ -90,6 +98,10 @@ class vogels_sprekeler_synapse : public Connection< targetidentifierT >
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
   typedef Connection< targetidentifierT > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL | ConnectionModelProperties::SUPPORTS_WFR;
 
   /**
    * Default Constructor.
@@ -111,7 +123,7 @@ public:
   // Since ConnectionBase depends on the template parameter, they are not
   // automatically
   // found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -132,7 +144,7 @@ public:
    * \param t_lastspike Point in time of last spike sent.
    * \param cp common properties of all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
@@ -141,21 +153,21 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
 
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    t.register_stdp_connection( t_lastspike_ - get_delay(), get_delay() );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
   void
@@ -190,6 +202,8 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties vogels_sprekeler_synapse< targetidentifierT >::properties;
 
 /**
  * Send an event to the receiver of this connection.
@@ -199,8 +213,8 @@ private:
  * \param cp Common properties object, containing the stdp parameters.
  */
 template < typename targetidentifierT >
-inline void
-vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
   // synapse STDP depressing/facilitation dynamics
   double t_spike = e.get_stamp().get_ms();
@@ -209,7 +223,7 @@ vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, thread t, const C
   // use accessor functions (inherited from Connection< >) to obtain delay and
   // target
   Node* target = get_target( t );
-  double dendritic_delay = get_delay();
+  double dendritic_delay = get_delay_ms();
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
   std::deque< histentry >::iterator start;
@@ -250,6 +264,8 @@ vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, thread t, const C
   Kplus_ = Kplus_ * std::exp( ( t_lastspike_ - t_spike ) / tau_ ) + 1.0;
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 

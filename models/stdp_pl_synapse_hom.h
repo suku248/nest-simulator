@@ -84,6 +84,11 @@ See also
 
 stdp_synapse, tsodyks_synapse, static_synapse
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: stdp_pl_synapse_hom
+
 EndUserDocs */
 
 /**
@@ -116,7 +121,6 @@ public:
   double lambda_;
   double alpha_;
   double mu_;
-  double axonal_delay_; //!< Axonal delay in ms
 };
 
 
@@ -124,6 +128,8 @@ public:
  * Class representing an STDP connection with homogeneous parameters, i.e.
  * parameters are the same for all synapses.
  */
+void register_stdp_pl_synapse_hom( const std::string& name );
+
 template < typename targetidentifierT >
 class stdp_pl_synapse_hom : public Connection< targetidentifierT >
 {
@@ -132,6 +138,9 @@ public:
   typedef STDPPLHomCommonProperties CommonPropertiesType;
   typedef Connection< targetidentifierT > ConnectionBase;
 
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
@@ -150,7 +159,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places these
   // functions are used. Since ConnectionBase depends on the template parameter,
   // they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -169,7 +178,7 @@ public:
    * Send an event to the receiver of this connection.
    * \param e The event to send
    */
-  void send( Event& e, thread t, const STDPPLHomCommonProperties& );
+  bool send( Event& e, size_t t, const STDPPLHomCommonProperties& );
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
   {
@@ -177,10 +186,10 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
@@ -198,25 +207,13 @@ public:
    * \param receptor_type The ID of the requested receptor type
    */
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& cp )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
 
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    const double delay = get_delay();
-    if ( cp.axonal_delay_ > delay )
-    {
-      throw BadProperty( "Axonal delay should not exceed total synaptic delay." );
-    }
-    if ( cp.axonal_delay_ > ( delay - cp.axonal_delay_ ) )
-    {
-      LOG( M_WARNING,
-        "stdp_pl_synapse_hom::check_connection",
-        "Axonal delay is greater than dendritic delay, "
-        "which can lead to omission of post-synaptic spikes in this synapse type." );
-    }
-    t.register_stdp_connection( t_lastspike_ - delay + 2.0 * cp.axonal_delay_, delay );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
   void
@@ -245,6 +242,9 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties stdp_pl_synapse_hom< targetidentifierT >::properties;
+
 //
 // Implementation of class stdp_pl_synapse_hom.
 //
@@ -255,8 +255,8 @@ private:
  * \param p The port under which this connection is stored in the Connector.
  */
 template < typename targetidentifierT >
-inline void
-stdp_pl_synapse_hom< targetidentifierT >::send( Event& e, thread t, const STDPPLHomCommonProperties& cp )
+inline bool
+stdp_pl_synapse_hom< targetidentifierT >::send( Event& e, size_t t, const STDPPLHomCommonProperties& cp )
 {
   // synapse STDP depressing/facilitation dynamics
 
@@ -266,28 +266,28 @@ stdp_pl_synapse_hom< targetidentifierT >::send( Event& e, thread t, const STDPPL
 
   Node* target = get_target( t );
 
-  double dendritic_delay = get_delay() - cp.axonal_delay_;
+  const double dendritic_delay = get_delay_ms();
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
   std::deque< histentry >::iterator start;
   std::deque< histentry >::iterator finish;
-  target->get_history(
-    t_lastspike_ - dendritic_delay + cp.axonal_delay_, t_spike - dendritic_delay + cp.axonal_delay_, &start, &finish );
+  target->get_history( t_lastspike_ - dendritic_delay, t_spike - dendritic_delay, &start, &finish );
 
   // facilitation due to postsynaptic spikes since last pre-synaptic spike
   double minus_dt;
   while ( start != finish )
   {
-    minus_dt = t_lastspike_ + cp.axonal_delay_ - ( start->t_ + dendritic_delay );
+    minus_dt = t_lastspike_ - ( start->t_ + dendritic_delay );
     // get_history() should make sure that
     // start->t_ > t_lastspike - dendritic_delay, i.e. minus_dt < 0
     assert( minus_dt < -1.0 * kernel().connection_manager.get_stdp_eps() );
     weight_ = facilitate_( weight_, Kplus_ * std::exp( minus_dt * cp.tau_plus_inv_ ), cp );
-    start++;
+
+    ++start;
   }
 
   // depression due to new pre-synaptic spike
-  const double K_minus = target->get_K_value( t_spike + cp.axonal_delay_ - dendritic_delay );
+  const double K_minus = target->get_K_value( t_spike - dendritic_delay );
   weight_ = depress_( weight_, K_minus, cp );
 
   e.set_receiver( *target );
@@ -299,6 +299,8 @@ stdp_pl_synapse_hom< targetidentifierT >::send( Event& e, thread t, const STDPPL
   Kplus_ = Kplus_ * std::exp( ( t_lastspike_ - t_spike ) * cp.tau_plus_inv_ ) + 1.0;
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 template < typename targetidentifierT >

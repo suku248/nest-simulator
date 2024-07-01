@@ -31,6 +31,7 @@
 #include "connection.h"
 #include "connector_model.h"
 #include "event.h"
+#include "nest.h"
 #include "ring_buffer.h"
 
 // Includes from sli:
@@ -79,7 +80,7 @@ Wmin     real    Minimum allowed weight
 =======  ======  ==========================================================
 
 Other parameters like the amplitudes for long-term potentiation (LTP) and
-depression (LTD) are stored in in the neuron models that are compatible with the
+depression (LTD) are stored in the neuron models that are compatible with the
 Clopath synapse.
 
 Transmits
@@ -97,17 +98,24 @@ References
        in STDP – a unified model. Frontiers in Synaptic Neuroscience 2:25.
        DOI: https://doi.org/10.3389/fnsyn.2010.00025
 .. [3] Voltage-based STDP synapse (Clopath et al. 2010) on ModelDB
-       https://senselab.med.yale.edu/ModelDB/showmodel.cshtml?model=144566
+       https://modeldb.science/144566?tab=1
 
 See also
 ++++++++
 
 stdp_synapse, aeif_psc_delta_clopath, hh_psc_alpha_clopath
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: iaf_psc_alpha
+
 EndUserDocs */
 
 // connections are templates of target identifier type (used for pointer /
 // target index addressing) derived from generic connection template
+void register_clopath_synapse( const std::string& name );
+
 template < typename targetidentifierT >
 class clopath_synapse : public Connection< targetidentifierT >
 {
@@ -115,6 +123,11 @@ class clopath_synapse : public Connection< targetidentifierT >
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
   typedef Connection< targetidentifierT > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::REQUIRES_CLOPATH_ARCHIVING
+    | ConnectionModelProperties::SUPPORTS_HPC | ConnectionModelProperties::SUPPORTS_LBL
+    | ConnectionModelProperties::SUPPORTS_WFR;
 
   /**
    * Default Constructor.
@@ -134,7 +147,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places these
   // functions are used. Since ConnectionBase depends on the template parameter,
   // they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -154,7 +167,7 @@ public:
    * \param e The event to send
    * \param cp common properties of all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
@@ -163,21 +176,21 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
 
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    t.register_stdp_connection( t_lastspike_ - get_delay(), get_delay() );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
   void
@@ -211,6 +224,8 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties clopath_synapse< targetidentifierT >::properties;
 
 /**
  * Send an event to the receiver of this connection.
@@ -219,14 +234,14 @@ private:
  * \param cp Common properties object, containing the stdp parameters.
  */
 template < typename targetidentifierT >
-inline void
-clopath_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+clopath_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
   double t_spike = e.get_stamp().get_ms();
   // use accessor functions (inherited from Connection< >) to obtain delay and
   // target
   Node* target = get_target( t );
-  double dendritic_delay = get_delay();
+  double dendritic_delay = get_delay_ms();
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
   std::deque< histentry_extended >::iterator start;
@@ -264,6 +279,8 @@ clopath_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSyna
   x_bar_ = x_bar_ * std::exp( ( t_lastspike_ - t_spike ) / tau_x_ ) + 1.0 / tau_x_;
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 

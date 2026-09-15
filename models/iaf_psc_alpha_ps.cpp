@@ -26,29 +26,32 @@
 #include <limits>
 
 // Includes from libnestutil:
+#include "dict_util.h"
+#include "iaf_propagator.h"
 #include "numerics.h"
-#include "propagator_stability.h"
 #include "regula_falsi.h"
 
 // Includes from nestkernel:
 #include "exceptions.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
 #include "universal_data_logger_impl.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
 
+namespace nest
+{
 /* ----------------------------------------------------------------
  * Recordables map
  * ---------------------------------------------------------------- */
 
-nest::RecordablesMap< nest::iaf_psc_alpha_ps > nest::iaf_psc_alpha_ps::recordablesMap_;
+RecordablesMap< iaf_psc_alpha_ps > iaf_psc_alpha_ps::recordablesMap_;
 
-namespace nest
+void
+register_iaf_psc_alpha_ps( const std::string& name )
 {
+  register_node_model< iaf_psc_alpha_ps >( name );
+}
+
 /*
  * Override the create() method with one call to RecordablesMap::insert_()
  * for each quantity to be recorded.
@@ -62,27 +65,26 @@ RecordablesMap< iaf_psc_alpha_ps >::create()
   insert_( names::I_syn_ex, &iaf_psc_alpha_ps::get_I_ex_ );
   insert_( names::I_syn_in, &iaf_psc_alpha_ps::get_I_in_ );
 }
-}
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::iaf_psc_alpha_ps::Parameters_::Parameters_()
-  : tau_m_( 10.0 )                                       // ms
-  , tau_syn_ex_( 2.0 )                                   // ms
-  , tau_syn_in_( 2.0 )                                   // ms
-  , c_m_( 250.0 )                                        // pF
-  , t_ref_( 2.0 )                                        // ms
-  , E_L_( -70.0 )                                        // mV
-  , I_e_( 0.0 )                                          // pA
-  , U_th_( -55.0 - E_L_ )                                // mV, rel to E_L_
-  , U_min_( -std::numeric_limits< double >::infinity() ) // mV
-  , U_reset_( -70.0 - E_L_ )                             // mV, rel to E_L_
+iaf_psc_alpha_ps::Parameters_::Parameters_()
+  : tau_m_( 10.0 )                                        // ms
+  , tau_syn_ex_( 2.0 )                                    // ms
+  , tau_syn_in_( 2.0 )                                    // ms
+  , c_m_( 250.0 )                                         // pF
+  , t_ref_( 2.0 )                                         // ms
+  , E_L_( -70.0 )                                         // mV
+  , I_e_( 0.0 )                                           // pA
+  , U_th_( -55.0 - E_L_ )                                 // mV, rel to E_L_
+  , U_min_( -std::numeric_limits< double >::infinity() )  // mV
+  , U_reset_( -70.0 - E_L_ )                              // mV, rel to E_L_
 {
 }
 
-nest::iaf_psc_alpha_ps::State_::State_()
+iaf_psc_alpha_ps::State_::State_()
   : y_input_( 0.0 )
   , I_ex_( 0.0 )
   , dI_ex_( 0.0 )
@@ -100,37 +102,37 @@ nest::iaf_psc_alpha_ps::State_::State_()
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_psc_alpha_ps::Parameters_::get( DictionaryDatum& d ) const
+iaf_psc_alpha_ps::Parameters_::get( Dictionary& d ) const
 {
-  def< double >( d, names::E_L, E_L_ );
-  def< double >( d, names::I_e, I_e_ );
-  def< double >( d, names::V_th, U_th_ + E_L_ );
-  def< double >( d, names::V_min, U_min_ + E_L_ );
-  def< double >( d, names::V_reset, U_reset_ + E_L_ );
-  def< double >( d, names::C_m, c_m_ );
-  def< double >( d, names::tau_m, tau_m_ );
-  def< double >( d, names::tau_syn_ex, tau_syn_ex_ );
-  def< double >( d, names::tau_syn_in, tau_syn_in_ );
-  def< double >( d, names::t_ref, t_ref_ );
+  d[ names::E_L ] = E_L_;
+  d[ names::I_e ] = I_e_;
+  d[ names::V_th ] = U_th_ + E_L_;
+  d[ names::V_min ] = U_min_ + E_L_;
+  d[ names::V_reset ] = U_reset_ + E_L_;
+  d[ names::C_m ] = c_m_;
+  d[ names::tau_m ] = tau_m_;
+  d[ names::tau_syn_ex ] = tau_syn_ex_;
+  d[ names::tau_syn_in ] = tau_syn_in_;
+  d[ names::t_ref ] = t_ref_;
 }
 
 double
-nest::iaf_psc_alpha_ps::Parameters_::set( const DictionaryDatum& d )
+iaf_psc_alpha_ps::Parameters_::set( const Dictionary& d, Node* node )
 {
   // if E_L_ is changed, we need to adjust all variables defined relative to
   // E_L_
   const double ELold = E_L_;
-  updateValue< double >( d, names::E_L, E_L_ );
+  update_value_param( d, names::E_L, E_L_, node );
   const double delta_EL = E_L_ - ELold;
 
-  updateValue< double >( d, names::tau_m, tau_m_ );
-  updateValue< double >( d, names::tau_syn_ex, tau_syn_ex_ );
-  updateValue< double >( d, names::tau_syn_in, tau_syn_in_ );
-  updateValue< double >( d, names::C_m, c_m_ );
-  updateValue< double >( d, names::t_ref, t_ref_ );
-  updateValue< double >( d, names::I_e, I_e_ );
+  update_value_param( d, names::tau_m, tau_m_, node );
+  update_value_param( d, names::tau_syn_ex, tau_syn_ex_, node );
+  update_value_param( d, names::tau_syn_in, tau_syn_in_, node );
+  update_value_param( d, names::C_m, c_m_, node );
+  update_value_param( d, names::t_ref, t_ref_, node );
+  update_value_param( d, names::I_e, I_e_, node );
 
-  if ( updateValue< double >( d, names::V_th, U_th_ ) )
+  if ( update_value_param( d, names::V_th, U_th_, node ) )
   {
     U_th_ -= E_L_;
   }
@@ -139,7 +141,7 @@ nest::iaf_psc_alpha_ps::Parameters_::set( const DictionaryDatum& d )
     U_th_ -= delta_EL;
   }
 
-  if ( updateValue< double >( d, names::V_min, U_min_ ) )
+  if ( update_value_param( d, names::V_min, U_min_, node ) )
   {
     U_min_ -= E_L_;
   }
@@ -148,7 +150,7 @@ nest::iaf_psc_alpha_ps::Parameters_::set( const DictionaryDatum& d )
     U_min_ -= delta_EL;
   }
 
-  if ( updateValue< double >( d, names::V_reset, U_reset_ ) )
+  if ( update_value_param( d, names::V_reset, U_reset_, node ) )
   {
     U_reset_ -= E_L_;
   }
@@ -177,7 +179,7 @@ nest::iaf_psc_alpha_ps::Parameters_::set( const DictionaryDatum& d )
     throw BadProperty( "Refractory time must be at least one time step." );
   }
 
-  if ( tau_m_ <= 0 || tau_syn_ex_ <= 0 || tau_syn_in_ <= 0 )
+  if ( tau_m_ <= 0 or tau_syn_ex_ <= 0 or tau_syn_in_ <= 0 )
   {
     throw BadProperty( "All time constants must be strictly positive." );
   }
@@ -186,20 +188,20 @@ nest::iaf_psc_alpha_ps::Parameters_::set( const DictionaryDatum& d )
 }
 
 void
-nest::iaf_psc_alpha_ps::State_::get( DictionaryDatum& d, const Parameters_& p ) const
+iaf_psc_alpha_ps::State_::get( Dictionary& d, const Parameters_& p ) const
 {
-  def< double >( d, names::V_m, V_m_ + p.E_L_ ); // Membrane potential
-  def< double >( d, names::I_syn_ex, I_ex_ );    // Excitatory synaptic current
-  def< double >( d, names::I_syn_in, I_in_ );    // Inhibitory synaptic current
-  def< double >( d, names::dI_syn_in, dI_in_ );  // Derivative inhib. current
-  def< double >( d, names::dI_syn_ex, dI_ex_ );  // Derivative exc. current
-  def< bool >( d, names::is_refractory, is_refractory_ );
+  d[ names::V_m ] = V_m_ + p.E_L_;  // Membrane potential
+  d[ names::I_syn_ex ] = I_ex_;     // Excitatory synaptic current
+  d[ names::I_syn_in ] = I_in_;     // Inhibitory synaptic current
+  d[ names::dI_syn_in ] = dI_in_;   // Derivative inhib. current
+  d[ names::dI_syn_ex ] = dI_ex_;   // Derivative exc. current
+  d[ names::is_refractory ] = is_refractory_;
 }
 
 void
-nest::iaf_psc_alpha_ps::State_::set( const DictionaryDatum& d, const Parameters_& p, double delta_EL )
+iaf_psc_alpha_ps::State_::set( const Dictionary& d, const Parameters_& p, double delta_EL, Node* node )
 {
-  if ( updateValue< double >( d, names::V_m, V_m_ ) )
+  if ( update_value_param( d, names::V_m, V_m_, node ) )
   {
     V_m_ -= p.E_L_;
   }
@@ -209,12 +211,12 @@ nest::iaf_psc_alpha_ps::State_::set( const DictionaryDatum& d, const Parameters_
   }
 }
 
-nest::iaf_psc_alpha_ps::Buffers_::Buffers_( iaf_psc_alpha_ps& n )
+iaf_psc_alpha_ps::Buffers_::Buffers_( iaf_psc_alpha_ps& n )
   : logger_( n )
 {
 }
 
-nest::iaf_psc_alpha_ps::Buffers_::Buffers_( const Buffers_&, iaf_psc_alpha_ps& n )
+iaf_psc_alpha_ps::Buffers_::Buffers_( const Buffers_&, iaf_psc_alpha_ps& n )
   : logger_( n )
 {
 }
@@ -224,7 +226,7 @@ nest::iaf_psc_alpha_ps::Buffers_::Buffers_( const Buffers_&, iaf_psc_alpha_ps& n
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::iaf_psc_alpha_ps::iaf_psc_alpha_ps()
+iaf_psc_alpha_ps::iaf_psc_alpha_ps()
   : ArchivingNode()
   , P_()
   , S_()
@@ -233,7 +235,7 @@ nest::iaf_psc_alpha_ps::iaf_psc_alpha_ps()
   recordablesMap_.create();
 }
 
-nest::iaf_psc_alpha_ps::iaf_psc_alpha_ps( const iaf_psc_alpha_ps& n )
+iaf_psc_alpha_ps::iaf_psc_alpha_ps( const iaf_psc_alpha_ps& n )
   : ArchivingNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
@@ -246,25 +248,31 @@ nest::iaf_psc_alpha_ps::iaf_psc_alpha_ps( const iaf_psc_alpha_ps& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_psc_alpha_ps::init_buffers_()
+iaf_psc_alpha_ps::init_buffers_()
 {
   B_.events_.resize();
   B_.events_.clear();
-  B_.currents_.clear(); // includes resize
+  B_.currents_.clear();  // includes resize
   B_.logger_.reset();
 
   ArchivingNode::clear_history();
 }
 
 void
-nest::iaf_psc_alpha_ps::pre_run_hook()
+iaf_psc_alpha_ps::pre_run_hook()
 {
   B_.logger_.init();
 
   V_.h_ms_ = Time::get_resolution().get_ms();
 
-  V_.psc_norm_ex_ = 1.0 * numerics::e / P_.tau_syn_ex_;
-  V_.psc_norm_in_ = 1.0 * numerics::e / P_.tau_syn_in_;
+  // pre-compute inverse member variables
+  V_.inv_c_m_ = 1.0 / P_.c_m_;
+  V_.inv_tau_m_ = 1.0 / P_.tau_m_;
+  V_.inv_tau_syn_ex_ = 1.0 / P_.tau_syn_ex_;
+  V_.inv_tau_syn_in_ = 1.0 / P_.tau_syn_in_;
+
+  V_.psc_norm_ex_ = numerics::e * V_.inv_tau_syn_ex_;
+  V_.psc_norm_in_ = numerics::e * V_.inv_tau_syn_in_;
 
   // pre-compute matrix for full time step
   V_.expm1_tau_m_ = numerics::expm1( -V_.h_ms_ / P_.tau_m_ );
@@ -273,11 +281,11 @@ nest::iaf_psc_alpha_ps::pre_run_hook()
 
   V_.P30_ = -P_.tau_m_ / P_.c_m_ * V_.expm1_tau_m_;
   // these are determined according to a numeric stability criterion
-  V_.P31_ex_ = propagator_31( P_.tau_syn_ex_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
-  V_.P32_ex_ = propagator_32( P_.tau_syn_ex_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
+  propagator_ex_ = IAFPropagatorAlpha( P_.tau_syn_ex_, P_.tau_m_, P_.c_m_ );
+  std::tie( V_.P31_ex_, V_.P32_ex_ ) = propagator_ex_.evaluate( V_.h_ms_ );
 
-  V_.P31_in_ = propagator_31( P_.tau_syn_in_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
-  V_.P32_in_ = propagator_32( P_.tau_syn_in_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
+  propagator_in_ = IAFPropagatorAlpha( P_.tau_syn_in_, P_.tau_m_, P_.c_m_ );
+  std::tie( V_.P31_in_, V_.P32_in_ ) = propagator_in_.evaluate( V_.h_ms_ );
 
   // t_ref_ is the refractory period in ms
   // refractory_steps_ is the duration of the refractory period in whole
@@ -292,18 +300,14 @@ nest::iaf_psc_alpha_ps::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 bool
-nest::iaf_psc_alpha_ps::get_next_event_( const long T, double& ev_offset, double& ev_weight, bool& end_of_refract )
+iaf_psc_alpha_ps::get_next_event_( const long T, double& ev_offset, double& ev_weight, bool& end_of_refract )
 {
   return B_.events_.get_next_spike( T, false, ev_offset, ev_weight, end_of_refract );
 }
 
 void
-nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long to )
+iaf_psc_alpha_ps::update( Time const& origin, const long from, const long to )
 {
-  assert( to >= 0 );
-  assert( static_cast< delay >( from ) < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
   {
@@ -325,7 +329,7 @@ nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long 
     const long T = origin.get_steps() + lag;
     // if neuron returns from refractoriness during this step, place
     // pseudo-event in queue to mark end of refractory period
-    if ( S_.is_refractory_ && ( T + 1 - S_.last_spike_step_ == V_.refractory_steps_ ) )
+    if ( S_.is_refractory_ and T + 1 - S_.last_spike_step_ == V_.refractory_steps_ )
     {
       B_.events_.add_refractory( T, S_.last_spike_offset_ );
     }
@@ -354,7 +358,7 @@ nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long 
       {
         // If we use S_.V_m_ * std::exp( -V_.h_ms_ / P_.tau_m_ ) instead of
         // V_.expm1_tau_m_ * S_.V_m_ + S_.V_m_ here, the accuracy decreases,
-        // see test_iaf_ps_dc_t_accuracy.sli for details.
+        // see test_iaf_ps_dc_t_accuracy.py for details.
         S_.V_m_ = V_.P30_ * ( P_.I_e_ + S_.y_input_ ) + V_.P31_ex_ * S_.dI_ex_ + V_.P32_ex_ * S_.I_ex_
           + V_.P31_in_ * S_.dI_in_ + V_.P32_in_ * S_.I_in_ + V_.expm1_tau_m_ * S_.V_m_ + S_.V_m_;
 
@@ -386,7 +390,7 @@ nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long 
 
       // Time within step is measured by offsets, which are h at the beginning
       // and 0 at the end of the step.
-      double last_offset = V_.h_ms_; // start of step
+      double last_offset = V_.h_ms_;  // start of step
 
       do
       {
@@ -408,17 +412,17 @@ nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long 
         if ( end_of_refract )
         {
           S_.is_refractory_ = false;
-        } // return from refractoriness
+        }  // return from refractoriness
         else
         {
           if ( ev_weight >= 0.0 )
           {
-            S_.dI_ex_ += V_.psc_norm_ex_ * ev_weight; // exc. spike input
+            S_.dI_ex_ += V_.psc_norm_ex_ * ev_weight;  // exc. spike input
           }
           else
           {
             S_.dI_in_ += V_.psc_norm_in_ * ev_weight;
-          } // inh. spike input
+          }  // inh. spike input
         }
 
         // store state
@@ -433,7 +437,7 @@ nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long 
 
       // no events remaining, plain update step across remainder
       // of interval
-      if ( last_offset > 0 ) // not at end of step, do remainder
+      if ( last_offset > 0 )  // not at end of step, do remainder
       {
         propagate_( last_offset );
         if ( S_.V_m_ >= P_.U_th_ )
@@ -441,7 +445,7 @@ nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long 
           emit_spike_( origin, lag, V_.h_ms_ - last_offset, last_offset );
         }
       }
-    } // else
+    }  // else
 
     // Set new input current. The current change occurs at the
     // end of the interval and thus must come AFTER the threshold-
@@ -451,13 +455,13 @@ nest::iaf_psc_alpha_ps::update( Time const& origin, const long from, const long 
 
     // logging
     B_.logger_.record_data( origin.get_steps() + lag );
-  } // from lag = from ...
+  }  // from lag = from ...
 }
 
 
 // function handles exact spike times
 void
-nest::iaf_psc_alpha_ps::handle( SpikeEvent& e )
+iaf_psc_alpha_ps::handle( SpikeEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -467,14 +471,14 @@ nest::iaf_psc_alpha_ps::handle( SpikeEvent& e )
   */
   const long Tdeliver = e.get_stamp().get_steps() + e.get_delay_steps() - 1;
 
-  B_.events_.add_spike( e.get_rel_delivery_steps( nest::kernel().simulation_manager.get_slice_origin() ),
+  B_.events_.add_spike( e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ),
     Tdeliver,
     e.get_offset(),
     e.get_weight() * e.get_multiplicity() );
 }
 
 void
-nest::iaf_psc_alpha_ps::handle( CurrentEvent& e )
+iaf_psc_alpha_ps::handle( CurrentEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -482,11 +486,11 @@ nest::iaf_psc_alpha_ps::handle( CurrentEvent& e )
   const double w = e.get_weight();
 
   // add weighted current; HEP 2002-10-04
-  B_.currents_.add_value( e.get_rel_delivery_steps( nest::kernel().simulation_manager.get_slice_origin() ), w * c );
+  B_.currents_.add_value( e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ), w * c );
 }
 
 void
-nest::iaf_psc_alpha_ps::handle( DataLoggingRequest& e )
+iaf_psc_alpha_ps::handle( DataLoggingRequest& e )
 {
   B_.logger_.handle( e );
 }
@@ -494,19 +498,21 @@ nest::iaf_psc_alpha_ps::handle( DataLoggingRequest& e )
 // auxiliary functions ---------------------------------------------
 
 void
-nest::iaf_psc_alpha_ps::propagate_( const double dt )
+iaf_psc_alpha_ps::propagate_( const double dt )
 {
   // V_m_ remains unchanged at 0.0 while neuron is refractory
   if ( not S_.is_refractory_ )
   {
-    const double expm1_tau_m = numerics::expm1( -dt / P_.tau_m_ );
+    const double expm1_tau_m = numerics::expm1( -dt * V_.inv_tau_m_ );
 
-    const double ps_P30 = -P_.tau_m_ / P_.c_m_ * expm1_tau_m;
+    const double ps_P30 = -P_.tau_m_ * V_.inv_c_m_ * expm1_tau_m;
 
-    const double ps_P31_ex = propagator_31( P_.tau_syn_ex_, P_.tau_m_, P_.c_m_, dt );
-    const double ps_P32_ex = propagator_32( P_.tau_syn_ex_, P_.tau_m_, P_.c_m_, dt );
-    const double ps_P31_in = propagator_31( P_.tau_syn_in_, P_.tau_m_, P_.c_m_, dt );
-    const double ps_P32_in = propagator_32( P_.tau_syn_in_, P_.tau_m_, P_.c_m_, dt );
+    double ps_P31_ex;
+    double ps_P32_ex;
+    double ps_P31_in;
+    double ps_P32_in;
+    std::tie( ps_P31_ex, ps_P32_ex ) = propagator_ex_.evaluate( dt );
+    std::tie( ps_P31_in, ps_P32_in ) = propagator_in_.evaluate( dt );
 
     S_.V_m_ = ps_P30 * ( P_.I_e_ + S_.y_input_ ) + ps_P31_ex * S_.dI_ex_ + ps_P32_ex * S_.I_ex_ + ps_P31_in * S_.dI_in_
       + ps_P32_in * S_.I_in_ + S_.V_m_ * expm1_tau_m + S_.V_m_;
@@ -515,8 +521,8 @@ nest::iaf_psc_alpha_ps::propagate_( const double dt )
     S_.V_m_ = ( S_.V_m_ < P_.U_min_ ? P_.U_min_ : S_.V_m_ );
   }
 
-  const double ps_e_TauSyn_ex = std::exp( -dt / P_.tau_syn_ex_ );
-  const double ps_e_TauSyn_in = std::exp( -dt / P_.tau_syn_in_ );
+  const double ps_e_TauSyn_ex = std::exp( -dt * V_.inv_tau_syn_ex_ );
+  const double ps_e_TauSyn_in = std::exp( -dt * V_.inv_tau_syn_in_ );
 
   // now the synaptic components
   S_.I_ex_ = ps_e_TauSyn_ex * dt * S_.dI_ex_ + ps_e_TauSyn_ex * S_.I_ex_;
@@ -527,7 +533,7 @@ nest::iaf_psc_alpha_ps::propagate_( const double dt )
 }
 
 void
-nest::iaf_psc_alpha_ps::emit_spike_( Time const& origin, const long lag, const double t0, const double dt )
+iaf_psc_alpha_ps::emit_spike_( Time const& origin, const long lag, const double t0, const double dt )
 {
   // we know that the potential is subthreshold at t0, super at t0+dt
 
@@ -551,9 +557,9 @@ nest::iaf_psc_alpha_ps::emit_spike_( Time const& origin, const long lag, const d
 }
 
 void
-nest::iaf_psc_alpha_ps::emit_instant_spike_( Time const& origin, const long lag, const double spike_offs )
+iaf_psc_alpha_ps::emit_instant_spike_( Time const& origin, const long lag, const double spike_offs )
 {
-  assert( S_.V_m_ >= P_.U_th_ ); // ensure we are superthreshold
+  assert( S_.V_m_ >= P_.U_th_ );  // ensure we are superthreshold
 
   // set stamp and offset for spike
   S_.last_spike_step_ = origin.get_steps() + lag + 1;
@@ -573,20 +579,24 @@ nest::iaf_psc_alpha_ps::emit_instant_spike_( Time const& origin, const long lag,
 }
 
 double
-nest::iaf_psc_alpha_ps::threshold_distance( double t_step ) const
+iaf_psc_alpha_ps::threshold_distance( double t_step ) const
 {
-  const double expm1_tau_m = numerics::expm1( -t_step / P_.tau_m_ );
+  const double expm1_tau_m = numerics::expm1( -t_step * V_.inv_tau_m_ );
 
-  const double ps_P30 = -P_.tau_m_ / P_.c_m_ * expm1_tau_m;
+  const double ps_P30 = -P_.tau_m_ * V_.inv_c_m_ * expm1_tau_m;
 
-  const double ps_P31_ex = propagator_31( P_.tau_syn_ex_, P_.tau_m_, P_.c_m_, t_step );
-  const double ps_P32_ex = propagator_32( P_.tau_syn_ex_, P_.tau_m_, P_.c_m_, t_step );
-  const double ps_P31_in = propagator_31( P_.tau_syn_in_, P_.tau_m_, P_.c_m_, t_step );
-  const double ps_P32_in = propagator_32( P_.tau_syn_in_, P_.tau_m_, P_.c_m_, t_step );
+  double ps_P31_ex;
+  double ps_P32_ex;
+  double ps_P31_in;
+  double ps_P32_in;
+  std::tie( ps_P31_ex, ps_P32_ex ) = propagator_ex_.evaluate( t_step );
+  std::tie( ps_P31_in, ps_P32_in ) = propagator_in_.evaluate( t_step );
 
-  double V_m_root = ps_P30 * ( P_.I_e_ + V_.y_input_before_ ) + ps_P31_ex * V_.dI_ex_before_
+  const double V_m_root = ps_P30 * ( P_.I_e_ + V_.y_input_before_ ) + ps_P31_ex * V_.dI_ex_before_
     + ps_P32_ex * V_.I_ex_before_ + ps_P31_in * V_.dI_in_before_ + ps_P32_in * V_.I_in_before_
     + V_.V_m_before_ * expm1_tau_m + V_.V_m_before_;
 
   return V_m_root - P_.U_th_;
 }
+
+}  // namespace nest

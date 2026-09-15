@@ -35,14 +35,19 @@
 #include "node.h"
 #include "recording_backend.h"
 
-// Includes from sli:
-#include "dictdatum.h"
-#include "dictutils.h"
 
 namespace nest
 {
 
 /* BeginUserDocs: NOINDEX
+
+Short description
++++++++++++++++++
+
+Recording device
+
+Description
++++++++++++
 
 Recording time window
 +++++++++++++++++++++
@@ -59,9 +64,31 @@ Data handling
 +++++++++++++
 
 All recorded data is handed over to the recording backend, selected
-via the ``record_to`` property. More details on available backends and
-their properties can be found in the :ref:`guide to recording from
-simulations <recording_backends>`.
+via the ``record_to`` property::
+
+   >>> sr  = nest.Create("spike_recorder", params={"record_to":"ascii", "time_in_steps": False})
+   >>> mm = nest.Create("multimeter", 1, {"record_from": ["V_m", "g_ex"], "record_to": "memory"})
+
+
+By default, data recorded from recorders is stored in the `memory` backend.
+You can access the data recorded by the recorders with the ``events`` property.
+
+::
+
+   mm_events = mm.get("events")
+
+.. note::
+
+   The type of recording backend you choose may affect the efficiency of your simulation.
+   The  `memory` backend is ideal for interactive work, but can only be used for limited
+   amount of data. Additionally, transferring data to disk later on may be slower than
+   directly writing from the NEST kernel via `ascii` or `sionlib` backends.
+
+   Large simulations with many threads may benefit from the `sionlib` backend, as the `ascii`
+   backend opens many files which can be very time consuming on parallel file systems.
+
+   The complete list of parameters and other recording backend options
+   can be found in the :ref:`guide to recording from simulations <recording_backends>`.
 
 Recorder properties
 +++++++++++++++++++
@@ -134,7 +161,7 @@ public:
 
   using Device::pre_run_hook;
   using Node::pre_run_hook;
-  void pre_run_hook( const std::vector< Name >&, const std::vector< Name >& );
+  void pre_run_hook( const std::vector< std::string >&, const std::vector< std::string >& );
 
   bool is_active( Time const& T ) const override;
 
@@ -150,8 +177,8 @@ public:
 
   const std::string& get_label() const;
 
-  void set_status( const DictionaryDatum& ) override;
-  void get_status( DictionaryDatum& ) const override;
+  void set_status( const Dictionary& ) override;
+  void get_status( Dictionary& ) const override;
 
 protected:
   void write( const Event&, const std::vector< double >&, const std::vector< long >& );
@@ -160,28 +187,28 @@ protected:
 private:
   struct Parameters_
   {
-    std::string label_; //!< A user-defined label for symbolic device names.
-    Name record_to_;    //!< The name of the recording backend to use
+    std::string label_;      //!< A user-defined label for symbolic device names.
+    std::string record_to_;  //!< The name of the recording backend to use
 
     Parameters_();
     Parameters_( const Parameters_& ) = default;
     Parameters_& operator=( const Parameters_& ) = default;
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum& );
+    void get( Dictionary& ) const;
+    void set( const Dictionary& );
   } P_;
 
   struct State_
   {
-    size_t n_events_; //!< The number of events recorded by the device.
+    size_t n_events_;  //!< The number of events recorded by the device.
 
     State_();
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum& );
+    void get( Dictionary& ) const;
+    void set( const Dictionary& );
   } S_;
 
-  DictionaryDatum backend_params_;
+  Dictionary backend_params_;
 };
 
-} // namespace
+}  // namespace
 
-#endif // RECORDING_DEVICE_H
+#endif /* #ifndef RECORDING_DEVICE_H */

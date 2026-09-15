@@ -53,7 +53,7 @@ The ``rate_generator`` provides a piecewise constant rate input to the
 connected rate unit(s). Please note that this input is handled in the same
 way as input from any other rate unit, that is, it is processed by the input
 function of the receiving rate unit. The amplitude of the rate is changed
-at the specified times. The unit of the rate is Hz.
+at the specified times. The unit of the rate is spks/s.
 
 If ``allow_offgrid_times`` is false, times will be rounded to the nearest
 grid point if they are less than tic/2 from the grid point, otherwise
@@ -99,7 +99,14 @@ See also
 
 step_current_generator
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: step_rate_generator
+
 EndUserDocs */
+
+void register_step_rate_generator( const std::string& name );
 
 class step_rate_generator : public StimulationDevice
 {
@@ -117,12 +124,12 @@ public:
 
   void handle( DataLoggingRequest& ) override;
 
-  port send_test_event( Node&, rport, synindex, bool ) override;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  port handles_test_event( DataLoggingRequest&, rport ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   //! Allow multimeter to connect to local instances
   bool local_receiver() const override;
@@ -153,14 +160,14 @@ private:
     //! Allow and round up amplitude times not on steps
     bool allow_offgrid_amp_times_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
     Parameters_( const Parameters_&, Buffers_& );
     Parameters_( const Parameters_& );
     Parameters_& operator=( const Parameters_& p );
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in dictionary
     //! Set values from dictionary
-    void set( const DictionaryDatum&, Buffers_&, Node* );
+    void set( const Dictionary&, Buffers_&, Node* );
 
     /**
      * Return time as Time object if valid, otherwise throw BadProperty
@@ -175,9 +182,9 @@ private:
 
   struct State_
   {
-    double rate_; //!< Instantaneous rate value; used for recording current
+    double rate_;  //!< Instantaneous rate value; used for recording current
 
-    State_(); //!< Sets default parameter values
+    State_();  //!< Sets default parameter values
   };
 
   // ------------------------------------------------------------
@@ -190,8 +197,8 @@ private:
 
   struct Buffers_
   {
-    size_t idx_; //!< index of current amplitude
-    double amp_; //!< current amplitude
+    size_t idx_;  //!< index of current amplitude
+    double amp_;  //!< current amplitude
 
     Buffers_( step_rate_generator& );
     Buffers_( const Buffers_&, step_rate_generator& );
@@ -214,8 +221,8 @@ private:
   Buffers_ B_;
 };
 
-inline port
-step_rate_generator::send_test_event( Node& target, rport receptor_type, synindex syn_id, bool )
+inline size_t
+step_rate_generator::send_test_event( Node& target, size_t receptor_type, synindex syn_id, bool )
 {
   StimulationDevice::enforce_single_syn_type( syn_id );
 
@@ -225,8 +232,8 @@ step_rate_generator::send_test_event( Node& target, rport receptor_type, syninde
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-step_rate_generator::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+step_rate_generator::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -236,19 +243,19 @@ step_rate_generator::handles_test_event( DataLoggingRequest& dlr, rport receptor
 }
 
 inline void
-step_rate_generator::get_status( DictionaryDatum& d ) const
+step_rate_generator::get_status( Dictionary& d ) const
 {
   P_.get( d );
   StimulationDevice::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-step_rate_generator::set_status( const DictionaryDatum& d )
+step_rate_generator::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;   // temporary copy in case of errors
-  ptmp.set( d, B_, this ); // throws if BadProperty
+  Parameters_ ptmp = P_;    // temporary copy in case of errors
+  ptmp.set( d, B_, this );  // throws if BadProperty
 
   // We now know that ptmp is consistent. We do not write it back
   // to P_ before we are also sure that the properties to be set
@@ -272,6 +279,6 @@ step_rate_generator::get_type() const
   return StimulationDevice::Type::DELAYED_RATE_CONNECTION_GENERATOR;
 }
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef STEP_RATE_GENERATOR_H */

@@ -60,44 +60,46 @@ The instantaneous rate of the process is given by
 
 .. math::
 
- f(t) = rate + amplitude \sin ( 2 \pi frequency t + phase \cdot \pi/180 )
+ f(t) = \mathrm{rate} + \mathrm{amplitude} \cdot \sin \left(
+    2 \pi \cdot \mathrm{frequency} \cdot t + \mathrm{phase} \cdot
+    \frac{\pi}{180} \right)
 
 .. note::
 
-   - The gamma generator requires 0 <= amplitude <= rate.
+   - The gamma generator requires
+     :math:`0 \leq \mathrm{amplitude} \leq \mathrm{rate}`.
    - The state of the generator is reset on calibration.
    - The generator does not support precise spike timing.
    - You can use the multimeter to sample the rate of the generator.
    - The generator will create different trains if run at different
      temporal resolutions.
 
-Individual spike trains vs single spike train:
 By default, the generator sends a different spike train to each of its
-targets. If /individual_spike_trains is set to false using either
-SetDefaults or CopyModel before a generator node is created, the generator
-will send the same spike train to all of its targets.
+targets. If ``individual_spike_trains`` is set to ``False`` using either
+:py:func:`.SetDefaults` or :py:func:`.CopyModel` before a generator node
+is created, the generator will send the same spike train to all of its targets.
 
 .. include:: ../models/stimulation_device.rst
 
 rate
-    Mean firing rate, default: 0 spikes/s
+    Mean firing rate in spikes/second. Default: ``0.0``.
 
 amplitude
-    Firing rate modulation amplitude, default: 0 s^-1
+    Firing rate modulation amplitude in spikes/second. Default: ``0.0``.
 
 frequency
-    Modulation frequency, default: 0 Hz
+    Modulation frequency in Hz. Default: ``0.0``.
 
 phase
-    Modulation phase in degree [0-360], default: 0
+    Modulation phase in degree [0-360]. Default: ``0.0``.
 
 order
-    Gamma order (>= 1), default: 1
+    Gamma order (>= 1). Default: ``1``.
 
 individual_spike_trains
-    See note above, default: true
+    See note above. Default: ``True``.
 
-See also [1]_.
+See also :footcite:p:`Barbieri2001`.
 
 Setting parameters from a stimulation backend
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -127,15 +129,18 @@ SpikeEvent
 References
 ++++++++++
 
-.. [1] Barbieri et al. (2001). Construction and analysis of non-Poisson
-       stimulus-response models of neural spiking activity. Journal of
-       Neuroscience Methods, 105:25-3.
-       DOI: https://doi.org/10.1016/S0165-0270(00)00344-7
+.. footbibliography::
 
 See also
 ++++++++
 
 sinusoidal_poisson_generator, gamma_sup_generator
+
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: sinusoidal_gamma_generator
 
 EndUserDocs */
 
@@ -186,6 +191,8 @@ EndUserDocs */
  *    the same synapse type, see #737. Once #681 is fixed, we need to add a
  *    check that his assumption holds.
  */
+void register_sinusoidal_gamma_generator( const std::string& name );
+
 class sinusoidal_gamma_generator : public StimulationDevice
 {
 
@@ -193,7 +200,7 @@ public:
   sinusoidal_gamma_generator();
   sinusoidal_gamma_generator( const sinusoidal_gamma_generator& );
 
-  port send_test_event( Node&, rport, synindex, bool ) override;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
   /**
    * Import sets of overloaded virtual functions.
@@ -206,10 +213,10 @@ public:
 
   void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( DataLoggingRequest&, rport ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   //! Model can be switched between proxies (single spike train) and not
   bool has_proxies() const override;
@@ -259,25 +266,25 @@ private:
      */
     size_t num_trains_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
     Parameters_( const Parameters_& );
     Parameters_& operator=( const Parameters_& p );
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in Dictionary
 
     /**
-     * Set values from dictionary.
+     * Set values from Dictionary.
      * @note State is passed so that the position can be reset if the
      *       spike_times_ vector has been filled with new data.
      */
-    void set( const DictionaryDatum&, const sinusoidal_gamma_generator&, Node* );
+    void set( const Dictionary&, const sinusoidal_gamma_generator&, Node* );
   };
 
   struct State_
   {
-    double rate_; //!< current rate, kept for recording
+    double rate_;  //!< current rate, kept for recording
 
-    State_(); //!< Sets default state value
+    State_();  //!< Sets default state value
   };
 
   // ------------------------------------------------------------
@@ -313,18 +320,18 @@ private:
      */
     std::vector< double > Lambda_t0_;
 
-    Parameters_ P_prev_; //!< parameter values prior to last SetStatus
+    Parameters_ P_prev_;  //!< parameter values prior to last SetStatus
   };
 
   // ------------------------------------------------------------
 
   struct Variables_
   {
-    double h_;    //!< time resolution (ms)
-    double t_ms_; //!< current time in ms, for communication with event_hook()
+    double h_;     //!< time resolution (ms)
+    double t_ms_;  //!< current time in ms, for communication with event_hook()
     //! current time in steps, for communication with event_hook()
     long t_steps_;
-    RngPtr rng_; //!< thread-specific random generator
+    RngPtr rng_;  //!< thread-specific random generator
   };
 
   double
@@ -337,7 +344,7 @@ private:
   double deltaLambda_( const Parameters_&, double, double ) const;
 
   //! compute hazard for given target index, including time-step factor
-  double hazard_( port ) const;
+  double hazard_( size_t ) const;
 
   static RecordablesMap< sinusoidal_gamma_generator > recordablesMap_;
 
@@ -347,8 +354,8 @@ private:
   Buffers_ B_;
 };
 
-inline port
-sinusoidal_gamma_generator::send_test_event( Node& target, rport receptor_type, synindex syn_id, bool dummy_target )
+inline size_t
+sinusoidal_gamma_generator::send_test_event( Node& target, size_t receptor_type, synindex syn_id, bool dummy_target )
 {
   StimulationDevice::enforce_single_syn_type( syn_id );
 
@@ -366,8 +373,8 @@ sinusoidal_gamma_generator::send_test_event( Node& target, rport receptor_type, 
     {
       SpikeEvent e;
       e.set_sender( *this );
-      const rport r = target.handles_test_event( e, receptor_type );
-      if ( r != invalid_port_ and not is_model_prototype() )
+      const size_t r = target.handles_test_event( e, receptor_type );
+      if ( r != invalid_port and not is_model_prototype() )
       {
         ++P_.num_trains_;
       }
@@ -384,8 +391,8 @@ sinusoidal_gamma_generator::send_test_event( Node& target, rport receptor_type, 
   }
 }
 
-inline port
-sinusoidal_gamma_generator::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+sinusoidal_gamma_generator::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -395,19 +402,19 @@ sinusoidal_gamma_generator::handles_test_event( DataLoggingRequest& dlr, rport r
 }
 
 inline void
-sinusoidal_gamma_generator::get_status( DictionaryDatum& d ) const
+sinusoidal_gamma_generator::get_status( Dictionary& d ) const
 {
   P_.get( d );
   StimulationDevice::get_status( d );
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-sinusoidal_gamma_generator::set_status( const DictionaryDatum& d )
+sinusoidal_gamma_generator::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
 
-  ptmp.set( d, *this, this ); // throws if BadProperty
+  ptmp.set( d, *this, this );  // throws if BadProperty
   // We now know that ptmp is consistent. We do not write it back
   // to P_ before we are also sure that the properties to be set
   // in the parent class are internally consistent.
@@ -437,8 +444,8 @@ sinusoidal_gamma_generator::get_type() const
   return StimulationDevice::Type::SPIKE_GENERATOR;
 }
 
-} // namespace
+}  // namespace
 
-#endif // SINUSOIDAL_GAMMA_GENERATOR_H
+#endif  // SINUSOIDAL_GAMMA_GENERATOR_H
 
-#endif // HAVE_GSL
+#endif  // HAVE_GSL

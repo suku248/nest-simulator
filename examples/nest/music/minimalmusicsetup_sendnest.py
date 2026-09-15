@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 # minimalmusicsetup_sendnest.py
@@ -22,25 +22,25 @@
 
 import nest
 
-if not nest.ll_api.sli_func("statusdict/have_music ::"):
+if not nest.build_info["have_music"]:
     import sys
 
     print("NEST was not compiled with support for MUSIC, not running.")
     sys.exit(1)
 
-nest.set_verbosity("M_ERROR")
+nest.verbosity = nest.VerbosityLevel.ERROR
 
-sg = nest.Create('spike_generator')
-n = nest.Create('iaf_psc_alpha')
+sg = nest.Create("spike_generator")
+n = nest.Create("iaf_psc_alpha")
 sg.spike_times = [1.0, 1.5, 2.0]
-nest.Connect(sg, n, 'one_to_one', {'weight': 750.0, 'delay': 1.0})
+nest.Connect(sg, n, "one_to_one", {"weight": 750.0, "delay": 1.0})
 
-vm = nest.Create('voltmeter')
+vm = nest.Create("voltmeter")
 vm.record_to = "screen"
 nest.Connect(vm, n)
 
-meop = nest.Create('music_event_out_proxy')
-meop.port_name = 'spikes_out'
-nest.Connect(sg, meop, 'one_to_one', {'music_channel': 0})
+meop = nest.Create("music_event_out_proxy")
+meop.port_name = "spikes_out"
+nest.Connect(sg, meop, "one_to_one", {"music_channel": 0})
 
 nest.Simulate(10)

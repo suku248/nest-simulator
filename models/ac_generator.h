@@ -72,7 +72,7 @@ phase
 Setting `start` and `stop` only windows the current as defined above. It
 does not shift the time axis.
 
-See also [1]_.
+See also :footcite:p:`Rotter1999`.
 
 Set parameters from a stimulation backend
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -90,9 +90,7 @@ The indexing is as follows:
 References
 ++++++++++
 
-.. [1] Rotter S and Diesmann M (1999). Exact digital simulation of time-
-       invariant linear systems with applications to neuronal modeling,
-       Biol. Cybern. 81, 381-402. DOI: https://doi.org/10.1007/s004220050570
+.. footbibliography::
 
 Sends
 +++++
@@ -105,10 +103,17 @@ See also
 dc_generator, noise_generator, step_current_generator, StimulationDevice,
 Device
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: ac_generator
+
 EndUserDocs */
 
 namespace nest
 {
+void register_ac_generator( const std::string& name );
+
 class ac_generator : public StimulationDevice
 {
 
@@ -119,17 +124,17 @@ public:
   //! Allow multimeter to connect to local instances
   bool local_receiver() const override;
 
-  port send_test_event( Node&, rport, synindex, bool ) override;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
   using Node::handle;
   using Node::handles_test_event;
 
   void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( DataLoggingRequest&, rport ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   StimulationDevice::Type get_type() const override;
   void set_data_from_stimulation_backend( std::vector< double >& input_param ) override;
@@ -146,17 +151,17 @@ private:
 
   struct Parameters_
   {
-    double amp_;     //!< Amplitude of sine-current
-    double offset_;  //!< Offset of sine-current
-    double freq_;    //!< Standard frequency in Hz
-    double phi_deg_; //!< Phase of sine current (0-360 deg)
+    double amp_;      //!< Amplitude of sine-current
+    double offset_;   //!< Offset of sine-current
+    double freq_;     //!< Standard frequency in Hz
+    double phi_deg_;  //!< Phase of sine current (0-360 deg)
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
     Parameters_( const Parameters_& );
     Parameters_& operator=( const Parameters_& p );
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dictionary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
   };
 
   // ------------------------------------------------------------
@@ -165,12 +170,12 @@ private:
   {
     double y_0_;
     double y_1_;
-    double I_; //!< Instantaneous current value; used for recording current
-               //!< Required to handle current values when device is inactive
+    double I_;  //!< Instantaneous current value; used for recording current
+                //!< Required to handle current values when device is inactive
 
-    State_(); //!< Sets default parameter values
+    State_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in Dictionary
   };
 
   // ------------------------------------------------------------
@@ -217,8 +222,8 @@ private:
   Buffers_ B_;
 };
 
-inline port
-ac_generator::send_test_event( Node& target, rport receptor_type, synindex syn_id, bool )
+inline size_t
+ac_generator::send_test_event( Node& target, size_t receptor_type, synindex syn_id, bool )
 {
   StimulationDevice::enforce_single_syn_type( syn_id );
 
@@ -228,8 +233,8 @@ ac_generator::send_test_event( Node& target, rport receptor_type, synindex syn_i
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-ac_generator::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+ac_generator::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -239,20 +244,20 @@ ac_generator::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
 }
 
 inline void
-ac_generator::get_status( DictionaryDatum& d ) const
+ac_generator::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   StimulationDevice::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-ac_generator::set_status( const DictionaryDatum& d )
+ac_generator::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
 
   // State_ is read-only
 
@@ -277,6 +282,6 @@ ac_generator::get_type() const
   return StimulationDevice::Type::CURRENT_GENERATOR;
 }
 
-} // namespace
+}  // namespace
 
-#endif // AC_GENERATOR_H
+#endif  // AC_GENERATOR_H

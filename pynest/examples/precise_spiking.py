@@ -25,7 +25,7 @@ Comparing precise and grid-based neuron models
 
 In traditional time-driven simulations, spikes are constrained to the
 time grid at a user-defined resolution. The precise spiking models
-overcome this by handling spikes in continuous time [1]_ and [2]_.
+overcome this by handling spikes in continuous time :footcite:p:`Morrison2007a` and :footcite:p:`Hanuschkin2010`.
 
 The precise spiking neuron models in NEST include: ``iaf_psc_exp_ps``,
 ``iaf_psc_alpha_ps`` and ``iaf_psc_delta_ps``.
@@ -35,39 +35,28 @@ https://www.nest-simulator.org/simulations-with-precise-spike-times/
 
 This example compares the conventional grid-constrained model and the
 precise version for an integrate-and-fire neuron model with exponential
-postsynaptic currents [2]_.
+postsynaptic currents :footcite:p:`Hanuschkin2010`.
 
 References
 ~~~~~~~~~~
 
-.. [1] Morrison A, Straube S, Plesser HE, Diesmann M. 2007. Exact subthreshold
-       integration with continuous spike times in discrete-time neural network
-       simulations. Neural Computation. 19(1):47-79.
-       https://doi.org/10.1162/neco.2007.19.1.47
-
-.. [2] Hanuschkin A, Kunkel S, Helias M, Morrison A and Diesmann M. 2010. A
-       general and efficient method for incorporating precise spike times in
-       globally time-driven simulations. Froniers in Neuroinformatics. 4:113.
-       https://doi.org/10.3389/fninf.2010.00113
-
+.. footbibliography::
 """
-
 
 ###############################################################################
 # First, we import all necessary modules for simulation, analysis, and
 # plotting.
 
 
-import nest
 import matplotlib.pyplot as plt
-
+import nest
 
 ###############################################################################
 # Second, we assign the simulation parameters to variables.
 
 
-simtime = 100.0                # ms
-stim_current = 700.0           # pA
+simtime = 100.0  # ms
+stim_current = 700.0  # pA
 resolutions = [0.1, 0.5, 1.0]  # ms
 
 
@@ -103,10 +92,10 @@ for resolution in resolutions:
         vm_status = voltmeter.events
         sr_status = sr.events
         data[resolution][model] = {
-            "vm_times": vm_status['times'],
-            "vm_values": vm_status['V_m'],
-            "spikes": sr_status['times'],
-            "V_th": neuron.V_th
+            "vm_times": vm_status["times"],
+            "vm_values": vm_status["V_m"],
+            "spikes": sr_status["times"],
+            "V_th": neuron.V_th,
         }
 
 
@@ -139,6 +128,6 @@ for v, resolution in enumerate(sorted(data)):
     if v == 2:
         plot.legend(loc=4)
     else:
-        plot.set_xticklabels('')
+        plot.set_xticklabels("")
 
 plt.show()

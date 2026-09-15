@@ -33,11 +33,13 @@
 
 /* BeginUserDocs: NOINDEX
 
+Short description
++++++++++++++++++
+
 Recording backend `mpi` - Send data with MPI
-############################################
 
 Description
-+++++++++++
+~~~~~~~~~~~
 
 .. admonition:: Availability
 
@@ -47,9 +49,13 @@ Description
 The `mpi` recording backend sends collected data to a remote process
 using MPI.
 
-The name of the MPI port to send data to is read from a file for each
-device configured to use this backend. The file needs to be named
-according to the following pattern:
+There are two ways to set the MPI port. If both are set, option A has precedence
+
+1. The address is supplied via the recording backends "mpi_address" status property.
+
+2. The name of the MPI port to send data to is read from a file for each
+   device configured to use this backend. The file needs to be named
+   according to the following pattern:
 
 ::
 
@@ -61,7 +67,7 @@ its node ID. This path can only be set outside of a `Run` context
 (i.e. after ``Prepare()`` has been called, but ``Cleanup()`` has not).
 
 Communication Protocol
-++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~
 
 The following protocol is used to exchange information between both
 MPI processes. The protocol is described using the following format
@@ -76,7 +82,7 @@ for the MPI messages: (value, number, type, source/destination, tag)
 7) ``Cleanup``  : Send at this en of the simulation (true, 1, CXX_BOOL, 0, 2)
 
 Data format
-+++++++++++
+~~~~~~~~~~~
 
 The format of the data sent is an array consisting of (id device, id node, time
 is ms).
@@ -88,6 +94,7 @@ namespace nest
 
 /**
  * A recording backend for sending information with MPI.
+ *
  * Communication protocol diagram:
  * \image html MPI_backend_protocol_of_communication.svg
  * General state machine diagram of NEST communication with the MPI backend:
@@ -104,13 +111,13 @@ public:
   void initialize() override;
   void finalize() override;
 
-  void enroll( const RecordingDevice& device, const DictionaryDatum& params ) override;
+  void enroll( const RecordingDevice& device, const Dictionary& params ) override;
 
   void disenroll( const RecordingDevice& device ) override;
 
   void set_value_names( const RecordingDevice& device,
-    const std::vector< Name >& double_value_names,
-    const std::vector< Name >& long_value_names ) override;
+    const std::vector< std::string >& double_value_names,
+    const std::vector< std::string >& long_value_names ) override;
 
   void cleanup() override;
 
@@ -118,9 +125,9 @@ public:
 
   void write( const RecordingDevice&, const Event&, const std::vector< double >&, const std::vector< long >& ) override;
 
-  void set_status( const DictionaryDatum& ) override;
+  void set_status( const Dictionary& ) override;
 
-  void get_status( DictionaryDatum& ) const override;
+  void get_status( Dictionary& ) const override;
 
   void pre_run_hook() override;
 
@@ -128,17 +135,18 @@ public:
 
   void post_step_hook() override;
 
-  void check_device_status( const DictionaryDatum& ) const override;
-  void get_device_defaults( DictionaryDatum& ) const override;
-  void get_device_status( const RecordingDevice& device, DictionaryDatum& params_dictionary ) const override;
+  void check_device_status( const Dictionary& ) const override;
+  void get_device_defaults( Dictionary& ) const override;
+  void get_device_status( const RecordingDevice& device, Dictionary& params_dictionary ) const override;
 
 private:
   bool enrolled_;
   bool prepared_;
 
   /**
-   * Buffer for saving events before they are sent. The buffer has 3
-   * dimensions: thread_id, MPI_communicator_index and number of
+   * Buffer for saving events before they are sent.
+   *
+   * The buffer has 3 dimensions: thread_id, MPI_communicator_index and number of
    * events elements. The events elements are described as an array
    * with three components: id of device, id of neurons and data ( one
    * double )
@@ -147,27 +155,34 @@ private:
 
   /**
    * A map for the enrolled devices. We have a vector with one map per
-   * local thread. The map associates the node ID of a device on a
+   * local thread.
+   *
+   * The map associates the node ID of a device on a
    * given thread with its MPI index and device. Only the master
    * thread has a valid MPI communicator pointer.
    */
-  typedef std::vector< std::map< index, std::tuple< int, MPI_Comm*, const RecordingDevice* > > > device_map;
+  typedef std::vector< std::map< size_t, std::tuple< int, MPI_Comm*, const RecordingDevice* > > > device_map;
   device_map devices_;
 
   /**
    * A map of MPI communicators used by the master thread for the MPI
-   * communication.  The values of the map are tuples containing the
+   * communication.
+   *
+   * The values of the map are tuples containing the
    * index of the MPI communicator, the MPI communicator itself, and
    * the number of devices linked to that MPI communicator.
    */
   typedef std::map< std::string, std::tuple< int, MPI_Comm*, int > > comm_map;
   comm_map commMap_;
 
-  static void get_port( const RecordingDevice* device, std::string* port_name );
-  static void get_port( index index_node, const std::string& label, std::string* port_name );
-  static void send_data( const MPI_Comm* comm, const double data[], int size );
+  std::string mpi_address_;
+
+  void get_port( const RecordingDevice* device, std::string* port_name );
+  void get_port( size_t index_node, const std::string& label, std::string* port_name );
+  void send_data( const MPI_Comm* comm, const double data[], int size );
 };
 
-} // namespace
 
-#endif // RECORDING_BACKEND_MPI_H
+}  // namespace
+
+#endif /* #ifndef RECORDING_BACKEND_MPI_H */

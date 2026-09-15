@@ -51,9 +51,9 @@ Older versions of VM images
 ---------------------------
 
 
-`NEST Live Media 3.1 <https://nest-simulator.org/downloads/gplreleases/nest-3.1.ova>`_
+`NEST Live Media 3.3 <https://nest-simulator.org/downloads/gplreleases/nest-3.3.ova>`_
 
-`Checksum 3.1 <https://nest-simulator.org/downloads/gplreleases/nest-3.1.ova.sha512sum>`_
+`Checksum 3.3 <https://nest-simulator.org/downloads/gplreleases/nest-3.3.ova.sha512sum>`_
 
 `NEST Live Media 2.20.2 <https://nest-simulator.org/downloads/gplreleases/nest-2.20.2.ova>`_
 
@@ -77,6 +77,3 @@ Notes
 * To install Guest Additions, select **Devices** > **Insert Guest Additions CD image...**  (top left of the VirtualBox Window). Then, open a terminal (Ctrl+Alt+t), go to "/media/nest/VBOXADDITIONS.../" and run "sudo bash VboxLinuxAdditions.run".
 
 * To set the correct language layout for your keyboard (e.g., from "US" to "DE"), open a terminal and type: "sudo dpkg-reconfigure keyboard-configuration". After setting the correct keyboard map you have to reboot the system to activate the changes.
-
-
-

@@ -1,6 +1,8 @@
 
 __pycache__/
+.venv/
 build/
+conda/
 _build/
 install/
 reports/
@@ -14,10 +16,6 @@ pynest/pynestkernel.cxx
 *.o
 *.pyc
 
-Makefile
-
-build/
-install/
 examples/example_logs/
 
 /libnestutil/config.h
@@ -35,10 +33,7 @@ cmake_install.cmake
 CMakeDoxygenDefaults.cmake
 
 # generated files
-doc/fulldoc.conf
-doc/normaldoc.conf
 bin/nest-config
-bin/nest_vars.sh
 libnestutil/config.h
 nest/static_modules.h
 pynest/setup.py

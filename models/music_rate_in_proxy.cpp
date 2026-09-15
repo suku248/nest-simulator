@@ -24,13 +24,6 @@
 
 #ifdef HAVE_MUSIC
 
-// Includes from sli:
-#include "arraydatum.h"
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
-
 // Includes from libnestutil:
 #include "compose.hpp"
 #include "logging.h"
@@ -38,18 +31,29 @@
 // Includes from nestkernel:
 #include "event_delivery_manager_impl.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
+
+
+namespace nest
+{
+void
+register_music_rate_in_proxy( const std::string& name )
+{
+  register_node_model< music_rate_in_proxy >( name );
+}
+
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::music_rate_in_proxy::Parameters_::Parameters_()
+music_rate_in_proxy::Parameters_::Parameters_()
   : port_name_( "rate_in" )
   , channel_( 0 )
 {
 }
 
-nest::music_rate_in_proxy::State_::State_()
+music_rate_in_proxy::State_::State_()
   : registered_( false )
 {
 }
@@ -59,33 +63,33 @@ nest::music_rate_in_proxy::State_::State_()
  * ---------------------------------------------------------------- */
 
 void
-nest::music_rate_in_proxy::Parameters_::get( DictionaryDatum& d ) const
+music_rate_in_proxy::Parameters_::get( Dictionary& d ) const
 {
-  ( *d )[ names::port_name ] = port_name_;
+  d[ names::port_name ] = port_name_;
 }
 
 void
-nest::music_rate_in_proxy::Parameters_::set( const DictionaryDatum& d, State_& s )
+music_rate_in_proxy::Parameters_::set( const Dictionary& d, State_& s )
 {
   // TODO: This is not possible, as P_ does not know about get_name()
-  //  if(d->known(names::port_name) && s.registered_)
+  //  if(d.known(names::port_name) and s.registered_)
   //    throw MUSICPortAlreadyPublished(get_name(), P_.port_name_);
 
   if ( not s.registered_ )
   {
-    updateValue< string >( d, names::port_name, port_name_ );
-    updateValue< long >( d, names::music_channel, channel_ );
+    d.update_value( names::port_name, port_name_ );
+    d.update_value( names::music_channel, channel_ );
   }
 }
 
 void
-nest::music_rate_in_proxy::State_::get( DictionaryDatum& d ) const
+music_rate_in_proxy::State_::get( Dictionary& d ) const
 {
-  ( *d )[ names::registered ] = registered_;
+  d[ names::registered ] = registered_;
 }
 
 void
-nest::music_rate_in_proxy::State_::set( const DictionaryDatum&, const Parameters_& )
+music_rate_in_proxy::State_::set( const Dictionary&, const Parameters_& )
 {
 }
 
@@ -94,19 +98,22 @@ nest::music_rate_in_proxy::State_::set( const DictionaryDatum&, const Parameters
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::music_rate_in_proxy::music_rate_in_proxy()
+music_rate_in_proxy::music_rate_in_proxy()
   : DeviceNode()
   , P_()
   , S_()
 {
+  // Register port for the model so it is available as default
+  kernel().music_manager.register_music_in_port( P_.port_name_ );
 }
 
-nest::music_rate_in_proxy::music_rate_in_proxy( const music_rate_in_proxy& n )
+music_rate_in_proxy::music_rate_in_proxy( const music_rate_in_proxy& n )
   : DeviceNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
 {
-  kernel().music_manager.register_music_in_port( P_.port_name_, true );
+  // Register port for node instance because MusicManager manages ports via reference count
+  kernel().music_manager.register_music_in_port( P_.port_name_ );
 }
 
 
@@ -115,12 +122,12 @@ nest::music_rate_in_proxy::music_rate_in_proxy( const music_rate_in_proxy& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::music_rate_in_proxy::init_buffers_()
+music_rate_in_proxy::init_buffers_()
 {
 }
 
 void
-nest::music_rate_in_proxy::pre_run_hook()
+music_rate_in_proxy::pre_run_hook()
 {
   // only publish the port once
   if ( not S_.registered_ )
@@ -131,40 +138,41 @@ nest::music_rate_in_proxy::pre_run_hook()
 }
 
 void
-nest::music_rate_in_proxy::get_status( DictionaryDatum& d ) const
+music_rate_in_proxy::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
 
-  ( *d )[ names::data ] = DoubleVectorDatum( new std::vector< double >( 1, B_.data_ ) );
+  d[ names::data ] = B_.data_;
 }
 
 void
-nest::music_rate_in_proxy::set_status( const DictionaryDatum& d )
+music_rate_in_proxy::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, S_ );     // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, S_ );      // throws if BadProperty
 
   State_ stmp = S_;
-  stmp.set( d, P_ ); // throws if BadProperty
+  stmp.set( d, P_ );  // throws if BadProperty
 
   // if we get here, temporaries contain consistent set of properties
-  kernel().music_manager.register_music_in_port( ptmp.port_name_ );
   kernel().music_manager.unregister_music_in_port( P_.port_name_ );
+  kernel().music_manager.register_music_in_port( ptmp.port_name_ );
   P_ = ptmp;
   S_ = stmp;
 }
 
 void
-nest::music_rate_in_proxy::update( Time const&, const long, const long )
+music_rate_in_proxy::update( Time const&, const long, const long )
 {
 }
 
 void
-nest::music_rate_in_proxy::handle( InstantaneousRateConnectionEvent& e )
+music_rate_in_proxy::handle( InstantaneousRateConnectionEvent& e )
 {
   kernel().event_delivery_manager.send_secondary( *this, e );
 }
 
+}  // namespace nest
 
 #endif

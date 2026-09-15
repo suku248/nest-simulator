@@ -41,9 +41,6 @@
 #include "exceptions.h"
 #include "nest_types.h"
 
-// Includes from sli:
-#include "token.h"
-
 namespace nest
 {
 
@@ -87,9 +84,6 @@ public:
    */
   Position( const std::vector< T >& y );
 
-  /**
-   * Copy constructor.
-   */
   Position( const Position& other );
 
   template < class U >
@@ -121,17 +115,12 @@ public:
    */
   const T& operator[]( int i ) const;
 
-  /**
-   * Moves Position variables into an array.
-   * @returns array of positions stored as a token object.
-   */
-  Token getToken() const;
-
   const std::vector< T > get_vector() const;
   void get_vector( std::vector< T >& vector ) const;
 
   /**
    * Elementwise addition.
+   *
    * @returns elementwise sum of coordinates.
    */
   template < class OT >
@@ -139,6 +128,7 @@ public:
 
   /**
    * Elementwise subtraction.
+   *
    * @returns elementwise difference of coordinates.
    */
   template < class OT >
@@ -146,12 +136,14 @@ public:
 
   /**
    * Unary minus.
+   *
    * @returns opposite vector.
    */
   Position operator-() const;
 
   /**
    * Elementwise multiplication.
+   *
    * @returns elementwise product of coordinates.
    */
   template < class OT >
@@ -159,6 +151,7 @@ public:
 
   /**
    * Elementwise division.
+   *
    * @returns elementwise quotient of coordinates.
    */
   template < class OT >
@@ -166,30 +159,35 @@ public:
 
   /**
    * Elementwise addition with scalar
+   *
    * @returns position vector with scalar added to all coordinates
    */
   Position operator+( const T& ) const;
 
   /**
    * Elementwise subtraction with scalar
+   *
    * @returns position vector with scalar subtracted from all coordinates
    */
   Position operator-( const T& ) const;
 
   /**
    * Multiplication with scalar
+   *
    * @returns position vector multiplied with the scalar.
    */
   Position operator*( const T& ) const;
 
   /**
    * Division with scalar
+   *
    * @returns position vector divided by the scalar.
    */
   Position operator/( const T& ) const;
 
   /**
    * In-place elementwise addition.
+   *
    * @returns the Position itself after adding the other Position
    * elementwise.
    */
@@ -198,6 +196,7 @@ public:
 
   /**
    * In-place elementwise subtraction.
+   *
    * @returns the Position itself after subtracting the other Position
    * elementwise.
    */
@@ -206,6 +205,7 @@ public:
 
   /**
    * In-place elementwise multiplication.
+   *
    * @returns the Position itself after multiplying with the other
    * Position elementwise.
    */
@@ -214,6 +214,7 @@ public:
 
   /**
    * In-place elementwise division.
+   *
    * @returns the Position itself after dividing by the other Position
    * elementwise.
    */
@@ -222,12 +223,14 @@ public:
 
   /**
    * In-place elementwise addition with scalar.
+   *
    * @returns the Position itself after adding the scalar to all coordinates.
    */
   Position& operator+=( const T& );
 
   /**
    * In-place elementwise subtraction with scalar.
+   *
    * @returns the Position itself after subtracting the scalar from all
    * coordinates.
    */
@@ -235,12 +238,14 @@ public:
 
   /**
    * In-place multiplication by scalar.
+   *
    * @returns the Position itself after multiplying with the scalar.
    */
   Position& operator*=( const T& );
 
   /**
    * In-place elementwise division.
+   *
    * @returns the Position itself after dividing by the scalar.
    */
   Position& operator/=( const T& );
@@ -277,6 +282,7 @@ public:
 
   /**
    * Length of Position vector.
+   *
    * @returns Euclidian norm of the vector.
    */
   T length() const;
@@ -300,7 +306,7 @@ public:
   /**
    * Output the Position to an ostream.
    */
-  friend std::ostream& operator<<<>( std::ostream& os, const Position< D, T >& pos );
+  friend std::ostream& operator<< <>( std::ostream& os, const Position< D, T >& pos );
 
 protected:
   std::array< T, D > x_;
@@ -340,7 +346,7 @@ public:
   {
   }
 
-  MultiIndex( const Position< D, int >& ur )
+  explicit MultiIndex( const Position< D, int >& ur )
     : Position< D, int >()
     , lower_left_()
     , upper_right_( ur )
@@ -369,8 +375,7 @@ public:
       this->x_[ i ] = lower_left_[ i ];
     }
     // If we reach this point, we are outside of bounds. The upper
-    // right point is used as a marker to show that we have reached the
-    // end.
+    // right point is used as a marker to show that we have reached the end.
     for ( int i = 0; i < D; ++i )
     {
       this->x_[ i ] = upper_right_[ i ];
@@ -478,31 +483,24 @@ Position< D, T >::operator=( const std::vector< T >& y )
 }
 
 template < int D, class T >
-inline T& Position< D, T >::operator[]( int i )
+inline T&
+Position< D, T >::operator[]( int i )
 {
   return x_[ i ];
 }
 
 template < int D, class T >
-inline const T& Position< D, T >::operator[]( int i ) const
+inline const T&
+Position< D, T >::operator[]( int i ) const
 {
   return x_[ i ];
 }
-
-template < int D, class T >
-Token
-Position< D, T >::getToken() const
-{
-  std::vector< T > result = get_vector();
-  return Token( result );
-}
-
 
 template < int D, class T >
 const std::vector< T >
 Position< D, T >::get_vector() const
 {
-  return std::vector< T >( x_.begin(), x_.end() );
+  return std::vector< T >( x_.begin(), x_.end() );  // should be efficient due to RVO
 }
 
 template < int D, class T >
@@ -545,7 +543,8 @@ Position< D, T >::operator-() const
 
 template < int D, class T >
 template < class OT >
-inline Position< D, T > Position< D, T >::operator*( const Position< D, OT >& other ) const
+inline Position< D, T >
+Position< D, T >::operator*( const Position< D, OT >& other ) const
 {
   Position p = *this;
   p *= other;
@@ -581,7 +580,8 @@ Position< D, T >::operator-( const T& a ) const
 }
 
 template < int D, class T >
-inline Position< D, T > Position< D, T >::operator*( const T& a ) const
+inline Position< D, T >
+Position< D, T >::operator*( const T& a ) const
 {
   Position p = *this;
   p *= a;
@@ -786,7 +786,8 @@ Position< D, T >::length() const
 }
 
 template < int D, class T >
-Position< D, T >::operator std::string() const
+Position< D, T >::
+operator std::string() const
 {
   std::stringstream ss;
   ss << *this;
@@ -821,6 +822,6 @@ operator<<( std::ostream& os, const Position< D, T >& pos )
   return os;
 }
 
-} // namespace nest
+}  // namespace nest
 
 #endif

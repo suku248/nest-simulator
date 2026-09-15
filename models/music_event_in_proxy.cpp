@@ -27,13 +27,6 @@
 // External includes:
 #include <music.hh>
 
-// Includes from sli:
-#include "arraydatum.h"
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
-
 // Includes from libnestutil:
 #include "compose.hpp"
 #include "logging.h"
@@ -41,52 +34,63 @@
 // Includes from nestkernel:
 #include "event_delivery_manager_impl.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
+
+
+namespace nest
+{
+void
+register_music_event_in_proxy( const std::string& name )
+{
+  register_node_model< music_event_in_proxy >( name );
+}
+
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::music_event_in_proxy::Parameters_::Parameters_()
+music_event_in_proxy::Parameters_::Parameters_()
   : port_name_( "event_in" )
   , channel_( 0 )
 {
 }
 
-nest::music_event_in_proxy::State_::State_()
+music_event_in_proxy::State_::State_()
   : registered_( false )
 {
 }
 
 
 /* ----------------------------------------------------------------
- * Paramater extraction and manipulation functions
+ * Parameter extraction and manipulation functions
  * ---------------------------------------------------------------- */
 
 void
-nest::music_event_in_proxy::Parameters_::get( DictionaryDatum& d ) const
+music_event_in_proxy::Parameters_::get( Dictionary& d ) const
 {
-  ( *d )[ names::music_channel ] = channel_;
-  ( *d )[ names::port_name ] = port_name_;
+  d[ names::music_channel ] = channel_;
+  d[ names::port_name ] = port_name_;
 }
 
 void
-nest::music_event_in_proxy::Parameters_::set( const DictionaryDatum& d, State_& s )
+music_event_in_proxy::Parameters_::set( const Dictionary& d, State_& s )
 {
   if ( not s.registered_ )
   {
-    updateValue< long >( d, names::music_channel, channel_ );
-    updateValue< string >( d, names::port_name, port_name_ );
+    d.update_value( names::music_channel, channel_ );
+    d.update_value( names::port_name, port_name_ );
   }
 }
 
 void
-nest::music_event_in_proxy::State_::get( DictionaryDatum& d ) const
+music_event_in_proxy::State_::get( Dictionary& d ) const
 {
-  ( *d )[ names::registered ] = registered_;
+  d[ names::registered ] = registered_;
 }
 
 void
-nest::music_event_in_proxy::State_::set( const DictionaryDatum&, const Parameters_& )
+music_event_in_proxy::State_::set( const Dictionary&, const Parameters_& )
 {
 }
 
@@ -95,19 +99,22 @@ nest::music_event_in_proxy::State_::set( const DictionaryDatum&, const Parameter
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::music_event_in_proxy::music_event_in_proxy()
+music_event_in_proxy::music_event_in_proxy()
   : DeviceNode()
   , P_()
   , S_()
 {
+  // Register port for the model so it is available as default
+  kernel().music_manager.register_music_in_port( P_.port_name_ );
 }
 
-nest::music_event_in_proxy::music_event_in_proxy( const music_event_in_proxy& n )
+music_event_in_proxy::music_event_in_proxy( const music_event_in_proxy& n )
   : DeviceNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
 {
-  kernel().music_manager.register_music_in_port( P_.port_name_, true );
+  // Register port for node instance because MusicManager manages ports via reference count
+  kernel().music_manager.register_music_in_port( P_.port_name_ );
 }
 
 
@@ -116,12 +123,12 @@ nest::music_event_in_proxy::music_event_in_proxy( const music_event_in_proxy& n 
  * ---------------------------------------------------------------- */
 
 void
-nest::music_event_in_proxy::init_buffers_()
+music_event_in_proxy::init_buffers_()
 {
 }
 
 void
-nest::music_event_in_proxy::pre_run_hook()
+music_event_in_proxy::pre_run_hook()
 {
   // register my port and my channel at the scheduler
   if ( not S_.registered_ )
@@ -132,38 +139,40 @@ nest::music_event_in_proxy::pre_run_hook()
 }
 
 void
-nest::music_event_in_proxy::get_status( DictionaryDatum& d ) const
+music_event_in_proxy::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
 }
 
 void
-nest::music_event_in_proxy::set_status( const DictionaryDatum& d )
+music_event_in_proxy::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, S_ );     // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, S_ );      // throws if BadProperty
 
   State_ stmp = S_;
-  stmp.set( d, P_ ); // throws if BadProperty
+  stmp.set( d, P_ );  // throws if BadProperty
 
   // if we get here, temporaries contain consistent set of properties
-  kernel().music_manager.register_music_in_port( ptmp.port_name_ );
   kernel().music_manager.unregister_music_in_port( P_.port_name_ );
+  kernel().music_manager.register_music_in_port( ptmp.port_name_ );
 
   P_ = ptmp;
   S_ = stmp;
 }
 
 void
-nest::music_event_in_proxy::handle( SpikeEvent& e )
+music_event_in_proxy::handle( SpikeEvent& e )
 {
   e.set_sender( *this );
 
-  for ( thread t = 0; t < kernel().vp_manager.get_num_threads(); ++t )
+  for ( size_t t = 0; t < kernel().vp_manager.get_num_threads(); ++t )
   {
     kernel().connection_manager.send_from_device( t, local_device_id_, e );
   }
 }
+
+}  // namespace nest
 
 #endif

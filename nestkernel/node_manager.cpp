@@ -23,6 +23,8 @@
 #include "node_manager.h"
 
 // C++ includes:
+#include <algorithm>
+#include <iomanip>
 #include <set>
 
 // Includes from libnestutil:
@@ -30,30 +32,29 @@
 #include "logging.h"
 
 // Includes from nestkernel:
-#include "event_delivery_manager.h"
-#include "genericmodel.h"
 #include "kernel_manager.h"
 #include "model.h"
 #include "model_manager_impl.h"
 #include "node.h"
+#include "secondary_event_impl.h"
+#include "stopwatch_impl.h"
 #include "vp_manager.h"
 #include "vp_manager_impl.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
 namespace nest
 {
 
 NodeManager::NodeManager()
   : local_nodes_( 1 )
+  , node_collection_container_()
   , wfr_nodes_vec_()
   , wfr_is_used_( false )
-  , wfr_network_size_( 0 ) // zero to force update
+  , size_last_local_data_update_( 0 )  // zero to force update
   , num_active_nodes_( 0 )
   , num_thread_local_devices_()
   , have_nodes_changed_( true )
-  , exceptions_raised_() // cannot call kernel(), not complete yet
+  , exceptions_raised_()  // cannot call kernel(), not complete yet
 {
 }
 
@@ -61,48 +62,45 @@ NodeManager::~NodeManager()
 {
   // We must destruct nodes here, since devices may need to close files.
   destruct_nodes_();
+  clear_node_collection_container();
 }
 
 void
-NodeManager::initialize()
+NodeManager::initialize( const bool adjust_number_of_threads_or_rng_only )
 {
-  // explicitly force construction of wfr_nodes_vec_ to ensure consistent state
-  wfr_network_size_ = 0;
+  // explicitly force construction of thread-local node data to ensure consistent state
+  size_last_local_data_update_ = 0;
   local_nodes_.resize( kernel().vp_manager.get_num_threads() );
   num_thread_local_devices_.resize( kernel().vp_manager.get_num_threads(), 0 );
-  ensure_valid_thread_local_ids();
+  update_thread_local_node_data();
 
-  sw_construction_create_.reset();
+  if ( not adjust_number_of_threads_or_rng_only )
+  {
+    sw_construction_create_.reset();
+  }
 }
 
 void
-NodeManager::finalize()
+NodeManager::finalize( const bool )
 {
   destruct_nodes_();
+  clear_node_collection_container();
 }
 
-void
-NodeManager::change_number_of_threads()
-{
-  // No nodes exist at this point, so nothing to tear down. See
-  // checks for node_manager.size() in VPManager::set_status()
-  initialize();
-}
-
-DictionaryDatum
-NodeManager::get_status( index idx )
+Dictionary
+NodeManager::get_status( size_t idx )
 {
   Node* target = get_mpi_local_node_or_device_head( idx );
 
-  assert( target != 0 );
+  assert( target );
 
-  DictionaryDatum d = target->get_status_base();
+  Dictionary d = target->get_status_base();
 
   return d;
 }
 
 NodeCollectionPTR
-NodeManager::add_node( index model_id, long n )
+NodeManager::add_node( size_t model_id, long n )
 {
   sw_construction_create_.start();
 
@@ -114,14 +112,14 @@ NodeManager::add_node( index model_id, long n )
   }
 
   Model* model = kernel().model_manager.get_node_model( model_id );
-  assert( model != 0 );
+  assert( model );
   model->deprecation_warning( "Create" );
 
-  const index min_node_id = local_nodes_.at( 0 ).get_max_node_id() + 1;
-  const index max_node_id = min_node_id + n - 1;
+  const size_t min_node_id = local_nodes_.at( 0 ).get_max_node_id() + 1;
+  const size_t max_node_id = min_node_id + n - 1;
   if ( max_node_id < min_node_id )
   {
-    LOG( M_ERROR,
+    LOG( VerbosityLevel::ERROR,
       "NodeManager::add_node",
       "Requested number of nodes will overflow the memory. "
       "No nodes were created" );
@@ -131,30 +129,30 @@ NodeManager::add_node( index model_id, long n )
   kernel().modelrange_manager.add_range( model_id, min_node_id, max_node_id );
 
   // clear any exceptions from previous call
-  std::vector< std::shared_ptr< WrappedThreadException > >( kernel().vp_manager.get_num_threads() )
-    .swap( exceptions_raised_ );
+  std::vector< std::exception_ptr >( kernel().vp_manager.get_num_threads() ).swap( exceptions_raised_ );
 
   auto nc_ptr = NodeCollectionPTR( new NodeCollectionPrimitive( min_node_id, max_node_id, model_id ) );
+  append_node_collection_( nc_ptr );
 
   if ( model->has_proxies() )
   {
-    add_neurons_( *model, min_node_id, max_node_id, nc_ptr );
+    add_neurons_( *model, min_node_id, max_node_id );
   }
   else if ( not model->one_node_per_process() )
   {
-    add_devices_( *model, min_node_id, max_node_id, nc_ptr );
+    add_devices_( *model, min_node_id, max_node_id );
   }
   else
   {
-    add_music_nodes_( *model, min_node_id, max_node_id, nc_ptr );
+    add_music_nodes_( *model, min_node_id, max_node_id );
   }
 
   // check if any exceptions have been raised
-  for ( thread t = 0; t < kernel().vp_manager.get_num_threads(); ++t )
+  for ( auto eptr : exceptions_raised_ )
   {
-    if ( exceptions_raised_.at( t ).get() )
+    if ( eptr )
     {
-      throw WrappedThreadException( *( exceptions_raised_.at( t ) ) );
+      std::rethrow_exception( eptr );
     }
   }
 
@@ -163,7 +161,7 @@ NodeManager::add_node( index model_id, long n )
   if ( model->is_off_grid() )
   {
     kernel().event_delivery_manager.set_off_grid_communication( true );
-    LOG( M_INFO,
+    LOG( VerbosityLevel::INFO,
       "NodeManager::add_node",
       "Neuron models emitting precisely timed spikes exist: "
       "the kernel property off_grid_spiking has been set to true.\n\n"
@@ -171,20 +169,23 @@ NodeManager::add_node( index model_id, long n )
       "lead to inconsistent results." );
   }
 
-  // resize the target table for delivery of events to devices to make
-  // sure the first dimension matches the number of local nodes and
-  // the second dimension matches number of synapse types
+  // resize the target table for delivery of events to devices to make sure the first dimension
+  // matches the number of local nodes and the second dimension matches number of synapse types
   kernel().connection_manager.resize_target_table_devices_to_number_of_neurons();
-  kernel().connection_manager.resize_target_table_devices_to_number_of_synapse_types();
+
+#pragma omp parallel
+  {
+    // must be called in parallel context to properly configure per-thread data structures
+    kernel().connection_manager.resize_target_table_devices_to_number_of_synapse_types();
+  }
 
   sw_construction_create_.stop();
 
   return nc_ptr;
 }
 
-
 void
-NodeManager::add_neurons_( Model& model, index min_node_id, index max_node_id, NodeCollectionPTR nc_ptr )
+NodeManager::add_neurons_( Model& model, size_t min_node_id, size_t max_node_id )
 {
   const size_t num_vps = kernel().vp_manager.get_num_virtual_processes();
   // Upper limit for number of neurons per thread; in practice, either
@@ -194,180 +195,189 @@ NodeManager::add_neurons_( Model& model, index min_node_id, index max_node_id, N
 
 #pragma omp parallel
   {
-    const index t = kernel().vp_manager.get_thread_id();
+    const size_t tid = kernel().vp_manager.get_thread_id();
 
     try
     {
-      model.reserve_additional( t, max_new_per_thread );
+      model.reserve_additional( tid, max_new_per_thread );
       // Need to find smallest node ID with:
       //   - node ID local to this vp
       //   - node_id >= min_node_id
-      const size_t vp = kernel().vp_manager.thread_to_vp( t );
+      const size_t vp = kernel().vp_manager.thread_to_vp( tid );
       const size_t min_node_id_vp = kernel().vp_manager.node_id_to_vp( min_node_id );
 
       size_t node_id = min_node_id + ( num_vps + vp - min_node_id_vp ) % num_vps;
 
       while ( node_id <= max_node_id )
       {
-        Node* node = model.create( t );
+        Node* node = model.create( tid );
         node->set_node_id_( node_id );
-        node->set_nc_( nc_ptr );
         node->set_model_id( model.get_model_id() );
-        node->set_thread( t );
+        node->set_thread( tid );
         node->set_vp( vp );
         node->set_initialized();
 
-        local_nodes_[ t ].add_local_node( *node );
+        local_nodes_[ tid ].add_local_node( *node );
         node_id += num_vps;
       }
-      local_nodes_[ t ].set_max_node_id( max_node_id );
+      local_nodes_[ tid ].set_max_node_id( max_node_id );
     }
-    catch ( std::exception& err )
+    catch ( ... )
     {
-      // We must create a new exception here, err's lifetime ends at
-      // the end of the catch block.
-      exceptions_raised_.at( t ) = std::shared_ptr< WrappedThreadException >( new WrappedThreadException( err ) );
+      // Capture the current exception object and create an std::exception_ptr
+      exceptions_raised_.at( tid ) = std::current_exception();
     }
-  } // omp parallel
+  }  // omp parallel
 }
 
 void
-NodeManager::add_devices_( Model& model, index min_node_id, index max_node_id, NodeCollectionPTR nc_ptr )
+NodeManager::add_devices_( Model& model, size_t min_node_id, size_t max_node_id )
 {
   const size_t n_per_thread = max_node_id - min_node_id + 1;
 
 #pragma omp parallel
   {
-    const index t = kernel().vp_manager.get_thread_id();
+    const size_t tid = kernel().vp_manager.get_thread_id();
     try
     {
-      model.reserve_additional( t, n_per_thread );
+      model.reserve_additional( tid, n_per_thread );
 
-      for ( index node_id = min_node_id; node_id <= max_node_id; ++node_id )
+      for ( size_t node_id = min_node_id; node_id <= max_node_id; ++node_id )
       {
         // keep track of number of thread local devices
-        ++num_thread_local_devices_[ t ];
+        ++num_thread_local_devices_[ tid ];
 
-        Node* node = model.create( t );
+        Node* node = model.create( tid );
         node->set_node_id_( node_id );
-        node->set_nc_( nc_ptr );
         node->set_model_id( model.get_model_id() );
-        node->set_thread( t );
-        node->set_vp( kernel().vp_manager.thread_to_vp( t ) );
-        node->set_local_device_id( num_thread_local_devices_[ t ] - 1 );
+        node->set_thread( tid );
+        node->set_vp( kernel().vp_manager.thread_to_vp( tid ) );
+        node->set_local_device_id( num_thread_local_devices_[ tid ] - 1 );
         node->set_initialized();
 
-        local_nodes_[ t ].add_local_node( *node );
+        local_nodes_[ tid ].add_local_node( *node );
       }
-      local_nodes_[ t ].set_max_node_id( max_node_id );
+      local_nodes_[ tid ].set_max_node_id( max_node_id );
     }
-    catch ( std::exception& err )
+    catch ( ... )
     {
-      // We must create a new exception here, err's lifetime ends at
-      // the end of the catch block.
-      exceptions_raised_.at( t ) = std::shared_ptr< WrappedThreadException >( new WrappedThreadException( err ) );
+      // Capture the current exception object and create an std::exception_ptr
+      exceptions_raised_.at( tid ) = std::current_exception();
     }
-  } // omp parallel
+  }  // omp parallel
 }
 
 void
-NodeManager::add_music_nodes_( Model& model, index min_node_id, index max_node_id, NodeCollectionPTR nc_ptr )
+NodeManager::add_music_nodes_( Model& model, size_t min_node_id, size_t max_node_id )
 {
 #pragma omp parallel
   {
-    const size_t t = kernel().vp_manager.get_thread_id();
+    const size_t tid = kernel().vp_manager.get_thread_id();
     try
     {
-      if ( t == 0 )
+      if ( tid == 0 )
       {
-        for ( index node_id = min_node_id; node_id <= max_node_id; ++node_id )
+        for ( size_t node_id = min_node_id; node_id <= max_node_id; ++node_id )
         {
           // keep track of number of thread local devices
-          ++num_thread_local_devices_[ t ];
+          ++num_thread_local_devices_[ tid ];
 
           Node* node = model.create( 0 );
           node->set_node_id_( node_id );
-          node->set_nc_( nc_ptr );
           node->set_model_id( model.get_model_id() );
           node->set_thread( 0 );
           node->set_vp( kernel().vp_manager.thread_to_vp( 0 ) );
-          node->set_local_device_id( num_thread_local_devices_[ t ] - 1 );
+          node->set_local_device_id( num_thread_local_devices_[ tid ] - 1 );
           node->set_initialized();
 
           local_nodes_[ 0 ].add_local_node( *node );
         }
       }
-      local_nodes_.at( t ).set_max_node_id( max_node_id );
+      local_nodes_.at( tid ).set_max_node_id( max_node_id );
     }
-    catch ( std::exception& err )
+    catch ( ... )
     {
-      // We must create a new exception here, err's lifetime ends at
-      // the end of the catch block.
-      exceptions_raised_.at( t ) = std::shared_ptr< WrappedThreadException >( new WrappedThreadException( err ) );
+      // Capture the current exception object and create an std::exception_ptr
+      exceptions_raised_.at( tid ) = std::current_exception();
     }
-  } // omp parallel
+  }  // omp parallel
 }
 
 NodeCollectionPTR
-NodeManager::get_nodes( const DictionaryDatum& params, const bool local_only )
+NodeManager::node_id_to_node_collection( const size_t node_id ) const
 {
-  std::vector< long > nodes;
+  // find the largest ID in node_collection_last_ that is still smaller than node_id
+  auto it = std::lower_bound( node_collection_last_.begin(), node_collection_last_.end(), node_id );
 
-  if ( params->empty() )
-  {
-    std::vector< std::vector< long > > nodes_on_thread;
-    nodes_on_thread.resize( kernel().vp_manager.get_num_threads() );
+  // compute the position of the nodeCollection based on the position of the ID found above
+  size_t pos = it - node_collection_last_.begin();
+  return node_collection_container_.at( pos );
+}
+
+NodeCollectionPTR
+NodeManager::node_id_to_node_collection( Node* node ) const
+{
+  return node_id_to_node_collection( node->get_node_id() );
+}
+
+void
+NodeManager::append_node_collection_( NodeCollectionPTR ncp )
+{
+  node_collection_container_.push_back( ncp );
+  node_collection_last_.push_back( ncp->get_last() );
+}
+
+void
+NodeManager::clear_node_collection_container()
+{
+  node_collection_container_.clear();
+  node_collection_last_.clear();
+}
+
+NodeCollectionPTR
+NodeManager::get_nodes( const Dictionary& properties, const bool local_only )
+{
+  std::vector< std::vector< size_t > > nodes_on_thread( kernel().vp_manager.get_num_threads() );
+
 #pragma omp parallel
-    {
-      thread tid = kernel().vp_manager.get_thread_id();
-
-      for ( auto node : get_local_nodes( tid ) )
-      {
-        nodes_on_thread[ tid ].push_back( node.get_node_id() );
-      }
-    } // omp parallel
-
-#pragma omp barrier
-
-    for ( auto vec : nodes_on_thread )
-    {
-      nodes.insert( nodes.end(), vec.begin(), vec.end() );
-    }
-  }
-  else
   {
-    for ( thread tid = 0; tid < kernel().vp_manager.get_num_threads(); ++tid )
-    {
-      // Select those nodes fulfilling the key/value pairs of the dictionary
-      for ( auto node : get_local_nodes( tid ) )
-      {
-        bool match = true;
-        index node_id = node.get_node_id();
+    const size_t tid = kernel().vp_manager.get_thread_id();
 
-        DictionaryDatum node_status = get_status( node_id );
-        for ( Dictionary::iterator dict_entry = params->begin(); dict_entry != params->end(); ++dict_entry )
+    for ( auto node : get_local_nodes( tid ) )
+    {
+      const size_t node_id = node.get_node_id();
+
+      bool match = true;
+      if ( not properties.empty() )
+      {
+        const Dictionary node_status = get_status( node_id );
+        for ( const auto& [ key, value ] : properties )
         {
-          if ( node_status->known( dict_entry->first ) )
+          // Break once we find a property that the node does not have or that has a different value
+          if ( not( node_status.known( key ) and node_status.at( key ) == value.item ) )
           {
-            const Token token = node_status->lookup( dict_entry->first );
-            if ( not( token == dict_entry->second or token.matches_as_string( dict_entry->second ) ) )
-            {
-              match = false;
-              break;
-            }
+            match = false;
+            break;
           }
         }
-        if ( match )
-        {
-          nodes.push_back( node_id );
-        }
+      }
+
+      if ( match )
+      {
+        nodes_on_thread[ tid ].push_back( node_id );
       }
     }
+  }  // omp parallel
+
+  std::vector< size_t > nodes;
+  for ( auto vec : nodes_on_thread )
+  {
+    nodes.insert( nodes.end(), vec.begin(), vec.end() );
   }
 
   if ( not local_only )
   {
-    std::vector< long > globalnodes;
+    std::vector< size_t > globalnodes;
     kernel().mpi_manager.communicate( nodes, globalnodes );
 
     for ( size_t i = 0; i < globalnodes.size(); ++i )
@@ -377,19 +387,16 @@ NodeManager::get_nodes( const DictionaryDatum& params, const bool local_only )
         nodes.push_back( globalnodes[ i ] );
       }
     }
-
-    // get rid of any multiple entries
-    std::sort( nodes.begin(), nodes.end() );
-    std::vector< long >::iterator it;
-    it = std::unique( nodes.begin(), nodes.end() );
-    nodes.resize( it - nodes.begin() );
   }
 
-  std::sort( nodes.begin(), nodes.end() ); // ensure nodes are sorted prior to creating the NodeCollection
-  IntVectorDatum nodes_datum( nodes );
-  NodeCollectionDatum nodecollection( NodeCollection::create( nodes_datum ) );
+  // Get rid of any multiple entries from nodes replicated across VPs
+  std::sort( nodes.begin(), nodes.end() );
+  const auto it = std::unique( nodes.begin(), nodes.end() );
+  nodes.resize( it - nodes.begin() );
 
-  return std::move( nodecollection );
+  NodeCollectionPTR nodecollection = NodeCollection::create( nodes );
+
+  return nodecollection;
 }
 
 bool
@@ -399,33 +406,33 @@ NodeManager::is_local_node( Node* n ) const
 }
 
 bool
-NodeManager::is_local_node_id( index node_id ) const
+NodeManager::is_local_node_id( size_t node_id ) const
 {
-  const thread vp = kernel().vp_manager.node_id_to_vp( node_id );
+  const size_t vp = kernel().vp_manager.node_id_to_vp( node_id );
   return kernel().vp_manager.is_local_vp( vp );
 }
 
-index
+size_t
 NodeManager::get_max_num_local_nodes() const
 {
-  return static_cast< index >(
+  return static_cast< size_t >(
     ceil( static_cast< double >( size() ) / kernel().vp_manager.get_num_virtual_processes() ) );
 }
 
-index
-NodeManager::get_num_thread_local_devices( thread t ) const
+size_t
+NodeManager::get_num_thread_local_devices( size_t t ) const
 {
   return num_thread_local_devices_[ t ];
 }
 
 Node*
-NodeManager::get_node_or_proxy( index node_id, thread t )
+NodeManager::get_node_or_proxy( size_t node_id, size_t t )
 {
-  assert( 0 <= t and ( t == -1 or t < kernel().vp_manager.get_num_threads() ) );
-  assert( 0 < node_id and node_id <= size() );
+  assert( t < kernel().vp_manager.get_num_threads() );
+  assert( node_id <= size() );
 
   Node* node = local_nodes_[ t ].get_node_by_node_id( node_id );
-  if ( node == 0 )
+  if ( not node )
   {
     return kernel().model_manager.get_proxy_node( t, node_id );
   }
@@ -434,19 +441,19 @@ NodeManager::get_node_or_proxy( index node_id, thread t )
 }
 
 Node*
-NodeManager::get_node_or_proxy( index node_id )
+NodeManager::get_node_or_proxy( size_t node_id )
 {
   assert( 0 < node_id and node_id <= size() );
 
-  thread vp = kernel().vp_manager.node_id_to_vp( node_id );
+  size_t vp = kernel().vp_manager.node_id_to_vp( node_id );
   if ( not kernel().vp_manager.is_local_vp( vp ) )
   {
     return kernel().model_manager.get_proxy_node( 0, node_id );
   }
 
-  thread t = kernel().vp_manager.vp_to_thread( vp );
+  size_t t = kernel().vp_manager.vp_to_thread( vp );
   Node* node = local_nodes_[ t ].get_node_by_node_id( node_id );
-  if ( node == 0 )
+  if ( not node )
   {
     return kernel().model_manager.get_proxy_node( t, node_id );
   }
@@ -455,13 +462,13 @@ NodeManager::get_node_or_proxy( index node_id )
 }
 
 Node*
-NodeManager::get_mpi_local_node_or_device_head( index node_id )
+NodeManager::get_mpi_local_node_or_device_head( size_t node_id )
 {
-  thread t = kernel().vp_manager.vp_to_thread( kernel().vp_manager.node_id_to_vp( node_id ) );
+  size_t t = kernel().vp_manager.vp_to_thread( kernel().vp_manager.node_id_to_vp( node_id ) );
 
   Node* node = local_nodes_[ t ].get_node_by_node_id( node_id );
 
-  if ( node == 0 )
+  if ( not node )
   {
     return kernel().model_manager.get_proxy_node( t, node_id );
   }
@@ -474,14 +481,14 @@ NodeManager::get_mpi_local_node_or_device_head( index node_id )
 }
 
 std::vector< Node* >
-NodeManager::get_thread_siblings( index node_id ) const
+NodeManager::get_thread_siblings( size_t node_id ) const
 {
-  index num_threads = kernel().vp_manager.get_num_threads();
+  size_t num_threads = kernel().vp_manager.get_num_threads();
   std::vector< Node* > siblings( num_threads );
   for ( size_t t = 0; t < num_threads; ++t )
   {
     Node* node = local_nodes_[ t ].get_node_by_node_id( node_id );
-    if ( node == 0 )
+    if ( not node )
     {
       throw NoThreadSiblingsAvailable( node_id );
     }
@@ -493,74 +500,56 @@ NodeManager::get_thread_siblings( index node_id ) const
 }
 
 void
-NodeManager::ensure_valid_thread_local_ids()
+NodeManager::update_thread_local_node_data()
 {
-  // Check if the network size changed, in order to not enter
-  // the critical region if it is not necessary. Note that this
-  // test also covers that case that nodes have been deleted
-  // by reset.
-  if ( size() == wfr_network_size_ )
+  kernel().vp_manager.assert_single_threaded();
+
+  if ( thread_local_data_is_up_to_date() )
   {
     return;
   }
 
-#pragma omp critical( update_wfr_nodes_vec )
+  // We clear the existing wfr_nodes_vec_ and then rebuild it.
+  wfr_nodes_vec_.clear();
+  wfr_nodes_vec_.resize( kernel().vp_manager.get_num_threads() );
+
+  for ( size_t tid = 0; tid < kernel().vp_manager.get_num_threads(); ++tid )
   {
-    // This code may be called from a thread-parallel context, when it is
-    // invoked by TargetIdentifierIndex::set_target() during parallel
-    // wiring. Nested OpenMP parallelism is problematic, therefore, we
-    // enforce single threading here. This should be unproblematic wrt
-    // performance, because the wfr_nodes_vec_ is rebuilt only once after
-    // changes in network size.
+    wfr_nodes_vec_[ tid ].clear();
 
-    // Check again, if the network size changed, since a previous thread
-    // can have updated wfr_nodes_vec_ before.
-    if ( size() != wfr_network_size_ )
+    const size_t num_thread_local_wfr_nodes = std::count_if( local_nodes_[ tid ].begin(),
+      local_nodes_[ tid ].end(),
+      []( const SparseNodeArray::NodeEntry& elem ) { return elem.get_node()->node_uses_wfr_; } );
+    wfr_nodes_vec_[ tid ].reserve( num_thread_local_wfr_nodes );
+
+    auto node_it = local_nodes_[ tid ].begin();
+    size_t idx = 0;
+    for ( ; node_it < local_nodes_[ tid ].end(); ++node_it, ++idx )
     {
-
-      /* We clear the existing wfr_nodes_vec_ and then rebuild it. */
-      wfr_nodes_vec_.clear();
-      wfr_nodes_vec_.resize( kernel().vp_manager.get_num_threads() );
-
-      for ( thread tid = 0; tid < kernel().vp_manager.get_num_threads(); ++tid )
+      auto node = node_it->get_node();
+      node->set_thread_lid( idx );
+      if ( node->node_uses_wfr_ )
       {
-        wfr_nodes_vec_[ tid ].clear();
-
-        const size_t num_thread_local_wfr_nodes = std::count_if( local_nodes_[ tid ].begin(),
-          local_nodes_[ tid ].end(),
-          []( const SparseNodeArray::NodeEntry& elem ) { return elem.get_node()->node_uses_wfr_; } );
-        wfr_nodes_vec_[ tid ].reserve( num_thread_local_wfr_nodes );
-
-        auto node_it = local_nodes_[ tid ].begin();
-        size_t idx = 0;
-        for ( ; node_it < local_nodes_[ tid ].end(); ++node_it, ++idx )
-        {
-          auto node = node_it->get_node();
-          node->set_thread_lid( idx );
-          if ( node->node_uses_wfr_ )
-          {
-            wfr_nodes_vec_[ tid ].push_back( node );
-          }
-        }
-      } // end of for threads
-
-      wfr_network_size_ = size();
-
-      // wfr_is_used_ indicates, whether at least one
-      // of the threads has a neuron that uses waveform relaxtion
-      // all threads then need to perform a wfr_update
-      // step, because gather_events() has to be done in a
-      // openmp single section
-      wfr_is_used_ = false;
-      for ( thread tid = 0; tid < kernel().vp_manager.get_num_threads(); ++tid )
-      {
-        if ( wfr_nodes_vec_[ tid ].size() > 0 )
-        {
-          wfr_is_used_ = true;
-        }
+        wfr_nodes_vec_[ tid ].push_back( node );
       }
     }
-  } // omp critical
+  }  // end of for threads
+
+  size_last_local_data_update_ = size();
+
+  // wfr_is_used_ indicates, whether at least one
+  // of the threads has a neuron that uses waveform relaxation
+  // all threads then need to perform a wfr_update
+  // step, because gather_events() has to be done in an
+  // openmp single section
+  wfr_is_used_ = false;
+  for ( size_t tid = 0; tid < kernel().vp_manager.get_num_threads(); ++tid )
+  {
+    if ( wfr_nodes_vec_[ tid ].size() > 0 )
+    {
+      wfr_is_used_ = true;
+    }
+  }
 }
 
 void
@@ -568,36 +557,32 @@ NodeManager::destruct_nodes_()
 {
 #pragma omp parallel
   {
-    index t = kernel().vp_manager.get_thread_id();
-    SparseNodeArray::const_iterator n;
-    for ( n = local_nodes_[ t ].begin(); n != local_nodes_[ t ].end(); ++n )
+    const size_t tid = kernel().vp_manager.get_thread_id();
+    for ( auto node : local_nodes_[ tid ] )
     {
-      // We call the destructor for each node excplicitly. This
-      // destroys the objects without releasing their memory. Since
-      // the Memory is owned by the Model objects, we must not call
-      // delete on the Node objects!
-      n->get_node()->~Node();
+      delete node.get_node();
     }
-
-    local_nodes_[ t ].clear();
-  } // omp parallel
+    local_nodes_[ tid ].clear();
+  }  // omp parallel
 }
 
 void
-NodeManager::set_status_single_node_( Node& target, const DictionaryDatum& d, bool clear_flags )
+NodeManager::set_status_single_node_( Node& target, const Dictionary& d, bool clear_flags )
 {
   // proxies have no properties
   if ( not target.is_proxy() )
   {
     if ( clear_flags )
     {
-      d->clear_access_flags();
+      d.init_access_flags();
     }
     target.set_status_base( d );
 
-    // TODO: Not sure this check should be at single neuron level; advantage is
-    // it stops after first failure.
-    ALL_ENTRIES_ACCESSED( *d, "NodeManager::set_status", "Unread dictionary entries: " );
+    // PYNEST-NG-FUTURE: We currently check at the single-neuron level so
+    // we do not trigger a false error if an NC has no member on a given rank.
+    // This also has the advantage of triggering an error on the first node,
+    // but can have some execution time overhead.
+    d.all_entries_accessed( "NodeManager::set_status", "params" );
   }
 }
 
@@ -615,22 +600,22 @@ NodeManager::prepare_nodes()
 {
   assert( kernel().is_initialized() );
 
-  /* We initialize the buffers of each node and calibrate it. */
+  // We initialize the buffers of each node and calibrate it.
 
-  size_t num_active_nodes = 0;     // counts nodes that will be updated
-  size_t num_active_wfr_nodes = 0; // counts nodes that use waveform relaxation
+  size_t num_active_nodes = 0;      // counts nodes that will be updated
+  size_t num_active_wfr_nodes = 0;  // counts nodes that use waveform relaxation
 
-  std::vector< std::shared_ptr< WrappedThreadException > > exceptions_raised( kernel().vp_manager.get_num_threads() );
+  std::vector< std::exception_ptr > exceptions_raised( kernel().vp_manager.get_num_threads() );
 
 #pragma omp parallel reduction( + : num_active_nodes, num_active_wfr_nodes )
   {
-    size_t t = kernel().vp_manager.get_thread_id();
+    size_t tid = kernel().vp_manager.get_thread_id();
 
     // We prepare nodes in a parallel region. Therefore, we need to catch
     // exceptions here and then handle them after the parallel region.
     try
     {
-      for ( SparseNodeArray::const_iterator it = local_nodes_[ t ].begin(); it != local_nodes_[ t ].end(); ++it )
+      for ( SparseNodeArray::const_iterator it = local_nodes_[ tid ].begin(); it != local_nodes_[ tid ].end(); ++it )
       {
         prepare_node_( ( it )->get_node() );
         if ( not( it->get_node() )->is_frozen() )
@@ -643,19 +628,19 @@ NodeManager::prepare_nodes()
         }
       }
     }
-    catch ( std::exception& e )
+    catch ( ... )
     {
-      // so throw the exception after parallel region
-      exceptions_raised.at( t ) = std::shared_ptr< WrappedThreadException >( new WrappedThreadException( e ) );
+      // Capture the current exception object and create an std::exception_ptr
+      exceptions_raised.at( tid ) = std::current_exception();
     }
-  } // omp parallel
+  }  // omp parallel
 
   // check if any exceptions have been raised
-  for ( thread tid = 0; tid < kernel().vp_manager.get_num_threads(); ++tid )
+  for ( auto eptr : exceptions_raised )
   {
-    if ( exceptions_raised.at( tid ).get() )
+    if ( eptr )
     {
-      throw WrappedThreadException( *( exceptions_raised.at( tid ) ) );
+      std::rethrow_exception( eptr );
     }
   }
 
@@ -670,7 +655,7 @@ NodeManager::prepare_nodes()
   }
 
   num_active_nodes_ = num_active_nodes;
-  LOG( M_INFO, "NodeManager::prepare_nodes", os.str() );
+  LOG( VerbosityLevel::INFO, "NodeManager::prepare_nodes", os.str() );
 }
 
 void
@@ -678,31 +663,27 @@ NodeManager::post_run_cleanup()
 {
 #pragma omp parallel
   {
-    index t = kernel().vp_manager.get_thread_id();
+    size_t t = kernel().vp_manager.get_thread_id();
     SparseNodeArray::const_iterator n;
     for ( n = local_nodes_[ t ].begin(); n != local_nodes_[ t ].end(); ++n )
     {
       n->get_node()->post_run_cleanup();
     }
-  } // omp parallel
+  }  // omp parallel
 }
 
-/**
- * This function is called only if the thread data structures are properly set
- * up.
- */
 void
 NodeManager::finalize_nodes()
 {
 #pragma omp parallel
   {
-    thread tid = kernel().vp_manager.get_thread_id();
+    size_t tid = kernel().vp_manager.get_thread_id();
     SparseNodeArray::const_iterator n;
     for ( n = local_nodes_[ tid ].begin(); n != local_nodes_[ tid ].end(); ++n )
     {
       n->get_node()->finalize();
     }
-  } // omp parallel
+  }  // omp parallel
 }
 
 void
@@ -715,21 +696,23 @@ NodeManager::check_wfr_use()
   InstantaneousRateConnectionEvent::set_coeff_length( kernel().connection_manager.get_min_delay() );
   DelayedRateConnectionEvent::set_coeff_length( kernel().connection_manager.get_min_delay() );
   DiffusionConnectionEvent::set_coeff_length( kernel().connection_manager.get_min_delay() );
+  LearningSignalConnectionEvent::set_coeff_length( kernel().connection_manager.get_min_delay() );
+  SICEvent::set_coeff_length( kernel().connection_manager.get_min_delay() );
 }
 
 void
 NodeManager::print( std::ostream& out ) const
 {
-  const index max_node_id = size();
+  const size_t max_node_id = size();
   const double max_node_id_width = std::floor( std::log10( max_node_id ) );
   const double node_id_range_width = 6 + 2 * max_node_id_width;
 
   for ( std::vector< modelrange >::const_iterator it = kernel().modelrange_manager.begin();
-        it != kernel().modelrange_manager.end();
-        ++it )
+    it != kernel().modelrange_manager.end();
+    ++it )
   {
-    const index first_node_id = it->get_first_node_id();
-    const index last_node_id = it->get_last_node_id();
+    const size_t first_node_id = it->get_first_node_id();
+    const size_t last_node_id = it->get_last_node_id();
     const Model* mod = kernel().model_manager.get_node_model( it->get_model_id() );
 
     std::stringstream node_id_range_strs;
@@ -748,12 +731,12 @@ NodeManager::print( std::ostream& out ) const
 }
 
 void
-NodeManager::set_status( index node_id, const DictionaryDatum& d )
+NodeManager::set_status( size_t node_id, const Dictionary& d )
 {
-  for ( thread t = 0; t < kernel().vp_manager.get_num_threads(); ++t )
+  for ( size_t t = 0; t < kernel().vp_manager.get_num_threads(); ++t )
   {
     Node* node = local_nodes_[ t ].get_node_by_node_id( node_id );
-    if ( node != 0 )
+    if ( node )
     {
       set_status_single_node_( *node, d );
     }
@@ -761,14 +744,15 @@ NodeManager::set_status( index node_id, const DictionaryDatum& d )
 }
 
 void
-NodeManager::get_status( DictionaryDatum& d )
+NodeManager::get_status( Dictionary& d )
 {
-  def< long >( d, names::network_size, size() );
-  def< double >( d, names::time_construction_create, sw_construction_create_.elapsed() );
+  d[ names::network_size ] = static_cast< long >( size() );
+  sw_construction_create_.get_status( d, names::time_construction_create, names::time_construction_create_cpu );
 }
 
 void
-NodeManager::set_status( const DictionaryDatum& )
+NodeManager::set_status( const Dictionary& )
 {
 }
-}
+
+}  // namespace nest

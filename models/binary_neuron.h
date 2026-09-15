@@ -45,11 +45,6 @@
 #include "ring_buffer.h"
 #include "universal_data_logger.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
 
 namespace nest
 {
@@ -94,34 +89,34 @@ public:
   using Node::receives_signal;
   using Node::sends_signal;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( SpikeEvent& );
-  void handle( CurrentEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( SpikeEvent& ) override;
+  void handle( CurrentEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( SpikeEvent&, rport );
-  port handles_test_event( CurrentEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CurrentEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  SignalType sends_signal() const;
-  SignalType receives_signal() const;
+  SignalType sends_signal() const override;
+  SignalType receives_signal() const override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
-  void calibrate_time( const TimeConverter& tc );
+  void calibrate_time( const TimeConverter& tc ) override;
 
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
+  void init_buffers_() override;
+  void pre_run_hook() override;
 
   // gain function functor
   // must have an double operator(double) defined
   TGainfunction gain_;
 
-  void update( Time const&, const long, const long );
+  void update( Time const&, const long, const long ) override;
 
   // The next two classes need to be friends to access the State_ class/member
   friend class RecordablesMap< binary_neuron< TGainfunction > >;
@@ -137,10 +132,10 @@ private:
     //! mean inter-update interval in ms (acts like a membrane time constant).
     double tau_m_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dicitonary
+    void get( Dictionary& ) const;              //!< Store current values in dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from dictionary
   };
 
   // ----------------------------------------------------------------
@@ -150,16 +145,16 @@ private:
    */
   struct State_
   {
-    bool y_;                 //!< output of neuron in [0,1]
-    double h_;               //!< total input current to neuron
-    double last_in_node_id_; //!< node ID of the last spike being received
-    Time t_next_;            //!< time point of next update
-    Time t_last_in_spike_;   //!< time point of last input spike seen
+    bool y_;                  //!< output of neuron in [0,1]
+    double h_;                //!< total input current to neuron
+    double last_in_node_id_;  //!< node ID of the last spike being received
+    Time t_next_;             //!< time point of next update
+    Time t_last_in_spike_;    //!< time point of last input spike seen
 
-    State_(); //!< Default initialization
+    State_();  //!< Default initialization
 
-    void get( DictionaryDatum&, const Parameters_& ) const;
-    void set( const DictionaryDatum&, const Parameters_&, Node* );
+    void get( Dictionary&, const Parameters_& ) const;
+    void set( const Dictionary&, const Parameters_&, Node* );
   };
 
   // ----------------------------------------------------------------
@@ -188,8 +183,8 @@ private:
    */
   struct Variables_
   {
-    RngPtr rng_;                        //!< random number generator of my own thread
-    exponential_distribution exp_dist_; //!< random deviate generator
+    RngPtr rng_;                         //!< random number generator of my own thread
+    exponential_distribution exp_dist_;  //!< random deviate generator
   };
 
   // Access functions for UniversalDataLogger -------------------------------
@@ -211,7 +206,6 @@ private:
   // ----------------------------------------------------------------
 
   /**
-   * @defgroup iaf_psc_alpha_data
    * Instances of private data structures for the different types
    * of data pertaining to the model.
    * @note The order of definitions is important for speed.
@@ -229,8 +223,8 @@ private:
 
 
 template < class TGainfunction >
-inline port
-binary_neuron< TGainfunction >::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+binary_neuron< TGainfunction >::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
@@ -239,8 +233,8 @@ binary_neuron< TGainfunction >::send_test_event( Node& target, rport receptor_ty
 }
 
 template < class TGainfunction >
-inline port
-binary_neuron< TGainfunction >::handles_test_event( SpikeEvent&, rport receptor_type )
+inline size_t
+binary_neuron< TGainfunction >::handles_test_event( SpikeEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -250,8 +244,8 @@ binary_neuron< TGainfunction >::handles_test_event( SpikeEvent&, rport receptor_
 }
 
 template < class TGainfunction >
-inline port
-binary_neuron< TGainfunction >::handles_test_event( CurrentEvent&, rport receptor_type )
+inline size_t
+binary_neuron< TGainfunction >::handles_test_event( CurrentEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -261,8 +255,8 @@ binary_neuron< TGainfunction >::handles_test_event( CurrentEvent&, rport recepto
 }
 
 template < class TGainfunction >
-inline port
-binary_neuron< TGainfunction >::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+binary_neuron< TGainfunction >::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -289,24 +283,24 @@ binary_neuron< TGainfunction >::receives_signal() const
 
 template < class TGainfunction >
 inline void
-binary_neuron< TGainfunction >::get_status( DictionaryDatum& d ) const
+binary_neuron< TGainfunction >::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d, P_ );
   ArchivingNode::get_status( d );
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 
   gain_.get( d );
 }
 
 template < class TGainfunction >
 inline void
-binary_neuron< TGainfunction >::set_status( const DictionaryDatum& d )
+binary_neuron< TGainfunction >::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;     // temporary copy in case of errors
-  ptmp.set( d, this );       // throws if BadProperty
-  State_ stmp = S_;          // temporary copy in case of errors
-  stmp.set( d, ptmp, this ); // throws if BadProperty
+  Parameters_ ptmp = P_;      // temporary copy in case of errors
+  ptmp.set( d, this );        // throws if BadProperty
+  State_ stmp = S_;           // temporary copy in case of errors
+  stmp.set( d, ptmp, this );  // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -322,7 +316,7 @@ binary_neuron< TGainfunction >::set_status( const DictionaryDatum& d )
 }
 
 template < typename TGainfunction >
-RecordablesMap< nest::binary_neuron< TGainfunction > > nest::binary_neuron< TGainfunction >::recordablesMap_;
+RecordablesMap< binary_neuron< TGainfunction > > binary_neuron< TGainfunction >::recordablesMap_;
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
@@ -330,7 +324,7 @@ RecordablesMap< nest::binary_neuron< TGainfunction > > nest::binary_neuron< TGai
 
 template < class TGainfunction >
 binary_neuron< TGainfunction >::Parameters_::Parameters_()
-  : tau_m_( 10.0 ) // ms
+  : tau_m_( 10.0 )  // ms
 {
   recordablesMap_.create();
 }
@@ -340,8 +334,8 @@ binary_neuron< TGainfunction >::State_::State_()
   : y_( false )
   , h_( 0.0 )
   , last_in_node_id_( 0 )
-  , t_next_( Time::neg_inf() )          // mark as not initialized
-  , t_last_in_spike_( Time::neg_inf() ) // mark as not intialized
+  , t_next_( Time::neg_inf() )           // mark as not initialized
+  , t_last_in_spike_( Time::neg_inf() )  // mark as not intialized
 {
 }
 
@@ -351,16 +345,16 @@ binary_neuron< TGainfunction >::State_::State_()
 
 template < class TGainfunction >
 void
-binary_neuron< TGainfunction >::Parameters_::get( DictionaryDatum& d ) const
+binary_neuron< TGainfunction >::Parameters_::get( Dictionary& d ) const
 {
-  def< double >( d, names::tau_m, tau_m_ );
+  d[ names::tau_m ] = tau_m_;
 }
 
 template < class TGainfunction >
 void
-binary_neuron< TGainfunction >::Parameters_::set( const DictionaryDatum& d, Node* node )
+binary_neuron< TGainfunction >::Parameters_::set( const Dictionary& d, Node* node )
 {
-  updateValueParam< double >( d, names::tau_m, tau_m_, node );
+  update_value_param( d, names::tau_m, tau_m_, node );
   if ( tau_m_ <= 0 )
   {
     throw BadProperty( "All time constants must be strictly positive." );
@@ -369,15 +363,15 @@ binary_neuron< TGainfunction >::Parameters_::set( const DictionaryDatum& d, Node
 
 template < class TGainfunction >
 void
-binary_neuron< TGainfunction >::State_::get( DictionaryDatum& d, const Parameters_& ) const
+binary_neuron< TGainfunction >::State_::get( Dictionary& d, const Parameters_& ) const
 {
-  def< double >( d, names::h, h_ ); // summed input
-  def< double >( d, names::S, y_ ); // binary_neuron output state
+  d[ names::h ] = h_;  // summed input
+  d[ names::S ] = y_;  // binary_neuron output state
 }
 
 template < class TGainfunction >
 void
-binary_neuron< TGainfunction >::State_::set( const DictionaryDatum&, const Parameters_&, Node* )
+binary_neuron< TGainfunction >::State_::set( const Dictionary&, const Parameters_&, Node* )
 {
 }
 
@@ -425,8 +419,8 @@ template < class TGainfunction >
 void
 binary_neuron< TGainfunction >::init_buffers_()
 {
-  B_.spikes_.clear();   // includes resize
-  B_.currents_.clear(); // includes resize
+  B_.spikes_.clear();    // includes resize
+  B_.currents_.clear();  // includes resize
   B_.logger_.reset();
   ArchivingNode::clear_history();
 }
@@ -456,9 +450,6 @@ template < class TGainfunction >
 void
 binary_neuron< TGainfunction >::update( Time const& origin, const long from, const long to )
 {
-  assert( to >= 0 && ( delay ) from < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
   for ( long lag = from; lag < to; ++lag )
   {
     // update the input current
@@ -497,12 +488,12 @@ binary_neuron< TGainfunction >::update( Time const& origin, const long from, con
       // draw next update interval from exponential distribution
       S_.t_next_ += Time::ms( V_.exp_dist_( V_.rng_ ) * P_.tau_m_ );
 
-    } // of if (update now)
+    }  // of if (update now)
 
     // log state data
     B_.logger_.record_data( origin.get_steps() + lag );
 
-  } // of for (lag ...
+  }  // of for (lag ...
 }
 
 template < class TGainfunction >
@@ -534,9 +525,9 @@ binary_neuron< TGainfunction >::handle( SpikeEvent& e )
   const Time& t_spike = e.get_stamp();
 
   if ( m == 1 )
-  { // multiplicity == 1, either a single 1->0 event or the first or second of a
+  {  // multiplicity == 1, either a single 1->0 event or the first or second of a
     // pair of 0->1 events
-    if ( node_id == S_.last_in_node_id_ && t_spike == S_.t_last_in_spike_ )
+    if ( node_id == S_.last_in_node_id_ and t_spike == S_.t_last_in_spike_ )
     {
       // received twice the same node ID, so transition 0->1
       // take double weight to compensate for subtracting first event
@@ -593,6 +584,6 @@ binary_neuron< TGainfunction >::calibrate_time( const TimeConverter& tc )
 }
 
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef BINARY_NEURON_H */

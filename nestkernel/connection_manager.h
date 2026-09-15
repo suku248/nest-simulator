@@ -39,19 +39,17 @@
 #include "nest_types.h"
 #include "node_collection.h"
 #include "per_thread_bool_indicator.h"
+#include "send_buffer_position.h"
 #include "source_table.h"
 #include "spike_data.h"
 #include "target_table.h"
 #include "target_table_devices.h"
 
-// Includes from sli:
-#include "arraydatum.h"
-#include "dict.h"
-#include "dictdatum.h"
 
 namespace nest
 {
-class GenericConnBuilderFactory;
+class GenericBipartiteConnBuilderFactory;
+class GenericThirdConnBuilderFactory;
 class spikecounter;
 class Node;
 class Event;
@@ -62,11 +60,8 @@ class SpikeData;
 
 class ConnectionManager : public ManagerInterface
 {
-  friend class SimulationManager; // update_delay_extrema_
+  friend class SimulationManager;  // update_delay_extrema_
 public:
-  /**
-   * Connection type.
-   */
   enum ConnectionType
   {
     CONNECT,
@@ -76,20 +71,19 @@ public:
   };
 
   ConnectionManager();
-  virtual ~ConnectionManager();
+  ~ConnectionManager() override;
 
-  virtual void initialize() override;
-  virtual void finalize() override;
-  virtual void change_number_of_threads() override;
-  virtual void set_status( const DictionaryDatum& ) override;
-  virtual void get_status( DictionaryDatum& ) override;
+  void initialize( const bool ) override;
+  void finalize( const bool ) override;
+  void set_status( const Dictionary& ) override;
+  void get_status( Dictionary& ) override;
 
   bool valid_connection_rule( std::string );
 
   void compute_target_data_buffer_size();
-  void compute_compressed_secondary_recv_buffer_positions( const thread tid );
-  void collect_compressed_spike_data( const thread tid );
-  void clear_compressed_spike_data_map( const thread tid );
+  void compute_compressed_secondary_recv_buffer_positions( const size_t tid );
+  void collect_compressed_spike_data( const size_t tid );
+  void clear_compressed_spike_data_map();
 
   /**
    * Add a connectivity rule, i.e. the respective ConnBuilderFactory.
@@ -97,21 +91,40 @@ public:
   template < typename ConnBuilder >
   void register_conn_builder( const std::string& name );
 
-  ConnBuilder* get_conn_builder( const std::string& name,
+  /**
+   * Add a connectivity rule, i.e. the respective ConnBuilderFactory.
+   */
+  template < typename ThirdConnBuilder >
+  void register_third_conn_builder( const std::string& name );
+
+  //! Obtain builder for bipartite connections
+  BipartiteConnBuilder* get_conn_builder( const std::string& name,
     NodeCollectionPTR sources,
     NodeCollectionPTR targets,
-    const DictionaryDatum& conn_spec,
-    const std::vector< DictionaryDatum >& syn_specs );
+    ThirdOutBuilder* third_out,
+    const Dictionary& conn_spec,
+    const std::vector< Dictionary >& syn_specs );
+
+  //! Obtain builder for bipartite connections
+  ThirdOutBuilder* get_third_conn_builder( const std::string& name,
+    NodeCollectionPTR sources,
+    NodeCollectionPTR targets,
+    ThirdInBuilder* third_in,
+    const Dictionary& conn_spec,
+    const std::vector< Dictionary >& syn_specs );
 
   /**
    * Create connections.
    */
-  void connect( NodeCollectionPTR, NodeCollectionPTR, const DictionaryDatum&, const std::vector< DictionaryDatum >& );
-
-  void connect( TokenArray, TokenArray, const DictionaryDatum& );
+  void connect( NodeCollectionPTR sources,
+    NodeCollectionPTR targets,
+    const Dictionary& conn_spec,
+    const std::vector< Dictionary >& syn_specs );
 
   /**
-   * Connect two nodes. The source node is defined by its global ID.
+   * Connect two nodes.
+   *
+   * The source node is defined by its global ID.
    * The target node is defined by the node. The connection is
    * established on the thread/process that owns the target node.
    *
@@ -126,19 +139,25 @@ public:
    * \param target_thread Thread that hosts the target node.
    * \param syn_id The synapse model to use.
    * \param params Parameter dictionary to configure the synapse.
-   * \param delay Delay of the connection (in ms).
+   * \param delay Total delay of the connection (in ms).
+   * \param dendritic_delay Dendritic delay of the connection (in ms).
+   * \param axonal_delay Axonal delay of the connection (in ms).
    * \param weight Weight of the connection.
    */
-  void connect( const index snode_id,
+  void connect( const size_t snode_id,
     Node* target,
-    thread target_thread,
+    size_t target_thread,
     const synindex syn_id,
-    const DictionaryDatum& params,
+    const Dictionary& params,
     const double delay = numerics::nan,
+    const double dendritic_delay = numerics::nan,
+    const double axonal_delay = numerics::nan,
     const double weight = numerics::nan );
 
   /**
-   * Connect two nodes. The source and target nodes are defined by their
+   * Connect two nodes.
+   *
+   * The source and target nodes are defined by their
    * global ID. The connection is established on the thread/process that owns
    * the target node.
    *
@@ -147,20 +166,51 @@ public:
    * \param params Parameter dictionary to configure the synapse.
    * \param syn_id The synapse model to use.
    */
-  bool connect( const index snode_id, const index target, const DictionaryDatum& params, const synindex syn_id );
+  bool connect( const size_t snode_id, const size_t target, const Dictionary& params, const synindex syn_id );
 
-  void connect_arrays( long* sources,
-    long* targets,
-    double* weights,
-    double* delays,
-    std::vector< std::string >& p_keys,
-    double* p_values,
+  void connect_arrays( const long* sources,
+    const long* targets,
+    const double* weights,
+    const double* delays,
+    const double* dendritic_delays,
+    const double* axonal_delays,
+    const std::vector< std::string >& p_keys,
+    const double* p_values,
     size_t n,
-    std::string syn_model );
+    const std::string& syn_model );
 
-  index find_connection( const thread tid, const synindex syn_id, const index snode_id, const index tnode_id );
+  /**
+   * @brief Connect nodes from SONATA specification.
+   *
+   * This function instantiates the `SonataConnector` class and calls the class member
+   * function `connect`.
+   *
+   * @param graph_specs Specification dictionary, see PyNEST `SonataNetwork._create_graph_specs` for details.
+   * @param hyberslab_size Size of the hyperslab to read in one read operation, applies to all HDF5 datasets.
+   */
+  void connect_sonata( const Dictionary& graph_specs, const long hyberslab_size );
 
-  void disconnect( const thread tid, const synindex syn_id, const index snode_id, const index tnode_id );
+  /**
+   * @brief Create tripartite connections
+   *
+   * @note `synapse_specs` is dictionary `{"primary": <syn_spec>, "third_in": <syn_spec>, "third_out": <syn_spec>}`; all
+   * keys are optional
+   */
+  void connect_tripartite( NodeCollectionPTR sources,
+    NodeCollectionPTR targets,
+    NodeCollectionPTR third,
+    const Dictionary& connectivity,
+    const Dictionary& third_connectivity,
+    const std::map< std::string, std::vector< Dictionary > >& synapse_specs );
+
+  /**
+   * Find first non-disabled thread-local connection of given synapse type with given source and target node.
+   *
+   * @returns Local connection id (lcid) or `invalid_index`
+   */
+  size_t find_connection( const size_t tid, const synindex syn_id, const size_t snode_id, const size_t tnode_id );
+
+  void disconnect( const size_t tid, const synindex syn_id, const size_t snode_id, const size_t tnode_id );
 
   /**
    * Check whether a connection between the given source and target
@@ -169,25 +219,26 @@ public:
    * \returns The type of connection as ConnectionType if the connection should
    * be made, ConnectionType::NO_CONNECTION otherwise.
    */
-  ConnectionType connection_required( Node*& source, Node*& target, thread tid );
+  ConnectionType connection_required( Node*& source, Node*& target, size_t tid );
 
   // aka conndatum GetStatus
-  DictionaryDatum get_synapse_status( const index source_node_id,
-    const index target_node_id,
-    const thread tid,
+  Dictionary get_synapse_status( const size_t source_node_id,
+    const size_t target_node_id,
+    const size_t tid,
     const synindex syn_id,
-    const index lcid ) const;
+    const size_t lcid ) const;
 
   // aka conndatum SetStatus
-  void set_synapse_status( const index source_node_id,
-    const index target_node_id,
-    const thread tid,
+  void set_synapse_status( const size_t source_node_id,
+    const size_t target_node_id,
+    const size_t tid,
     const synindex syn_id,
-    const index lcid,
-    const DictionaryDatum& dict );
+    const size_t lcid,
+    const Dictionary& dict );
 
   /**
    * Return connections between pairs of neurons.
+   *
    * The params dictionary can have the following entries:
    * 'source' a token array with node IDs of source neurons.
    * 'target' a token array with node IDs of target neuron.
@@ -200,7 +251,7 @@ public:
    * The function then iterates all entries in source and collects the
    * connection IDs to all neurons in target.
    */
-  ArrayDatum get_connections( const DictionaryDatum& params );
+  std::deque< ConnectionID > get_connections( const Dictionary& params );
 
   void get_connections( std::deque< ConnectionID >& connectome,
     NodeCollectionPTR source,
@@ -218,21 +269,23 @@ public:
    */
   size_t get_num_connections( const synindex syn_id ) const;
 
-  void
-  get_sources( const std::vector< index >& targets, const index syn_id, std::vector< std::vector< index > >& sources );
+  void get_sources( const std::vector< size_t >& targets,
+    const size_t syn_id,
+    std::vector< std::vector< size_t > >& sources );
 
-  void get_targets( const std::vector< index >& sources,
-    const index syn_id,
+  void get_targets( const std::vector< size_t >& sources,
+    const size_t syn_id,
     const std::string& post_synaptic_element,
-    std::vector< std::vector< index > >& targets );
+    std::vector< std::vector< size_t > >& targets );
 
-  const std::vector< Target >& get_remote_targets_of_local_node( const thread tid, const index lid ) const;
+  const std::vector< Target >& get_remote_targets_of_local_node( const size_t tid, const size_t lid ) const;
 
-  index get_target_node_id( const thread tid, const synindex syn_id, const index lcid ) const;
+  size_t get_target_node_id( const size_t tid, const synindex syn_id, const size_t lcid ) const;
 
-  bool get_device_connected( thread tid, index lcid ) const;
+  bool get_device_connected( size_t tid, size_t lcid ) const;
   /**
    * Triggered by volume transmitter in update.
+   *
    * Triggeres updates for all connectors of dopamine synapses that
    * are registered with the volume transmitter with node_id vt_node_id.
    */
@@ -243,39 +296,60 @@ public:
    * Return minimal connection delay, which is precomputed by
    * update_delay_extrema_().
    */
-  delay get_min_delay() const;
+  long get_min_delay() const;
 
   /**
    * Return maximal connection delay, which is precomputed by
    * update_delay_extrema_().
    */
-  delay get_max_delay() const;
+  long get_max_delay() const;
 
   bool get_user_set_delay_extrema() const;
 
-  void
-  send( const thread tid, const synindex syn_id, const index lcid, const std::vector< ConnectorModel* >& cm, Event& e );
+  void send( const size_t tid,
+    const synindex syn_id,
+    const size_t lcid,
+    const std::vector< ConnectorModel* >& cm,
+    Event& e );
 
-  void correct_synapse_stdp_ax_delay( const SpikeData& spike_data, const double t_last_pre_spike, double* weight_revert, const double t_post_spike );
+  /**
+   * On occurrence of a post-synaptic spike, correct the weight update of a previous pre-synaptic spike which was
+   * processed before the current post-synaptic spike, but had to be processed after it, if it was known at this point
+   * in time.
+   *
+   * @param tid The thread storing the synapse.
+   * @param syn_id Synapse type.
+   * @param lcid Local index of the synapse in the array of connections of the same type for this thread.
+   * @param t_last_pre_spike Time of the last pre-synaptic spike before the pre-synaptic spike which needs a correction.
+   * @param t_spike
+   * @param weight_revert The synaptic weight before depression after facilitation as baseline for potential later
+   * correction.
+   * @param t_post_spike Time of the current post-synaptic spike.
+   */
+  void correct_synapse_stdp_ax_delay( size_t tid,
+    synindex syn_id,
+    size_t lcid,
+    double t_last_pre_spike,
+    double t_spike_critical_interval_end,
+    const double weight_revert,
+    double& new_weight,
+    double K_plus_revert,
+    double t_post_spike );
 
   /**
    * Send event e to all device targets of source source_node_id
    */
-  void send_to_devices( const thread tid, const index source_node_id, Event& e );
-  void send_to_devices( const thread tid, const index source_node_id, SecondaryEvent& e );
+  void send_to_devices( const size_t tid, const size_t source_node_id, Event& e );
+  void send_to_devices( const size_t tid, const size_t source_node_id, SecondaryEvent& e );
 
   /**
    * Send event e to all targets of source device ldid (local device id)
    */
-  void send_from_device( const thread tid, const index ldid, Event& e );
-
-  /**
-   * Send event e to all targets of node source on thread t
-   */
-  void send_local( thread t, Node& source, Event& e );
+  void send_from_device( const size_t tid, const size_t ldid, Event& e );
 
   /**
    * Resize the structures for the Connector objects if necessary.
+   *
    * This function should be called after number of threads, min_delay,
    * max_delay, and time representation have been changed in the scheduler.
    * The TimeConverter is used to convert times from the old to the new
@@ -284,16 +358,14 @@ public:
    */
   void calibrate( const TimeConverter& );
 
-  /**
-   * Returns the delay checker for the current thread.
-   */
+  //! Returns the delay checker for the current thread.
   DelayChecker& get_delay_checker();
 
   //! Removes processed entries from source table
-  void clean_source_table( const thread tid );
+  void clean_source_table( const size_t tid );
 
   //! Clears all entries in source table
-  void clear_source_table( const thread tid );
+  void clear_source_table( const size_t tid );
 
   //! Returns true if source table is kept after building network
   bool get_keep_source_table() const;
@@ -301,93 +373,91 @@ public:
   //! Returns true if source table was cleared
   bool is_source_table_cleared() const;
 
-  void prepare_target_table( const thread tid );
+  void prepare_target_table( const size_t tid );
 
   void resize_target_table_devices_to_number_of_neurons();
 
   void resize_target_table_devices_to_number_of_synapse_types();
 
-  bool get_next_target_data( const thread tid,
-    const thread rank_start,
-    const thread rank_end,
-    thread& target_rank,
+  bool get_next_target_data( const size_t tid,
+    const size_t rank_start,
+    const size_t rank_end,
+    size_t& target_rank,
     TargetData& next_target_data );
 
-  void reject_last_target_data( const thread tid );
+  bool fill_target_buffer( const size_t tid,
+    const size_t rank_start,
+    const size_t rank_end,
+    std::vector< TargetData >& send_buffer_target_data,
+    TargetSendBufferPosition& send_buffer_position );
 
-  void save_source_table_entry_point( const thread tid );
+  void reject_last_target_data( const size_t tid );
 
-  void reset_source_table_entry_point( const thread tid );
+  void save_source_table_entry_point( const size_t tid );
 
-  void restore_source_table_entry_point( const thread tid );
+  void reset_source_table_entry_point( const size_t tid );
 
-  void add_target( const thread tid, const thread target_rank, const TargetData& target_data );
+  void restore_source_table_entry_point( const size_t tid );
+
+  void add_target( const size_t tid, const size_t target_rank, const TargetData& target_data );
 
   /**
-   * Return sort_connections_by_source_, which indicates whether
-   * connections_ and source_table_ should be sorted according to
-   * source node ID.
+   * Returns whether spikes should be compressed.
+   *
+   * Implies that connections will be sorted by source.
    */
-  bool get_sort_connections_by_source() const;
-
   bool use_compressed_spikes() const;
 
   /**
    * Sorts connections in the presynaptic infrastructure by increasing
    * source node ID.
    */
-  void sort_connections( const thread tid );
+  void sort_connections( const size_t tid );
 
   /**
-   * Removes disabled connections (of structural plasticity)
-   */
-  void remove_disabled_connections( const thread tid );
-
-  /**
-   * Returns true if connection information needs to be
-   * communicated. False otherwise.
+   * Returns true if connection information needs to be communicated. False otherwise.
    */
   bool connections_have_changed() const;
 
   /**
-   * Sets flag indicating whether connection information needs to be
-   * communicated to true.
+   * Sets flag indicating whether connection information needs to be communicated to true.
    */
   void set_connections_have_changed();
 
   /**
-   * Sets flag indicating whether connection information needs to be
-   * communicated to false.
+   * Sets flag indicating whether connection information needs to be communicated to false.
    */
   void unset_connections_have_changed();
 
+  bool have_nonzero_axonal_delays() const;
+
   /**
-   * Deletes TargetTable and resets processed flags of
-   * SourceTable. This function must be called if connections are
-   * created after connections have been communicated previously. It
-   * basically restores the connection infrastructure to a state where
-   * all information only exists on the postsynaptic side.
+   * Deletes TargetTable and resets processed flags of SourceTable.
+   *
+   * This function must be called if connections are created after connections have been communicated previously. It
+   * basically restores the connection infrastructure to a state where all information only exists on the postsynaptic
+   * side.
    */
-  void restructure_connection_tables( const thread tid );
+  void restructure_connection_tables( const size_t tid );
 
   void
-  set_source_has_more_targets( const thread tid, const synindex syn_id, const index lcid, const bool more_targets );
+  set_source_has_more_targets( const size_t tid, const synindex syn_id, const size_t lcid, const bool more_targets );
 
-  void no_targets_to_process( const thread tid );
+  void no_targets_to_process( const size_t tid );
 
   const std::vector< size_t >&
-  get_secondary_send_buffer_positions( const thread tid, const index lid, const synindex syn_id ) const;
+  get_secondary_send_buffer_positions( const size_t tid, const size_t lid, const synindex syn_id ) const;
 
   /**
    * Returns read position in MPI receive buffer for secondary connections.
    */
-  size_t get_secondary_recv_buffer_position( const thread tid, const synindex syn_id, const index lcid ) const;
+  size_t get_secondary_recv_buffer_position( const size_t tid, const synindex syn_id, const size_t lcid ) const;
 
-  bool deliver_secondary_events( const thread tid,
+  bool deliver_secondary_events( const size_t tid,
     const bool called_from_wfr_update,
     std::vector< unsigned int >& recv_buffer );
 
-  void compress_secondary_send_buffer_pos( const thread tid );
+  void compress_secondary_send_buffer_pos( const size_t tid );
 
   void resize_connections();
 
@@ -399,7 +469,7 @@ public:
 
   bool secondary_connections_exist() const;
 
-  index get_source_node_id( const thread tid, const synindex syn_id, const index lcid );
+  size_t get_source_node_id( const size_t tid, const synindex syn_id, const size_t lcid );
 
   double get_stdp_eps() const;
 
@@ -407,32 +477,61 @@ public:
 
   // public stop watch for benchmarking purposes
   // start and stop in high-level connect functions in nestmodule.cpp and nest.cpp
-  Stopwatch sw_construction_connect;
+  Stopwatch< StopwatchGranularity::Normal, StopwatchParallelism::MasterOnly > sw_construction_connect;
 
-  const std::vector< SpikeData >& get_compressed_spike_data( const synindex syn_id, const index idx );
+  const std::vector< SpikeData >& get_compressed_spike_data( const synindex syn_id, const size_t idx );
+
+  //! Set iteration_state_ entries for all threads to beginning of compressed_spike_data_map_.
+  void initialize_iteration_state();
 
 private:
-  size_t get_num_target_data( const thread tid ) const;
+  size_t get_num_target_data( const size_t tid ) const;
 
-  size_t get_num_connections_( const thread tid, const synindex syn_id ) const;
+  size_t get_num_connections_( const size_t tid, const synindex syn_id ) const;
 
-  void
-  get_source_node_ids_( const thread tid, const synindex syn_id, const index tnode_id, std::vector< index >& sources );
+  //! See get_connections()
+  void get_connections_( const size_t tid,
+    std::deque< ConnectionID >& connectome,
+    NodeCollectionPTR source,
+    NodeCollectionPTR target,
+    synindex syn_id,
+    long synapse_label ) const;
+  void get_connections_to_targets_( const size_t tid,
+    std::deque< ConnectionID >& connectome,
+    NodeCollectionPTR source,
+    NodeCollectionPTR target,
+    synindex syn_id,
+    long synapse_label ) const;
+  void get_connections_from_sources_( const size_t tid,
+    std::deque< ConnectionID >& connectome,
+    NodeCollectionPTR source,
+    NodeCollectionPTR target,
+    synindex syn_id,
+    long synapse_label ) const;
+
+  void get_source_node_ids_( const size_t tid,
+    const synindex syn_id,
+    const size_t tnode_id,
+    std::vector< size_t >& sources );
+
+  /**
+   * Removes disabled connections (of structural plasticity)
+   */
+  void remove_disabled_connections_( const size_t tid );
 
   /**
    * Splits a TokenArray of node IDs to two vectors containing node IDs of neurons and
    * node IDs of devices.
    */
-  void split_to_neuron_device_vectors_( const thread tid,
+  void split_to_neuron_device_vectors_( const size_t tid,
     NodeCollectionPTR nodecollection,
-    std::vector< index >& neuron_node_ids,
-    std::vector< index >& device_node_ids ) const;
+    std::vector< size_t >& neuron_node_ids,
+    std::vector< size_t >& device_node_ids ) const;
 
   /**
    * Update delay extrema to current values.
    *
-   * Static since it only operates in static variables. This allows it to be
-   * called from const-method get_status() as well.
+   * @note This entails MPI communication.
    */
   void update_delay_extrema_();
 
@@ -469,16 +568,20 @@ private:
    * \param tid The thread of the target node.
    * \param syn_id The synapse model to use.
    * \param params The parameters for the connection.
-   * \param delay The delay of the connection (optional).
+   * \param delay Total delay of the connection (in ms).
+   * \param dendritic_delay Dendritic delay of the connection (in ms).
+   * \param axonal_delay Axonal delay of the connection (in ms).
    * \param weight The weight of the connection (optional).
    */
   void connect_( Node& source,
     Node& target,
-    const index s_node_id,
-    const thread tid,
+    const size_t s_node_id,
+    const size_t tid,
     const synindex syn_id,
-    const DictionaryDatum& params,
+    const Dictionary& params,
     const double delay = numerics::nan,
+    const double dendritic_delay = numerics::nan,
+    const double axonal_delay = numerics::nan,
     const double weight = numerics::nan );
 
   /**
@@ -501,21 +604,21 @@ private:
    */
   void connect_to_device_( Node& source,
     Node& target,
-    const index s_node_id,
-    const thread tid,
+    const size_t s_node_id,
+    const size_t tid,
     const synindex syn_id,
-    const DictionaryDatum& params,
-    const double delay = NAN,
-    const double weight = NAN );
+    const Dictionary& params,
+    const double delay = numerics::nan,
+    const double weight = numerics::nan );
 
   /**
    * connect_from_device_ is used to establish a connection between a sender and
    * receiving node if the sender does not have proxies.
    *
-   * The parameters delay and weight have the default value NAN.
-   * NAN is a special value in cmath, which describes double values that
+   * The parameters delay and weight have the default value numerics::nan.
+   * numerics::nan is a special value in C++, which describes double values that
    * are not a number. If delay or weight is omitted in an connect call,
-   * NAN indicates this and weight/delay are set only, if they are valid.
+   * numerics::nan indicates this and weight/delay are set only, if they are valid.
    *
    * \param source A reference to the sending Node.
    * \param target A reference to the receiving Node.
@@ -528,16 +631,16 @@ private:
    */
   void connect_from_device_( Node& source,
     Node& target,
-    const thread tid,
+    const size_t tid,
     const synindex syn_id,
-    const DictionaryDatum& params,
-    const double delay = NAN,
-    const double weight = NAN );
+    const Dictionary& params,
+    const double delay = numerics::nan,
+    const double weight = numerics::nan );
 
   /**
    * Increases the connection count.
    */
-  void increase_connection_count( const thread tid, const synindex syn_id );
+  void increase_connection_count( const size_t tid, const synindex syn_id );
 
   /**
    * A structure to hold the Connector objects which in turn hold the
@@ -557,7 +660,7 @@ private:
   /**
    * A structure to hold "unpacked" spikes on the postsynaptic side if
    * spike compression is enabled. Internally arranged in a 3d
-   * structure: synapses|sources|spike data
+   * structure: synapses|sources|target_threads
    */
   std::vector< std::vector< std::vector< SpikeData > > > compressed_spike_data_;
 
@@ -567,7 +670,7 @@ private:
    */
   std::vector< std::vector< std::vector< size_t > > > secondary_recv_buffer_pos_;
 
-  std::map< index, size_t > buffer_pos_of_source_node_id_syn_id_;
+  std::map< size_t, size_t > buffer_pos_of_source_node_id_syn_id_;
 
   /**
    * A structure to hold the information about targets for each
@@ -586,14 +689,19 @@ private:
    */
   std::vector< std::vector< size_t > > num_connections_;
 
-  DictionaryDatum connruledict_; //!< Dictionary for connection rules.
+  Dictionary connruledict_;  //!< Dictionary for connection rules.
 
   //! ConnBuilder factories, indexed by connruledict_ elements.
-  std::vector< GenericConnBuilderFactory* > connbuilder_factories_;
+  std::vector< GenericBipartiteConnBuilderFactory* > connbuilder_factories_;
 
-  delay min_delay_; //!< Value of the smallest delay in the network.
+  Dictionary thirdconnruledict_;  //!< Dictionary for third-factor connection rules.
 
-  delay max_delay_; //!< Value of the largest delay in the network in steps.
+  //! Third-factor ConnBuilder factories, indexed by thirdconnruledict_ elements.
+  std::vector< GenericThirdConnBuilderFactory* > thirdconnbuilder_factories_;
+
+  long min_delay_;  //!< Value of the smallest delay in the network.
+
+  long max_delay_;  //!< Value of the largest delay in the network in steps.
 
   //! Whether to keep source table after connection setup is complete.
   bool keep_source_table_;
@@ -602,18 +710,22 @@ private:
   //! simulate.
   bool connections_have_changed_;
 
+  //! True if any connection uses a nonzero axonal delay.
+  bool have_nonzero_axonal_delays_;
+
+  PerThreadBoolIndicator check_axonal_delays_;
+
   //! true if GetConnections has been called.
   bool get_connections_has_been_called_;
 
-  //! Whether to sort connections by source node ID.
-  bool sort_connections_by_source_;
-
-  //! Whether to use spike compression; if a neuron has targets on
-  //! multiple threads of a process, this switch makes sure that only
-  //! a single packet is sent to the process instead of one packet per
-  //! target thread; requires sort_connections_by_source_ = true; for
-  //! more details see the discussion and sketch in
-  //! https://github.com/nest/nest-simulator/pull/1338
+  /**
+   *  Whether to use spike compression; if a neuron has targets on
+   *  multiple threads of a process, this switch makes sure that only
+   *  a single packet is sent to the process instead of one packet per
+   *  target thread; implies sort_connections_by_source_ = true; for
+   *  more details see the discussion and sketch in
+   *  https://github.com/nest/nest-simulator/pull/1338
+   */
   bool use_compressed_spikes_;
 
   //! Whether primary connections (spikes) exist.
@@ -631,28 +743,42 @@ private:
   //! Maximum distance between (double) spike times in STDP that is
   //! still considered 0. See issue #894
   double stdp_eps_;
+
+  //! For each thread, store (syn_id, compressed_spike_data_map_::iterator) pair for next iteration while filling target
+  //! buffers
+  std::vector< std::pair< size_t, std::map< size_t, CSDMapEntry >::const_iterator > > iteration_state_;
+
+  /**
+   * Number of weight corrections required for STDP synapses with predominant axonal delays during the whole
+   * simulation, counted per thread.
+   *
+   * Corrections are triggered from inside the OpenMP parallel region, so a single shared counter would be a data
+   * race and would undercount by a nondeterministic amount. One entry per thread, summed on read, in the same way
+   * EventDeliveryManager keeps local_spike_counter_.
+   */
+  std::vector< size_t > num_corrections_;
 };
 
 inline bool
 ConnectionManager::valid_connection_rule( std::string rule_name )
 {
-  return connruledict_->known( rule_name );
+  return connruledict_.known( rule_name );
 }
 
-inline delay
+inline long
 ConnectionManager::get_min_delay() const
 {
   return min_delay_;
 }
 
-inline delay
+inline long
 ConnectionManager::get_max_delay() const
 {
   return max_delay_;
 }
 
 inline void
-ConnectionManager::clean_source_table( const thread tid )
+ConnectionManager::clean_source_table( const size_t tid )
 {
   if ( not keep_source_table_ )
   {
@@ -661,7 +787,7 @@ ConnectionManager::clean_source_table( const thread tid )
 }
 
 inline void
-ConnectionManager::clear_source_table( const thread tid )
+ConnectionManager::clear_source_table( const size_t tid )
 {
   if ( not keep_source_table_ )
   {
@@ -694,43 +820,43 @@ ConnectionManager::resize_target_table_devices_to_number_of_synapse_types()
 }
 
 inline void
-ConnectionManager::reject_last_target_data( const thread tid )
+ConnectionManager::reject_last_target_data( const size_t tid )
 {
   source_table_.reject_last_target_data( tid );
 }
 
 inline void
-ConnectionManager::save_source_table_entry_point( const thread tid )
+ConnectionManager::save_source_table_entry_point( const size_t tid )
 {
   source_table_.save_entry_point( tid );
 }
 
 inline void
-ConnectionManager::no_targets_to_process( const thread tid )
+ConnectionManager::no_targets_to_process( const size_t tid )
 {
   source_table_.no_targets_to_process( tid );
 }
 
 inline void
-ConnectionManager::reset_source_table_entry_point( const thread tid )
+ConnectionManager::reset_source_table_entry_point( const size_t tid )
 {
   source_table_.reset_entry_point( tid );
 }
 
 inline void
-ConnectionManager::restore_source_table_entry_point( const thread tid )
+ConnectionManager::restore_source_table_entry_point( const size_t tid )
 {
   source_table_.restore_entry_point( tid );
 }
 
 inline void
-ConnectionManager::prepare_target_table( const thread tid )
+ConnectionManager::prepare_target_table( const size_t tid )
 {
   target_table_.prepare( tid );
 }
 
 inline const std::vector< Target >&
-ConnectionManager::get_remote_targets_of_local_node( const thread tid, const index lid ) const
+ConnectionManager::get_remote_targets_of_local_node( const size_t tid, const size_t lid ) const
 {
   return target_table_.get_targets( tid, lid );
 }
@@ -741,42 +867,52 @@ ConnectionManager::connections_have_changed() const
   return connections_have_changed_;
 }
 
+inline bool
+ConnectionManager::have_nonzero_axonal_delays() const
+{
+  return have_nonzero_axonal_delays_;
+}
+
 inline void
-ConnectionManager::add_target( const thread tid, const thread target_rank, const TargetData& target_data )
+ConnectionManager::add_target( const size_t tid, const size_t target_rank, const TargetData& target_data )
 {
   target_table_.add_target( tid, target_rank, target_data );
 }
 
 inline bool
-ConnectionManager::get_next_target_data( const thread tid,
-  const thread rank_start,
-  const thread rank_end,
-  thread& target_rank,
+ConnectionManager::get_next_target_data( const size_t tid,
+  const size_t rank_start,
+  const size_t rank_end,
+  size_t& target_rank,
   TargetData& next_target_data )
 {
   return source_table_.get_next_target_data( tid, rank_start, rank_end, target_rank, next_target_data );
 }
 
 inline const std::vector< size_t >&
-ConnectionManager::get_secondary_send_buffer_positions( const thread tid, const index lid, const synindex syn_id ) const
+ConnectionManager::get_secondary_send_buffer_positions( const size_t tid,
+  const size_t lid,
+  const synindex syn_id ) const
 {
   return target_table_.get_secondary_send_buffer_positions( tid, lid, syn_id );
 }
 
 inline size_t
-ConnectionManager::get_secondary_recv_buffer_position( const thread tid, const synindex syn_id, const index lcid ) const
+ConnectionManager::get_secondary_recv_buffer_position( const size_t tid,
+  const synindex syn_id,
+  const size_t lcid ) const
 {
   return secondary_recv_buffer_pos_[ tid ][ syn_id ][ lcid ];
 }
 
 inline size_t
-ConnectionManager::get_num_connections_( const thread tid, const synindex syn_id ) const
+ConnectionManager::get_num_connections_( const size_t tid, const synindex syn_id ) const
 {
   return connections_[ tid ][ syn_id ]->size();
 }
 
-inline index
-ConnectionManager::get_source_node_id( const thread tid, const synindex syn_index, const index lcid )
+inline size_t
+ConnectionManager::get_source_node_id( const size_t tid, const synindex syn_index, const size_t lcid )
 {
   return source_table_.get_node_id( tid, syn_index, lcid );
 }
@@ -794,12 +930,6 @@ ConnectionManager::secondary_connections_exist() const
 }
 
 inline bool
-ConnectionManager::get_sort_connections_by_source() const
-{
-  return sort_connections_by_source_;
-}
-
-inline bool
 ConnectionManager::use_compressed_spikes() const
 {
   return use_compressed_spikes_;
@@ -811,22 +941,22 @@ ConnectionManager::get_stdp_eps() const
   return stdp_eps_;
 }
 
-inline index
-ConnectionManager::get_target_node_id( const thread tid, const synindex syn_id, const index lcid ) const
+inline size_t
+ConnectionManager::get_target_node_id( const size_t tid, const synindex syn_id, const size_t lcid ) const
 {
   return connections_[ tid ][ syn_id ]->get_target_node_id( tid, lcid );
 }
 
 inline bool
-ConnectionManager::get_device_connected( const thread tid, const index lcid ) const
+ConnectionManager::get_device_connected( const size_t tid, const size_t lcid ) const
 {
   return target_table_devices_.is_device_connected( tid, lcid );
 }
 
 inline void
-ConnectionManager::send( const thread tid,
+ConnectionManager::send( const size_t tid,
   const synindex syn_id,
-  const index lcid,
+  const size_t lcid,
   const std::vector< ConnectorModel* >& cm,
   Event& e )
 {
@@ -834,13 +964,30 @@ ConnectionManager::send( const thread tid,
 }
 
 inline void
-ConnectionManager::correct_synapse_stdp_ax_delay( const SpikeData& spike_data, const double t_last_pre_spike, double* weight_revert, const double t_post_spike )
+ConnectionManager::correct_synapse_stdp_ax_delay( const size_t tid,
+  const synindex syn_id,
+  const size_t lcid,
+  const double t_last_pre_spike,
+  const double t_spike_critical_interval_end,
+  const double weight_revert,
+  double& new_weight,
+  const double K_plus_revert,
+  const double t_post_spike )
 {
-  connections_[ spike_data.get_tid() ][ spike_data.get_syn_id() ]->correct_synapse_stdp_ax_delay( spike_data, t_last_pre_spike, weight_revert, t_post_spike );
+  ++num_corrections_[ tid ];
+  connections_[ tid ][ syn_id ]->correct_synapse_stdp_ax_delay( tid,
+    syn_id,
+    lcid,
+    t_last_pre_spike,
+    t_spike_critical_interval_end,
+    weight_revert,
+    new_weight,
+    K_plus_revert,
+    t_post_spike );
 }
 
 inline void
-ConnectionManager::restructure_connection_tables( const thread tid )
+ConnectionManager::restructure_connection_tables( const size_t tid )
 {
   assert( not source_table_.is_cleared() );
   target_table_.clear( tid );
@@ -848,26 +995,26 @@ ConnectionManager::restructure_connection_tables( const thread tid )
 }
 
 inline void
-ConnectionManager::set_source_has_more_targets( const thread tid,
+ConnectionManager::set_source_has_more_targets( const size_t tid,
   const synindex syn_id,
-  const index lcid,
+  const size_t lcid,
   const bool more_targets )
 {
   connections_[ tid ][ syn_id ]->set_source_has_more_targets( lcid, more_targets );
 }
 
 inline const std::vector< SpikeData >&
-ConnectionManager::get_compressed_spike_data( const synindex syn_id, const index idx )
+ConnectionManager::get_compressed_spike_data( const synindex syn_id, const size_t idx )
 {
-  return compressed_spike_data_.at( syn_id ).at( idx );
+  return compressed_spike_data_[ syn_id ][ idx ];
 }
 
 inline void
-ConnectionManager::clear_compressed_spike_data_map( const thread tid )
+ConnectionManager::clear_compressed_spike_data_map()
 {
-  source_table_.clear_compressed_spike_data_map( tid );
+  source_table_.clear_compressed_spike_data_map();
 }
 
-} // namespace nest
+}  // namespace nest
 
 #endif /* CONNECTION_MANAGER_H */

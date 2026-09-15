@@ -31,7 +31,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: synapse, static
+/* BeginUserDocs: synapse, chemical, static, stochastic
 
 Short description
 +++++++++++++++++
@@ -43,9 +43,9 @@ Description
 
 Spikes are transmitted by ``bernoulli_synapse`` following a Bernoulli
 trial with success probability ``p_transmit``. This synaptic mechanism was
-inspired by the results described in [1]_ of greater transmission
+inspired by the results described in :footcite:p:`Lefort2009` of greater transmission
 probability for stronger excitatory connections and it was previously
-applied in [2]_ and [3]_.
+applied in :footcite:p:`Teramae2012` and :footcite:p:`Omura2015`.
 
 ``bernoulli_synapse`` does not support any kind of plasticity. It simply
 stores the parameters target, weight, transmission probability, delay
@@ -67,34 +67,33 @@ DoubleDataEvent, DataLoggingRequest
 References
 ++++++++++
 
-.. [1] Lefort S, Tomm C, Sarria J-C F, Petersen CCH (2009). The excitatory
-       neuronal network of the C2 barrel column in mouse primary
-       somatosensory cortex. Neuron, 61(2):301-316.
-       DOI: https://doi.org/10.1016/j.neuron.2008.12.020.
-
-.. [2] Teramae J, Tsubo Y, Fukai T (2012). Optimal spike-based communication
-       in excitable networks with strong-sparse and weak-dense  links,
-       Scientific Reports 2,485. DOI: https://doi.org/10.1038/srep00485
-
-.. [3] Omura Y, Carvalho MM, Inokuchi K, Fukai T (2015). A lognormal recurrent
-       network model for burst generation during hippocampal sharp waves.
-       Journal of Neuroscience, 35(43):14585-14601.
-       DOI: https://doi.org/10.1523/JNEUROSCI.4944-14.2015
+.. footbibliography::
 
 See also
 ++++++++
 
 static_synapse, static_synapse_hom_w
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: bernoulli_synapse
+
 EndUserDocs */
 
+void register_bernoulli_synapse( const std::string& name );
+
 template < typename targetidentifierT >
-class bernoulli_synapse : public Connection< targetidentifierT >
+class bernoulli_synapse : public Connection< targetidentifierT, TotalDelay >
 {
 public:
   // this line determines which common properties to use
   typedef CommonSynapseProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
@@ -129,39 +128,31 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
   }
 
-  void
-  send( Event& e, thread t, const CommonSynapseProperties& )
+  bool
+  send( Event& e, size_t t, const CommonSynapseProperties& )
   {
     SpikeEvent e_spike = static_cast< SpikeEvent& >( e );
 
-    const unsigned long n_spikes_in = e_spike.get_multiplicity();
-    unsigned long n_spikes_out = 0;
+    assert( e_spike.get_multiplicity() == 1 );
 
-    for ( unsigned long n = 0; n < n_spikes_in; ++n )
-    {
-      if ( get_vp_specific_rng( t )->drand() < p_transmit_ )
-      {
-        ++n_spikes_out;
-      }
-    }
+    const bool send_spike = get_vp_specific_rng( t )->drand() < p_transmit_;
 
-    if ( n_spikes_out > 0 )
+    if ( send_spike )
     {
-      e_spike.set_multiplicity( n_spikes_out );
       e.set_weight( weight_ );
       e.set_delay_steps( get_delay_steps() );
       e.set_receiver( *get_target( t ) );
@@ -169,13 +160,12 @@ public:
       e();
     }
 
-    // Resets multiplicity for consistency
-    e_spike.set_multiplicity( n_spikes_in );
+    return send_spike;
   }
 
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   void
   set_weight( double w )
@@ -189,29 +179,32 @@ private:
 };
 
 template < typename targetidentifierT >
+constexpr ConnectionModelProperties bernoulli_synapse< targetidentifierT >::properties;
+
+template < typename targetidentifierT >
 void
-bernoulli_synapse< targetidentifierT >::get_status( DictionaryDatum& d ) const
+bernoulli_synapse< targetidentifierT >::get_status( Dictionary& d ) const
 {
   ConnectionBase::get_status( d );
-  def< double >( d, names::weight, weight_ );
-  def< double >( d, names::p_transmit, p_transmit_ );
-  def< long >( d, names::size_of, sizeof( *this ) );
+  d[ names::weight ] = weight_;
+  d[ names::p_transmit ] = p_transmit_;
+  d[ names::size_of ] = static_cast< long >( sizeof( *this ) );
 }
 
 template < typename targetidentifierT >
 void
-bernoulli_synapse< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+bernoulli_synapse< targetidentifierT >::set_status( const Dictionary& d, ConnectorModel& cm )
 {
   ConnectionBase::set_status( d, cm );
-  updateValue< double >( d, names::weight, weight_ );
-  updateValue< double >( d, names::p_transmit, p_transmit_ );
+  d.update_value( names::weight, weight_ );
+  d.update_value( names::p_transmit, p_transmit_ );
 
-  if ( p_transmit_ < 0 || p_transmit_ > 1 )
+  if ( p_transmit_ < 0 or p_transmit_ > 1 )
   {
     throw BadProperty( "Spike transmission probability must be in [0, 1]." );
   }
 }
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef BERNOULLI_SYNAPSE_H */

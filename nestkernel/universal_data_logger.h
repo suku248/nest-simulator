@@ -24,6 +24,7 @@
 #define UNIVERSAL_DATA_LOGGER_H
 
 // C++ includes:
+#include <algorithm>
 #include <vector>
 
 // Includes from nestkernel:
@@ -129,7 +130,7 @@ public:
    * @param map of access functions
    * @return rport for future logging requests
    */
-  port connect_logging_device( const DataLoggingRequest&, const RecordablesMap< HostNode >& );
+  size_t connect_logging_device( const DataLoggingRequest&, const RecordablesMap< HostNode >& );
 
   /**
    * Answer DataLoggingRequest.
@@ -145,6 +146,7 @@ public:
 
   /**
    * Record data using predefined access functions.
+   *
    * This function should be called once per time step at the end of the
    * time step to record data from the node to the logger.
    *
@@ -159,6 +161,7 @@ public:
 
   /**
    * Initialize logger, i.e., set up data buffers.
+   *
    * Has no effect if buffer is initialized already.
    */
   void init();
@@ -166,6 +169,7 @@ public:
 private:
   /**
    * Single data logger, serving one multimeter.
+   *
    * For each multimeter connected to a node, one DataLogger_ instance is
    * created. The UniversalDataLogger forwards all requests to the correct
    * DataLogger_ based on the rport of the request.
@@ -174,7 +178,7 @@ private:
   {
   public:
     DataLogger_( const DataLoggingRequest&, const RecordablesMap< HostNode >& );
-    index
+    size_t
     get_mm_node_id() const
     {
       return multimeter_;
@@ -185,19 +189,20 @@ private:
     void init();
 
   private:
-    index multimeter_; //!< node ID of multimeter for which the logger works
-    size_t num_vars_;  //!< number of variables recorded
+    size_t multimeter_;  //!< node ID of multimeter for which the logger works
+    size_t num_vars_;    //!< number of variables recorded
 
-    Time recording_interval_; //!< interval between two recordings
-    Time recording_offset_;   //!< offset relative to which interval is calculated
-    long rec_int_steps_;      //!< interval in steps
-    long next_rec_step_;      //!< next time step at which to record
+    Time recording_interval_;  //!< interval between two recordings
+    Time recording_offset_;    //!< offset relative to which interval is calculated
+    long rec_int_steps_;       //!< interval in steps
+    long next_rec_step_;       //!< next time step at which to record
 
     /** Vector of pointers to member functions for data access. */
     std::vector< typename RecordablesMap< HostNode >::DataAccessFct > node_access_;
 
     /**
      * Buffer for data.
+     *
      * The first dimension has size two, to provide for alternate
      * writing/reading using a toggle. The second dimension has
      * one entry per recording time in each time slice. Each entry
@@ -209,10 +214,11 @@ private:
     std::vector< size_t > next_rec_;
   };
 
-  HostNode& host_; //!< node to which logger belongs
+  HostNode& host_;  //!< node to which logger belongs
 
   /**
    * Data loggers, one per connected multimeter.
+   *
    * Indices are rport-1.
    */
   std::vector< DataLogger_ > data_loggers_;
@@ -228,8 +234,8 @@ private:
 // must be defined in this file, since it is required by check_connection(),
 // which typically is in h-files.
 template < typename HostNode >
-port
-nest::UniversalDataLogger< HostNode >::connect_logging_device( const DataLoggingRequest& req,
+size_t
+UniversalDataLogger< HostNode >::connect_logging_device( const DataLoggingRequest& req,
   const RecordablesMap< HostNode >& rmap )
 {
   // rports are assigned consecutively, the caller may not request specific
@@ -240,14 +246,13 @@ nest::UniversalDataLogger< HostNode >::connect_logging_device( const DataLogging
   }
 
   // ensure that we have not connected this multimeter before
-  const index mm_node_id = req.get_sender().get_node_id();
-  const size_t n_loggers = data_loggers_.size();
-  size_t j = 0;
-  while ( j < n_loggers and data_loggers_[ j ].get_mm_node_id() != mm_node_id )
-  {
-    ++j;
-  }
-  if ( j < n_loggers )
+  const size_t mm_node_id = req.get_sender().get_node_id();
+
+  const auto item = std::find_if( data_loggers_.begin(),
+    data_loggers_.end(),
+    [ & ]( const DataLogger_& dl ) { return dl.get_mm_node_id() == mm_node_id; } );
+
+  if ( item != data_loggers_.end() )
   {
     throw IllegalConnection( "Each multimeter can only be connected once to a given node." );
   }
@@ -261,31 +266,29 @@ nest::UniversalDataLogger< HostNode >::connect_logging_device( const DataLogging
 }
 
 template < typename HostNode >
-nest::UniversalDataLogger< HostNode >::DataLogger_::DataLogger_( const DataLoggingRequest& req,
+UniversalDataLogger< HostNode >::DataLogger_::DataLogger_( const DataLoggingRequest& req,
   const RecordablesMap< HostNode >& rmap )
   : multimeter_( req.get_sender().get_node_id() )
   , num_vars_( 0 )
   , recording_interval_( Time::neg_inf() )
   , recording_offset_( Time::ms( 0. ) )
   , rec_int_steps_( 0 )
-  , next_rec_step_( -1 )
-  , // flag as uninitialized
-  node_access_()
+  , next_rec_step_( -1 )  // flag as uninitialized
+  , node_access_()
   , data_()
   , next_rec_( 2, 0 )
 {
-  const std::vector< Name >& recvars = req.record_from();
+  const std::vector< std::string >& recvars = req.record_from();
   for ( size_t j = 0; j < recvars.size(); ++j )
   {
-    // .toString() required as work-around for #339, remove when #348 is solved.
-    typename RecordablesMap< HostNode >::const_iterator rec = rmap.find( recvars[ j ].toString() );
+    typename RecordablesMap< HostNode >::const_iterator rec = rmap.find( recvars[ j ] );
 
     if ( rec == rmap.end() )
     {
       // delete all access information again: the connect either succeeds
       // for all entries in recvars, or it fails, leaving the logger untouched
       node_access_.clear();
-      throw IllegalConnection( "Cannot connect with unknown recordable " + recvars[ j ].toString() );
+      throw IllegalConnection( "Cannot connect with unknown recordable " + recvars[ j ] );
     }
 
     node_access_.push_back( rec->second );
@@ -387,7 +390,7 @@ public:
    * @param map of access functions
    * @return rport for future logging requests
    */
-  port connect_logging_device( const DataLoggingRequest&, const DynamicRecordablesMap< HostNode >& );
+  size_t connect_logging_device( const DataLoggingRequest&, const DynamicRecordablesMap< HostNode >& );
 
   /**
    * Answer DataLoggingRequest.
@@ -403,6 +406,7 @@ public:
 
   /**
    * Record data using predefined access functions.
+   *
    * This function should be called once per time step at the end of the
    * time step to record data from the node to the logger.
    *
@@ -417,6 +421,7 @@ public:
 
   /**
    * Initialize logger, i.e., set up data buffers.
+   *
    * Has no effect if buffer is initialized already.
    */
   void init();
@@ -424,6 +429,7 @@ public:
 private:
   /**
    * Single data logger, serving one multimeter.
+   *
    * For each multimeter connected to a node, one DataLogger_ instance is
    * created. The UniversalDataLogger forwards all requests to the correct
    * DataLogger_ based on the rport of the request.
@@ -432,7 +438,7 @@ private:
   {
   public:
     DataLogger_( const DataLoggingRequest&, const DynamicRecordablesMap< HostNode >& );
-    index
+    size_t
     get_mm_node_id() const
     {
       return multimeter_;
@@ -443,19 +449,20 @@ private:
     void init();
 
   private:
-    index multimeter_; //!< node ID of multimeter for which the logger works
-    size_t num_vars_;  //!< number of variables recorded
+    size_t multimeter_;  //!< node ID of multimeter for which the logger works
+    size_t num_vars_;    //!< number of variables recorded
 
-    Time recording_interval_; //!< interval between two recordings
-    Time recording_offset_;   //!< offset relative to which interval is calculated
-    long rec_int_steps_;      //!< interval in steps
-    long next_rec_step_;      //!< next time step at which to record
+    Time recording_interval_;  //!< interval between two recordings
+    Time recording_offset_;    //!< offset relative to which interval is calculated
+    long rec_int_steps_;       //!< interval in steps
+    long next_rec_step_;       //!< next time step at which to record
 
     /** Vector of pointers to member functions for data access. */
     std::vector< const typename DynamicRecordablesMap< HostNode >::DataAccessFct* > node_access_;
 
     /**
      * Buffer for data.
+     *
      * The first dimension has size two, to provide for alternate
      * writing/reading using a toggle. The second dimension has
      * one entry per recording time in each time slice. Each entry
@@ -467,7 +474,7 @@ private:
     std::vector< size_t > next_rec_;
   };
 
-  HostNode& host_; //!< node to which logger belongs
+  HostNode& host_;  //!< node to which logger belongs
 
   /**
    * Data loggers, one per connected multimeter.
@@ -487,8 +494,8 @@ private:
 // must be defined in this file, since it is required by check_connection(),
 // which typically is in h-files.
 template < typename HostNode >
-port
-nest::DynamicUniversalDataLogger< HostNode >::connect_logging_device( const DataLoggingRequest& req,
+size_t
+DynamicUniversalDataLogger< HostNode >::connect_logging_device( const DataLoggingRequest& req,
   const DynamicRecordablesMap< HostNode >& rmap )
 {
   // rports are assigned consecutively, the caller may not request specific
@@ -499,10 +506,10 @@ nest::DynamicUniversalDataLogger< HostNode >::connect_logging_device( const Data
   }
 
   // ensure that we have not connected this multimeter before
-  const index mm_node_id = req.get_sender().get_node_id();
+  const size_t mm_node_id = req.get_sender().get_node_id();
   const size_t n_loggers = data_loggers_.size();
   size_t j = 0;
-  while ( j < n_loggers && data_loggers_[ j ].get_mm_node_id() != mm_node_id )
+  while ( j < n_loggers and data_loggers_[ j ].get_mm_node_id() != mm_node_id )
   {
     ++j;
   }
@@ -520,7 +527,7 @@ nest::DynamicUniversalDataLogger< HostNode >::connect_logging_device( const Data
 }
 
 template < typename HostNode >
-nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::DataLogger_( const DataLoggingRequest& req,
+DynamicUniversalDataLogger< HostNode >::DataLogger_::DataLogger_( const DataLoggingRequest& req,
   const DynamicRecordablesMap< HostNode >& rmap )
   : multimeter_( req.get_sender().get_node_id() )
   , num_vars_( 0 )
@@ -528,23 +535,22 @@ nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::DataLogger_( const Da
   , recording_offset_( Time::ms( 0. ) )
   , rec_int_steps_( 0 )
   , next_rec_step_( -1 )
-  , // flag as uninitialized
+  ,  // flag as uninitialized
   node_access_()
   , data_()
   , next_rec_( 2, 0 )
 {
-  const std::vector< Name >& recvars = req.record_from();
+  const std::vector< std::string >& recvars = req.record_from();
   for ( size_t j = 0; j < recvars.size(); ++j )
   {
-    // .toString() required as work-around for #339, remove when #348 is solved.
-    typename DynamicRecordablesMap< HostNode >::const_iterator rec = rmap.find( recvars[ j ].toString() );
+    typename DynamicRecordablesMap< HostNode >::const_iterator rec = rmap.find( recvars[ j ] );
 
     if ( rec == rmap.end() )
     {
       // delete all access information again: the connect either succeeds
       // for all entries in recvars, or it fails, leaving the logger untouched
       node_access_.clear();
-      throw IllegalConnection( "Cannot connect with unknown recordable " + recvars[ j ].toString() );
+      throw IllegalConnection( "Cannot connect with unknown recordable " + recvars[ j ] );
     }
 
     node_access_.push_back( &( rec->second ) );
@@ -552,7 +558,7 @@ nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::DataLogger_( const Da
 
   num_vars_ = node_access_.size();
 
-  if ( num_vars_ > 0 && req.get_recording_interval() < Time::step( 1 ) )
+  if ( num_vars_ > 0 and req.get_recording_interval() < Time::step( 1 ) )
   {
     throw IllegalConnection( "Recording interval must be >= resolution." );
   }
@@ -560,6 +566,7 @@ nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::DataLogger_( const Da
   recording_interval_ = req.get_recording_interval();
   recording_offset_ = req.get_recording_offset();
 }
-}
 
-#endif // UNIVERSAL_DATA_LOGGER_H
+}  // namespace nest
+
+#endif /* #ifndef UNIVERSAL_DATA_LOGGER_H */

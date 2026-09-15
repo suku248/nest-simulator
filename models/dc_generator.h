@@ -82,7 +82,14 @@ See also
 
 ac_generator, noise_generator, step_current_generator
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: dc_generator
+
 EndUserDocs */
+
+void register_dc_generator( const std::string& name );
 
 class dc_generator : public StimulationDevice
 {
@@ -94,17 +101,17 @@ public:
   //! Allow multimeter to connect to local instances
   bool local_receiver() const override;
 
-  port send_test_event( Node&, rport, synindex, bool ) override;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
   using Node::handle;
   using Node::handles_test_event;
 
   void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( DataLoggingRequest&, rport ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   StimulationDevice::Type get_type() const override;
 
@@ -124,24 +131,24 @@ private:
    */
   struct Parameters_
   {
-    double amp_; //!< stimulation amplitude, in pA
+    double amp_;  //!< stimulation amplitude, in pA
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
     Parameters_( const Parameters_& );
     Parameters_& operator=( const Parameters_& p );
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dictionary
+    void get( Dictionary& ) const;              //!< Store current values in dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from dictionary
   };
 
   // ------------------------------------------------------------
 
   struct State_
   {
-    double I_; //!< Instantaneous current value; used for recording current
-               //!< Required to handle current values when device is inactive
+    double I_;  //!< Instantaneous current value; used for recording current
+                //!< Required to handle current values when device is inactive
 
-    State_(); //!< Sets default parameter values
+    State_();  //!< Sets default parameter values
   };
 
   // ------------------------------------------------------------
@@ -178,8 +185,8 @@ private:
   Buffers_ B_;
 };
 
-inline port
-dc_generator::send_test_event( Node& target, rport receptor_type, synindex syn_id, bool )
+inline size_t
+dc_generator::send_test_event( Node& target, size_t receptor_type, synindex syn_id, bool )
 {
   StimulationDevice::enforce_single_syn_type( syn_id );
 
@@ -189,8 +196,8 @@ dc_generator::send_test_event( Node& target, rport receptor_type, synindex syn_i
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-dc_generator::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+dc_generator::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -200,19 +207,19 @@ dc_generator::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
 }
 
 inline void
-dc_generator::get_status( DictionaryDatum& d ) const
+dc_generator::get_status( Dictionary& d ) const
 {
   P_.get( d );
   StimulationDevice::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-dc_generator::set_status( const DictionaryDatum& d )
+dc_generator::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
 
   // We now know that ptmp is consistent. We do not write it back
   // to P_ before we are also sure that the properties to be set
@@ -235,6 +242,6 @@ dc_generator::get_type() const
   return StimulationDevice::Type::CURRENT_GENERATOR;
 }
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef DC_GENERATOR_H */

@@ -35,7 +35,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: neuron, integrate-and-fire
+/* BeginUserDocs: neuron, integrate-and-fire, hard threshold
 
 Short description
 +++++++++++++++++
@@ -46,10 +46,10 @@ Description
 +++++++++++
 
 ``iaf_psc_exp_htum`` is an implementation of a leaky integrate-and-fire model
-with exponential shaped postsynaptic currents (PSCs) according to [1]_.
+with exponential shaped postsynaptic currents (PSCs) according to :footcite:p:`Tsodyks2000`.
 The postsynaptic currents have an infinitely short rise time.
 In particular, this model allows setting an absolute and relative
-refractory time separately, as required by [1]_.
+refractory time separately, as required by :footcite:p:`Tsodyks2000`.
 
 The threshold crossing is followed by an absolute refractory period
 (``t_ref_abs``) during which the membrane potential is clamped to the resting
@@ -60,7 +60,7 @@ larger or equal to the absolute refractory time. If equal, the
 refractoriness of the model if equivalent to the other models of NEST.
 
 The linear subthreshold dynamics is integrated by the Exact
-Integration scheme [2]_. The neuron dynamics is solved on the time
+Integration scheme :footcite:p:`Hill1936`. The neuron dynamics is solved on the time
 grid given by the computation step size. Incoming as well as emitted
 spikes are forced to that grid.
 
@@ -69,7 +69,7 @@ equation represents a piecewise constant external current.
 
 The general framework for the consistent formulation of systems with
 neuron like dynamics interacting by point events is described in
-[2]_. A flow chart can be found in [3]_.
+:footcite:p:`Hill1936`. A flow chart can be found in :footcite:p:`Rotter1999`.
 
 .. note::
 
@@ -93,10 +93,10 @@ neuron like dynamics interacting by point events is described in
    ``tau_syn_in``, respectively, to avoid numerical instabilities.
 
     For implementation details see the
-    `IAF_neurons_singularity <../model_details/IAF_neurons_singularity.ipynb>`_ notebook.
+    `IAF Integration Singularity notebook <../model_details/IAF_Integration_Singularity.ipynb>`_.
 
 
-See also [4]_.
+See also :footcite:p:`Diesmann2001`.
 
 Parameters
 ++++++++++
@@ -121,20 +121,7 @@ The following parameters can be set in the status dictionary.
 References
 ++++++++++
 
-.. [1] Tsodyks M, Uziel A, Markram H (2000). Synchrony generation in recurrent
-       networks with frequency-dependent synapses. The Journal of Neuroscience,
-       20,RC50:1-5. URL: https://infoscience.epfl.ch/record/183402
-.. [2] Hill, A. V. (1936). Excitation and accommodation in nerve. Proceedings of
-       the Royal Society of London. Series B-Biological Sciences, 119(814), 305-355.
-       DOI: https://doi.org/10.1098/rspb.1936.0012
-.. [3] Rotter S,  Diesmann M (1999). Exact simulation of
-       time-invariant linear systems with applications to neuronal
-       modeling. Biologial Cybernetics 81:381-402.
-       DOI: https://doi.org/10.1007/s004220050570
-.. [4] Diesmann M, Gewaltig M-O, Rotter S, & Aertsen A (2001). State
-       space analysis of synchronous spiking in cortical neural
-       networks. Neurocomputing 38-40:565-571.
-       DOI: https://doi.org/10.1016/S0925-2312(01)00409-X
+.. footbibliography::
 
 Sends
 +++++
@@ -146,7 +133,14 @@ Receives
 
 SpikeEvent, CurrentEvent, DataLoggingRequest
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: iaf_psc_exp_htum
+
 EndUserDocs */
+
+void register_iaf_psc_exp_htum( const std::string& name );
 
 class iaf_psc_exp_htum : public ArchivingNode
 {
@@ -163,24 +157,24 @@ public:
   using Node::handle;
   using Node::handles_test_event;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( SpikeEvent& );
-  void handle( CurrentEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( SpikeEvent& ) override;
+  void handle( CurrentEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( SpikeEvent&, rport );
-  port handles_test_event( CurrentEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CurrentEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
+  void init_buffers_() override;
+  void pre_run_hook() override;
 
-  void update( Time const&, const long, const long );
+  void update( Time const&, const long, const long ) override;
 
   // The next two classes need to be friends to access the State_ class/member
   friend class RecordablesMap< iaf_psc_exp_htum >;
@@ -209,7 +203,7 @@ private:
     /** External current in pA */
     double I_e_;
 
-    /** Threshold, RELATIVE TO RESTING POTENTAIL(!).
+    /** Threshold, RELATIVE TO RESTING POTENTIAL(!).
         I.e. the real threshold is (E_L_+Theta_). */
     double Theta_;
 
@@ -222,14 +216,14 @@ private:
     /** Time constant of inhibitory synaptic current in ms. */
     double tau_in_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in dictionary
 
     /** Set values from dictionary.
      * @returns Change in reversal potential E_L, to be passed to State_::set()
      */
-    double set( const DictionaryDatum&, Node* node );
+    double set( const Dictionary&, Node* node );
   };
 
   // ----------------------------------------------------------------
@@ -240,25 +234,25 @@ private:
   struct State_
   {
     // state variables
-    double i_0_;      //!< synaptic dc input current, variable 0
-    double i_syn_ex_; //!< postsynaptic current for exc. inputs, variable 1
-    double i_syn_in_; //!< postsynaptic current for inh. inputs, variable 1
-    double V_m_;      //!< membrane potential, variable 2
+    double i_0_;       //!< synaptic dc input current, variable 0
+    double i_syn_ex_;  //!< postsynaptic current for exc. inputs, variable 1
+    double i_syn_in_;  //!< postsynaptic current for inh. inputs, variable 1
+    double V_m_;       //!< membrane potential, variable 2
 
     //! absolute refractory counter (no membrane potential propagation)
     int r_abs_;
-    int r_tot_; //!< total refractory counter (no spikes can be generated)
+    int r_tot_;  //!< total refractory counter (no spikes can be generated)
 
-    State_(); //!< Default initialization
+    State_();  //!< Default initialization
 
-    void get( DictionaryDatum&, const Parameters_& ) const;
+    void get( Dictionary&, const Parameters_& ) const;
 
     /** Set values from dictionary.
      * @param dictionary to take data from
      * @param current parameters
      * @param Change in reversal potential E_L specified by this dict
      */
-    void set( const DictionaryDatum&, const Parameters_&, double delta_EL, Node* );
+    void set( const Dictionary&, const Parameters_&, double delta_EL, Node* );
   };
 
   // ----------------------------------------------------------------
@@ -328,7 +322,6 @@ private:
   // ----------------------------------------------------------------
 
   /**
-   * @defgroup iaf_psc_exp_htum_data
    * Instances of private data structures for the different types
    * of data pertaining to the model.
    * @note The order of definitions is important for speed.
@@ -345,16 +338,16 @@ private:
 };
 
 
-inline port
-iaf_psc_exp_htum::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+iaf_psc_exp_htum::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-iaf_psc_exp_htum::handles_test_event( SpikeEvent&, rport receptor_type )
+inline size_t
+iaf_psc_exp_htum::handles_test_event( SpikeEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -363,8 +356,8 @@ iaf_psc_exp_htum::handles_test_event( SpikeEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-iaf_psc_exp_htum::handles_test_event( CurrentEvent&, rport receptor_type )
+inline size_t
+iaf_psc_exp_htum::handles_test_event( CurrentEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -373,8 +366,8 @@ iaf_psc_exp_htum::handles_test_event( CurrentEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-iaf_psc_exp_htum::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+iaf_psc_exp_htum::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -385,21 +378,21 @@ iaf_psc_exp_htum::handles_test_event( DataLoggingRequest& dlr, rport receptor_ty
 
 
 inline void
-iaf_psc_exp_htum::get_status( DictionaryDatum& d ) const
+iaf_psc_exp_htum::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d, P_ );
   ArchivingNode::get_status( d );
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-iaf_psc_exp_htum::set_status( const DictionaryDatum& d )
+iaf_psc_exp_htum::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;                       // temporary copy in case of errors
-  const double delta_EL = ptmp.set( d, this ); // throws if BadProperty
-  State_ stmp = S_;                            // temporary copy in case of errors
-  stmp.set( d, ptmp, delta_EL, this );         // throws if BadProperty
+  Parameters_ ptmp = P_;                        // temporary copy in case of errors
+  const double delta_EL = ptmp.set( d, this );  // throws if BadProperty
+  State_ stmp = S_;                             // temporary copy in case of errors
+  stmp.set( d, ptmp, delta_EL, this );          // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -412,6 +405,6 @@ iaf_psc_exp_htum::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // iaf_psc_exp_htum_H
+#endif  // iaf_psc_exp_htum_H

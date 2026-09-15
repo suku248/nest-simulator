@@ -17,39 +17,56 @@
 # You should have received a copy of the GNU General Public License
 # along with NEST.  If not, see <http://www.gnu.org/licenses/>.
 
-set( nestutil_sources
+set(nestutil_sources
     beta_normalization_factor.h
     block_vector.h
+    dictionary.h dictionary.cpp
     dict_util.h
     enum_bitfield.h
+    iaf_propagator.h iaf_propagator.cpp
     iterator_pair.h
-    lockptr.h
     logging_event.h logging_event.cpp
     logging.h
+    nest_types.h
     numerics.h numerics.cpp
-    propagator_stability.h propagator_stability.cpp
     regula_falsi.h
     sort.h
-    stopwatch.h stopwatch.cpp
-    string_utils.h
     vector_util.h
-    )
+)
 
-add_library( nestutil ${nestutil_sources} )
+add_library(nestutil STATIC ${nestutil_sources})
 
-target_link_libraries( nestutil ${GSL_LIBRARIES} ${SIONLIB_LIBS} )
+if(APPLE)
+    set_target_properties(nestutil PROPERTIES LINK_FLAGS "-Wl,-undefined -Wl,dynamic_lookup")
+endif()
 
-target_include_directories( nestutil PRIVATE
+set_target_properties(nestutil PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Temporary: nestutil includes nestkernel headers that pull in mpi.h, so nestutil needs
+# the MPI include path. Remove once the nestutil/nestkernel circular include is resolved.
+target_link_libraries(nestutil
+  PUBLIC
+    Boost::headers
+  PRIVATE
+    GSL::gsl
+    ${SIONLIB_LIBS}
+    OpenMP::OpenMP_CXX
+    MPI::MPI_CXX
+)
+
+target_include_directories(nestutil PRIVATE
+    ${PROJECT_SOURCE_DIR}/libnestutil
     ${PROJECT_BINARY_DIR}/libnestutil
-    ${Boost_INCLUDE_DIRS}
-    )
+    ${PROJECT_SOURCE_DIR}/nestkernel
+    ${PROJECT_SOURCE_DIR}/thirdparty
+)
 
-install( TARGETS nestutil
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/nest
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}/nest
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
+FILTER_HEADERS("${nestutil_sources}" install_headers)
 
-FILTER_HEADERS("${nestutil_sources}" install_headers )
-install( FILES ${install_headers} ${PROJECT_BINARY_DIR}/libnestutil/config.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nest)
+if(NOT "${SKBUILD}" STREQUAL "")
+  set( CMAKE_INSTALL_INCLUDEDIR "nest/include")
+endif()
+
+install(FILES ${install_headers} ${PROJECT_BINARY_DIR}/libnestutil/config.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nest
+)

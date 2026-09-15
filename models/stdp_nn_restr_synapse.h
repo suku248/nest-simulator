@@ -32,14 +32,11 @@
 #include "connector_model.h"
 #include "event.h"
 
-// Includes from sli:
-#include "dictdatum.h"
-#include "dictutils.h"
 
 namespace nest
 {
 
-/* BeginUserDocs: synapse, spike-timing-dependent plasticity
+/* BeginUserDocs: synapse, chemical, functional, stdp
 
 Short description
 +++++++++++++++++
@@ -52,14 +49,14 @@ Description
 
 ``stdp_nn_restr_synapse`` is a connector to create synapses with spike time
 dependent plasticity with the restricted symmetric nearest-neighbour spike
-pairing scheme (fig. 7C in [1]_).
+pairing scheme (fig. 7C in :footcite:p:`Morrison2008`).
 
 When a presynaptic spike occurs, it is taken into account in the depression
 part of the STDP weight change rule with the nearest preceding postsynaptic
-one, but only if the latter occured not earlier than the previous presynaptic
+one, but only if the latter occurred not earlier than the previous presynaptic
 one. When a postsynaptic spike occurs, it is accounted in the facilitation
 rule with the nearest preceding presynaptic one, but only if the latter
-occured not earlier than the previous postsynaptic one. So, a spike can
+occurred not earlier than the previous postsynaptic one. So, a spike can
 participate neither in two depression pairs nor in two potentiation pairs.
 
 The pairs exactly coinciding (so that ``presynaptic_spike == postsynaptic_spike
@@ -69,7 +66,7 @@ post/presynaptic one (for example, ``pre=={10 ms; 20 ms}`` and ``post=={20 ms}``
 result in a potentiation pair 20-to-10).
 
 The implementation relies on an additional variable - the postsynaptic
-eligibility trace [1]_ (implemented on the postsynaptic neuron side). It
+eligibility trace :footcite:p:`Morrison2008` (implemented on the postsynaptic neuron side). It
 decays exponentially with the time constant ``tau_minus`` and increases to 1 on
 a post-spike occurrence (instead of increasing by 1 as in ``stdp_synapse``).
 
@@ -103,27 +100,36 @@ References
 ++++++++++
 
 
-.. [1] Morrison A., Diesmann M., and Gerstner W. (2008) Phenomenological
-       models of synaptic plasticity based on spike timing,
-       Biol. Cybern. 98, 459--478
+.. footbibliography::
 
 See also
 ++++++++
 
 stdp_synapse, stdp_nn_symm_synapse
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: stdp_nn_restr_synapse
+
 EndUserDocs */
 
 // connections are templates of target identifier type (used for pointer /
 // target index addressing) derived from generic connection template
 
+void register_stdp_nn_restr_synapse( const std::string& name );
+
 template < typename targetidentifierT >
-class stdp_nn_restr_synapse : public Connection< targetidentifierT >
+class stdp_nn_restr_synapse : public Connection< targetidentifierT, TotalDelay >
 {
 
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
@@ -143,7 +149,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places these
   // functions are used. Since ConnectionBase depends on the template parameter,
   // they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -151,19 +157,19 @@ public:
   /**
    * Get all properties of this connection and put them into a dictionary.
    */
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
   /**
    * Set properties of this connection from the values given in dictionary.
    */
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   /**
    * Send an event to the receiver of this connection.
    * \param e The event to send
    * \param cp common properties of all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
@@ -172,21 +178,21 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
 
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    t.register_stdp_connection( t_lastspike_ - get_delay(), get_delay() );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
   void
@@ -222,6 +228,8 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties stdp_nn_restr_synapse< targetidentifierT >::properties;
 
 /**
  * Send an event to the receiver of this connection.
@@ -230,8 +238,8 @@ private:
  * \param cp Common properties object, containing the stdp parameters.
  */
 template < typename targetidentifierT >
-inline void
-stdp_nn_restr_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+stdp_nn_restr_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
   // synapse STDP depressing/facilitation dynamics
   double t_spike = e.get_stamp().get_ms();
@@ -239,7 +247,7 @@ stdp_nn_restr_synapse< targetidentifierT >::send( Event& e, thread t, const Comm
   // use accessor functions (inherited from Connection< >) to obtain delay and
   // target
   Node* target = get_target( t );
-  double dendritic_delay = get_delay();
+  double dendritic_delay = get_delay_ms();
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
   std::deque< histentry >::iterator start;
@@ -277,11 +285,11 @@ stdp_nn_restr_synapse< targetidentifierT >::send( Event& e, thread t, const Comm
   if ( start != finish )
   {
     double nearest_neighbor_Kminus;
-    double value_to_throw_away; // discard Kminus and Kminus_triplet here
+    double value_to_throw_away;  // discard Kminus and Kminus_triplet here
     target->get_K_values( t_spike - dendritic_delay,
-      value_to_throw_away, // discard Kminus
+      value_to_throw_away,  // discard Kminus
       nearest_neighbor_Kminus,
-      value_to_throw_away // discard Kminus_triplet
+      value_to_throw_away  // discard Kminus_triplet
     );
     weight_ = depress_( weight_, nearest_neighbor_Kminus );
   }
@@ -295,6 +303,8 @@ stdp_nn_restr_synapse< targetidentifierT >::send( Event& e, thread t, const Comm
   e();
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 
@@ -314,39 +324,39 @@ stdp_nn_restr_synapse< targetidentifierT >::stdp_nn_restr_synapse()
 
 template < typename targetidentifierT >
 void
-stdp_nn_restr_synapse< targetidentifierT >::get_status( DictionaryDatum& d ) const
+stdp_nn_restr_synapse< targetidentifierT >::get_status( Dictionary& d ) const
 {
   ConnectionBase::get_status( d );
-  def< double >( d, names::weight, weight_ );
-  def< double >( d, names::tau_plus, tau_plus_ );
-  def< double >( d, names::lambda, lambda_ );
-  def< double >( d, names::alpha, alpha_ );
-  def< double >( d, names::mu_plus, mu_plus_ );
-  def< double >( d, names::mu_minus, mu_minus_ );
-  def< double >( d, names::Wmax, Wmax_ );
-  def< long >( d, names::size_of, sizeof( *this ) );
+  d[ names::weight ] = weight_;
+  d[ names::tau_plus ] = tau_plus_;
+  d[ names::lambda ] = lambda_;
+  d[ names::alpha ] = alpha_;
+  d[ names::mu_plus ] = mu_plus_;
+  d[ names::mu_minus ] = mu_minus_;
+  d[ names::Wmax ] = Wmax_;
+  d[ names::size_of ] = static_cast< long >( sizeof( *this ) );
 }
 
 template < typename targetidentifierT >
 void
-stdp_nn_restr_synapse< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+stdp_nn_restr_synapse< targetidentifierT >::set_status( const Dictionary& d, ConnectorModel& cm )
 {
   ConnectionBase::set_status( d, cm );
-  updateValue< double >( d, names::weight, weight_ );
-  updateValue< double >( d, names::tau_plus, tau_plus_ );
-  updateValue< double >( d, names::lambda, lambda_ );
-  updateValue< double >( d, names::alpha, alpha_ );
-  updateValue< double >( d, names::mu_plus, mu_plus_ );
-  updateValue< double >( d, names::mu_minus, mu_minus_ );
-  updateValue< double >( d, names::Wmax, Wmax_ );
+  d.update_value( names::weight, weight_ );
+  d.update_value( names::tau_plus, tau_plus_ );
+  d.update_value( names::lambda, lambda_ );
+  d.update_value( names::alpha, alpha_ );
+  d.update_value( names::mu_plus, mu_plus_ );
+  d.update_value( names::mu_minus, mu_minus_ );
+  d.update_value( names::Wmax, Wmax_ );
 
   // check if weight_ and Wmax_ have the same sign
-  if ( not( ( ( weight_ >= 0 ) - ( weight_ < 0 ) ) == ( ( Wmax_ >= 0 ) - ( Wmax_ < 0 ) ) ) )
+  if ( ( ( weight_ >= 0 ) - ( weight_ < 0 ) ) != ( ( Wmax_ >= 0 ) - ( Wmax_ < 0 ) ) )
   {
     throw BadProperty( "Weight and Wmax must have same sign." );
   }
 }
 
-} // of namespace nest
+}  // of namespace nest
 
-#endif // of #ifndef STDP_NN_RESTR_SYNAPSE_H
+#endif  // of #ifndef STDP_NN_RESTR_SYNAPSE_H

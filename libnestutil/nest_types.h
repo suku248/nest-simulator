@@ -1,0 +1,194 @@
+/*
+ *  nest_types.h
+ *
+ *  This file is part of NEST.
+ *
+ *  Copyright (C) 2004 The NEST Initiative
+ *
+ *  NEST is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  NEST is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with NEST.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#ifndef NEST_TYPES_H
+#define NEST_TYPES_H
+
+// C++ includes:
+#include <cfloat>
+#include <climits>
+#include <cstddef>
+#include <limits>
+#include <stdint.h>
+#include <type_traits>
+
+// Generated includes:
+#include "config.h"
+
+#include <cstdint>  // `uint64_t`
+
+/**
+ * Namespace for the NEST simulation kernel.
+ */
+
+namespace nest
+{
+
+/**
+ * Default types used by the NEST kernel.
+ *
+ * These typedefs should be used
+ * in place of the primitive C/C++ types.
+ * Thus, it will be easy to change
+ * the precision of the kernel or to adapt the kernel to
+ * different architectures (e.g. 32 or 64 bit).
+ */
+
+// constexpr-functions for convenient compile-time generation of the bit-masks
+// and bit-constants. An ill-defined length or size will cause a compile-time
+// error, e.g., num_bits to be shifted exceeds the sizeof(<datatype>) * 8.
+constexpr uint64_t
+generate_bit_mask( const uint8_t num_bits, const uint8_t bit_position )
+{
+  return ( ( ( static_cast< uint64_t >( 1 ) << num_bits ) - 1 ) << bit_position );
+}
+
+constexpr uint64_t
+generate_max_value( const uint8_t num_bits )
+{
+  return ( ( static_cast< uint64_t >( 1 ) << num_bits ) - 1 );
+}
+
+
+// Sizes of bitfields used in various classes in the kernel.
+
+#if TARGET_BITS_SPLIT == TARGET_BITS_SPLIT_STANDARD
+constexpr uint8_t NUM_BITS_RANK = 18U;
+constexpr uint8_t NUM_BITS_TID = 9U;
+constexpr uint8_t NUM_BITS_SYN_ID = 9U;
+#elif TARGET_BITS_SPLIT == TARGET_BITS_SPLIT_HPC
+constexpr uint8_t NUM_BITS_RANK = 20U;
+constexpr uint8_t NUM_BITS_TID = 10U;
+constexpr uint8_t NUM_BITS_SYN_ID = 6U;
+#endif
+constexpr uint8_t NUM_BITS_LCID = 27U;
+constexpr uint8_t NUM_BITS_PROCESSED_FLAG = 1U;
+constexpr uint8_t NUM_BITS_MARKER_SPIKE_DATA = 2U;
+constexpr uint8_t NUM_BITS_FLUSH_EVENT = 1U;
+constexpr uint8_t NUM_BITS_LAG = 14U;
+constexpr uint8_t NUM_BITS_NODE_ID = 61U;
+
+// These types are used in delay_types.h and denote the space available for the dendritic and axonal portions of the
+// total transmission delay. The delay is only split into two parts for selected synapse types.
+// Given that axonal delays can be much larger than dendritic/backpropagation delays, they require more bits.
+constexpr uint8_t NUM_BITS_DENDRITIC_DELAY = 14U;
+constexpr uint8_t NUM_BITS_AXONAL_DELAY = sizeof( unsigned int ) * 8 - NUM_BITS_DENDRITIC_DELAY;
+
+
+// Maximally allowed values for bitfields
+
+constexpr uint64_t MAX_LCID = generate_max_value( NUM_BITS_LCID );
+constexpr int64_t MAX_RANK = generate_max_value( NUM_BITS_RANK );
+constexpr int64_t MAX_TID = generate_max_value( NUM_BITS_TID );
+constexpr uint64_t MAX_SYN_ID = generate_max_value( NUM_BITS_SYN_ID );
+constexpr uint64_t DISABLED_NODE_ID = generate_max_value( NUM_BITS_NODE_ID );
+constexpr uint64_t MAX_NODE_ID = DISABLED_NODE_ID - 1;
+
+/**
+ * Type for Time tics.
+ */
+typedef long long tic_t;
+constexpr tic_t tic_t_max = std::numeric_limits< tic_t >::max();
+constexpr tic_t tic_t_min = std::numeric_limits< tic_t >::min();
+
+/**
+ *  Unsigned long type for enumerations.
+ */
+__attribute__( ( __unused__ ) ) constexpr size_t invalid_index = std::numeric_limits< size_t >::max();
+
+/**
+ *  For enumerations of synapse types.
+ */
+typedef size_t synindex;
+constexpr synindex invalid_synindex = MAX_SYN_ID;
+
+/**
+ * Unsigned short type for compact target representation.
+ *
+ * See Kunkel et al, Front Neuroinform 8:78 (2014).
+ */
+//! target index into thread local node vector
+typedef unsigned short targetindex;
+constexpr targetindex invalid_targetindex = USHRT_MAX;
+__attribute__( ( __unused__ ) ) const size_t max_targetindex = invalid_targetindex - 1;
+
+/**
+ * Marker for invalid LCID values.
+ */
+constexpr size_t invalid_lcid = MAX_LCID;
+
+/**
+ * Value for invalid connection thread id.
+ */
+constexpr size_t invalid_thread = std::numeric_limits< size_t >::max();
+
+/**
+ * Value for invalid connection port number.
+ */
+constexpr size_t invalid_port = std::numeric_limits< size_t >::max();
+
+/**
+ * Values for min and max delay.
+ */
+constexpr long delay_min = std::numeric_limits< long >::min();
+constexpr long delay_max = std::numeric_limits< long >::max();
+
+/**
+ * enum type of signal conveyed by spike events of a node.
+ *
+ * These types are used upon connect to check if spikes sent by one
+ * neuron are interpreted the same way by receiving neuron.
+ *
+ * Each possible signal that may be represented (currently SPIKE and BINARY)
+ * is interpreted as a separate bit flag. This way, upon connection, we
+ * determine by a bitwise AND operation if sender and receiver are compatible.
+ * The check takes place in connection::check_connection().
+ *
+ * A device, such as the spike-generator or spike_recorder,
+ * that can in a meaningful way be connected to either neuron model
+ * can use the wildcard ALL, that will match any connection partner.
+ */
+enum SignalType
+{
+  NONE = 0,
+  SPIKE = 1,
+  BINARY = 2,
+  ALL = SPIKE | BINARY
+};
+
+/**
+ * Cast enum value to underlying integer type.
+ *
+ * @note Useful where we do arithmetic mixing different enum types.
+ * @note Once we switch to C++23, replace with @c std::to_underlying()
+ *
+ * Suggested by Claude Haiku 4.5.
+ */
+template < typename E >
+constexpr auto
+to_underlying( E e ) noexcept
+{
+  return static_cast< std::underlying_type_t< E > >( e );
+}
+}
+
+#endif /* #ifndef NEST_TYPES_H */

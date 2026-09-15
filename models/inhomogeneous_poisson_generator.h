@@ -30,7 +30,6 @@
 #include "connection.h"
 #include "device_node.h"
 #include "event.h"
-#include "nest.h"
 #include "random_generators.h"
 #include "ring_buffer.h"
 #include "stimulation_device.h"
@@ -95,7 +94,14 @@ See also
 
 sinusoidal_poisson_generator, step_current_generator
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: inhomogeneous_poisson_generator
+
 EndUserDocs */
+
+void register_inhomogeneous_poisson_generator( const std::string& name );
 
 class inhomogeneous_poisson_generator : public StimulationDevice
 {
@@ -111,10 +117,10 @@ public:
    */
   using Node::event_hook;
 
-  port send_test_event( Node&, rport, synindex, bool ) override;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   StimulationDevice::Type get_type() const override;
   void set_data_from_stimulation_backend( std::vector< double >& input_param ) override;
@@ -141,13 +147,13 @@ private:
     //! Allow and round up rate times not on steps;
     bool allow_offgrid_times_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
     Parameters_( const Parameters_&, Buffers_& );
 
     //!< Store current values in dictionary
-    void get( DictionaryDatum& ) const;
+    void get( Dictionary& ) const;
     //!< Set values from dictionary
-    void set( const DictionaryDatum&, Buffers_&, Node* );
+    void set( const Dictionary&, Buffers_&, Node* );
     //!< Align rate time to grid if necessary and insert it into rate_times_
     void assert_valid_rate_time_and_insert( const double t );
   };
@@ -156,16 +162,16 @@ private:
 
   struct Buffers_
   {
-    size_t idx_;  //!< index of current amplitude
-    double rate_; //!< current amplitude
+    size_t idx_;   //!< index of current amplitude
+    double rate_;  //!< current amplitude
   };
 
   // ------------------------------------------------------------
 
   struct Variables_
   {
-    poisson_distribution poisson_dist_; //!< poisson distribution
-    double h_;                          //! time resolution (ms)
+    poisson_distribution poisson_dist_;  //!< poisson distribution
+    double h_;                           //! time resolution (ms)
   };
 
   // ------------------------------------------------------------
@@ -175,9 +181,9 @@ private:
   Variables_ V_;
 };
 
-inline port
+inline size_t
 inhomogeneous_poisson_generator::send_test_event( Node& target,
-  rport receptor_type,
+  size_t receptor_type,
   synindex syn_id,
   bool dummy_target )
 {
@@ -201,18 +207,18 @@ inhomogeneous_poisson_generator::send_test_event( Node& target,
 
 
 inline void
-inhomogeneous_poisson_generator::get_status( DictionaryDatum& d ) const
+inhomogeneous_poisson_generator::get_status( Dictionary& d ) const
 {
   P_.get( d );
   StimulationDevice::get_status( d );
 }
 
 inline void
-inhomogeneous_poisson_generator::set_status( const DictionaryDatum& d )
+inhomogeneous_poisson_generator::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
 
-  ptmp.set( d, B_, this ); // throws if BadProperty
+  ptmp.set( d, B_, this );  // throws if BadProperty
   // We now know that ptmp is consistent. We do not write it back
   // to P_ before we are also sure that the properties to be set
   // in the parent class are internally consistent.
@@ -228,6 +234,6 @@ inhomogeneous_poisson_generator::get_type() const
   return StimulationDevice::Type::SPIKE_GENERATOR;
 }
 
-} // namespace
+}  // namespace
 
-#endif // INHOMOGENEOUS_POISSON_GENERATOR_H
+#endif  // INHOMOGENEOUS_POISSON_GENERATOR_H

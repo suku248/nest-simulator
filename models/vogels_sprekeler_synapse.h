@@ -30,7 +30,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: synapse, spike-timing-dependent plasticity
+/* BeginUserDocs: synapse, chemical, functional, stdp, Vogels
 
 Short description
 +++++++++++++++++
@@ -41,7 +41,7 @@ Description
 +++++++++++
 
 ``vogels_sprekeler_synapse`` is a connector to create synapses with symmetric
-spike time dependent plasticity and constant depression (as defined in [1]_).
+spike time dependent plasticity and constant depression (as defined in :footcite:p:`Vogels2011`).
 The learning rule is symmetric, that is, the synapse is strengthened
 irrespective of the order of the pre- and postsynaptic spikes. Each
 pre-synaptic spike also causes a constant depression of the synaptic weight
@@ -62,7 +62,7 @@ Parameters
  Wmax   real    Maximum allowed weight
  eta    real    Learning rate
  alpha  real    Constant depression (= 2 * tau * target firing rate in
-                [1]_)
+                :footcite:p:`Vogels2011`)
 ======  ======  =========================================================
 
 Transmits
@@ -73,9 +73,12 @@ SpikeEvent
 References
 ++++++++++
 
-.. [1] Vogels et al. (2011). Inhibitory plasticity balances excitation and
-       inhibition in sensory pathways and memory networks. Science,
-       334(6062):1569-1573. DOI: https://doi.org/10.1126/science.1211095
+.. footbibliography::
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: vogels_sprekeler_synapse
 
 EndUserDocs */
 
@@ -83,13 +86,19 @@ EndUserDocs */
 // target index addressing)
 // derived from generic connection template
 
+void register_vogels_sprekeler_synapse( const std::string& name );
+
 template < typename targetidentifierT >
-class vogels_sprekeler_synapse : public Connection< targetidentifierT >
+class vogels_sprekeler_synapse : public Connection< targetidentifierT, TotalDelay >
 {
 
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL | ConnectionModelProperties::SUPPORTS_WFR;
 
   /**
    * Default Constructor.
@@ -111,7 +120,7 @@ public:
   // Since ConnectionBase depends on the template parameter, they are not
   // automatically
   // found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -119,12 +128,12 @@ public:
   /**
    * Get all properties of this connection and put them into a dictionary.
    */
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
   /**
    * Set properties of this connection from the values given in dictionary.
    */
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   /**
    * Send an event to the receiver of this connection.
@@ -132,7 +141,7 @@ public:
    * \param t_lastspike Point in time of last spike sent.
    * \param cp common properties of all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
@@ -141,21 +150,21 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
 
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    t.register_stdp_connection( t_lastspike_ - get_delay(), get_delay() );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
   void
@@ -190,6 +199,8 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties vogels_sprekeler_synapse< targetidentifierT >::properties;
 
 /**
  * Send an event to the receiver of this connection.
@@ -199,8 +210,8 @@ private:
  * \param cp Common properties object, containing the stdp parameters.
  */
 template < typename targetidentifierT >
-inline void
-vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
   // synapse STDP depressing/facilitation dynamics
   double t_spike = e.get_stamp().get_ms();
@@ -209,7 +220,7 @@ vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, thread t, const C
   // use accessor functions (inherited from Connection< >) to obtain delay and
   // target
   Node* target = get_target( t );
-  double dendritic_delay = get_delay();
+  double dendritic_delay = get_delay_ms();
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
   std::deque< histentry >::iterator start;
@@ -250,6 +261,8 @@ vogels_sprekeler_synapse< targetidentifierT >::send( Event& e, thread t, const C
   Kplus_ = Kplus_ * std::exp( ( t_lastspike_ - t_spike ) / tau_ ) + 1.0;
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 
@@ -268,29 +281,29 @@ vogels_sprekeler_synapse< targetidentifierT >::vogels_sprekeler_synapse()
 
 template < typename targetidentifierT >
 void
-vogels_sprekeler_synapse< targetidentifierT >::get_status( DictionaryDatum& d ) const
+vogels_sprekeler_synapse< targetidentifierT >::get_status( Dictionary& d ) const
 {
   ConnectionBase::get_status( d );
-  def< double >( d, names::weight, weight_ );
-  def< double >( d, names::tau, tau_ );
-  def< double >( d, names::alpha, alpha_ );
-  def< double >( d, names::eta, eta_ );
-  def< double >( d, names::Wmax, Wmax_ );
-  def< double >( d, names::Kplus, Kplus_ );
-  def< long >( d, names::size_of, sizeof( *this ) );
+  d[ names::weight ] = weight_;
+  d[ names::tau ] = tau_;
+  d[ names::alpha ] = alpha_;
+  d[ names::eta ] = eta_;
+  d[ names::Wmax ] = Wmax_;
+  d[ names::Kplus ] = Kplus_;
+  d[ names::size_of ] = static_cast< long >( sizeof( *this ) );
 }
 
 template < typename targetidentifierT >
 void
-vogels_sprekeler_synapse< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+vogels_sprekeler_synapse< targetidentifierT >::set_status( const Dictionary& d, ConnectorModel& cm )
 {
   ConnectionBase::set_status( d, cm );
-  updateValue< double >( d, names::weight, weight_ );
-  updateValue< double >( d, names::tau, tau_ );
-  updateValue< double >( d, names::alpha, alpha_ );
-  updateValue< double >( d, names::eta, eta_ );
-  updateValue< double >( d, names::Wmax, Wmax_ );
-  updateValue< double >( d, names::Kplus, Kplus_ );
+  d.update_value( names::weight, weight_ );
+  d.update_value( names::tau, tau_ );
+  d.update_value( names::alpha, alpha_ );
+  d.update_value( names::eta, eta_ );
+  d.update_value( names::Wmax, Wmax_ );
+  d.update_value( names::Kplus, Kplus_ );
 
   // if the weight_ is not 0, we check to ensure that weight_ and Wmax_ are of
   // the same sign
@@ -304,6 +317,6 @@ vogels_sprekeler_synapse< targetidentifierT >::set_status( const DictionaryDatum
     throw BadProperty( "State Kplus must be positive." );
   }
 }
-} // of namespace nest
+}  // of namespace nest
 
-#endif // of #ifndef VOGELS_SPREKELER_SYNAPSE_H
+#endif  // of #ifndef VOGELS_SPREKELER_SYNAPSE_H

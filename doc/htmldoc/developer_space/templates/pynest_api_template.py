@@ -19,21 +19,24 @@
 # You should have received a copy of the GNU General Public License
 # along with NEST.  If not, see <http://www.gnu.org/licenses/>.
 
-"""[[ This template demonstrates how to create a docstring for the PyNEST API.
-
-   If you have modified an API, please ensure you update the docstring!
-
-   The format is based on `NumPy style docstring
-   <https://numpydoc.readthedocs.io/en/latest/format.html>`_ and uses
-   reStructuredText markup. Please review the syntax rules if you are
-   unfamiliar with either reStructuredText or NumPy style docstrings.
-
-   Copy this file and replace the sample text with a description of the API.
-   The double bracketed sections [[ ]], which provide explanations, should be
-   completely removed from your final version - Including this entire
-   docstring!
-   ]]
 """
+[[ This template demonstrates how to create a docstring for the PyNEST API.
+
+If you have modified an API, please ensure you update the docstring!
+
+The format is based on `NumPy style docstring
+<https://numpydoc.readthedocs.io/en/latest/format.html>`_ and uses
+reStructuredText markup. Please review the syntax rules if you are
+unfamiliar with either reStructuredText or NumPy style docstrings.
+
+Copy this file and replace the sample text with a description of the API.
+The double bracketed sections [[ ]], which provide explanations, should be
+completely removed from your final version - Including this entire
+docstring!
+]]
+"""
+
+from msilib.schema import Error
 
 
 def GetConnections(source=None, target=None, synape_model=None, synapse_label=None):
@@ -120,13 +123,11 @@ def GetConnections(source=None, target=None, synape_model=None, synapse_label=No
 
     .. [1] Bonewald LF. (2011). The amazing osteocyte. Journal of Bone and
            Mineral Research 26(2):229–238. DOI: 10.1002/jbmr.320.
-       """
+    """
 
     # [[ in line comments should be used to explain why this code is here]]
     # This code was included because of bug Y when running X
     # Temporary, I HOPE HOPE HOPE
 
-    if model is not None and syn_spec is not None:
-        raise kernel.NESTerror(
-            "'model' is an alias for 'syn_spec' and cannot"
-            " be used together with 'syn_spec'.")
+    if source is None and target is None:
+        raise Error("'source' and 'target' both cannot be None")

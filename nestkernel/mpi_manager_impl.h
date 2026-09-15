@@ -35,8 +35,11 @@
 // Includes from nestkernel:
 #include "kernel_manager.h"
 
-inline nest::thread
-nest::MPIManager::get_process_id_of_vp( const thread vp ) const
+namespace nest
+{
+
+inline size_t
+MPIManager::get_process_id_of_vp( const size_t vp ) const
 {
   return vp % num_processes_;
 }
@@ -44,22 +47,8 @@ nest::MPIManager::get_process_id_of_vp( const thread vp ) const
 #ifdef HAVE_MPI
 
 // Variable to hold the MPI communicator to use.
-#ifdef HAVE_MUSIC
-extern MPI::Intracomm comm;
-#else  /* #ifdef HAVE_MUSIC */
 extern MPI_Comm comm;
-#endif /* #ifdef HAVE_MUSIC */
 
-
-/* ------------------------------------------------------
-   The following datatypes are defined here in communicator_impl.h
-   file instead of as static class members, to avoid inclusion
-   of mpi.h in the .h file, which caused problems on BlueGene systems.
-   Having mpi.h in the .h file would lead to requirements on include-order
-   throughout the NEST code base and is not acceptable.
-   Reported by Mikael Djurfeldt.
-   Hans Ekkehard Plesser, 2010-01-28
- */
 template < typename T >
 struct MPI_Type
 {
@@ -68,7 +57,7 @@ struct MPI_Type
 
 template < typename T >
 void
-nest::MPIManager::communicate_Allgatherv( std::vector< T >& send_buffer,
+MPIManager::communicate_Allgatherv( std::vector< T >& send_buffer,
   std::vector< T >& recv_buffer,
   std::vector< int >& displacements,
   std::vector< int >& recv_counts )
@@ -84,21 +73,23 @@ nest::MPIManager::communicate_Allgatherv( std::vector< T >& send_buffer,
     comm );
 }
 
-inline nest::thread
-nest::MPIManager::get_process_id_of_node_id( const index node_id ) const
+inline size_t
+MPIManager::get_process_id_of_node_id( const size_t node_id ) const
 {
   return node_id % kernel().vp_manager.get_num_virtual_processes() % num_processes_;
 }
 
-#else // HAVE_MPI
+#else  // HAVE_MPI
 
 
-inline nest::thread
-nest::MPIManager::get_process_id_of_node_id( const index ) const
+inline size_t
+MPIManager::get_process_id_of_node_id( const size_t ) const
 {
   return 0;
 }
 
 #endif /* HAVE_MPI */
+
+}  // namespace nest
 
 #endif /* MPI_MANAGER_IMPL_H */

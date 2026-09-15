@@ -63,7 +63,7 @@ synapses that fulfill the given criteria.
 
 ::
 
-   >>> wr = nest.Create('weight_recorder')
+   >>> wr = nest.Create("weight_recorder")
    >>> nest.CopyModel("stdp_synapse", "stdp_synapse_rec", {"weight_recorder": wr})
 
    >>> pre = nest.Create("iaf_psc_alpha", 10)
@@ -76,10 +76,18 @@ synapses that fulfill the given criteria.
 See also
 ++++++++
 
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: weight_recorder
+
 EndUserDocs */
 
 namespace nest
 {
+
+void register_weight_recorder( const std::string& name );
 
 class weight_recorder : public RecordingDevice
 {
@@ -89,19 +97,19 @@ public:
   weight_recorder( const weight_recorder& );
 
   bool
-  has_proxies() const
+  has_proxies() const override
   {
     return false;
   }
 
   bool
-  local_receiver() const
+  local_receiver() const override
   {
     return true;
   }
 
-  Name
-  get_element_type() const
+  std::string
+  get_element_type() const override
   {
     return names::recorder;
   }
@@ -115,37 +123,37 @@ public:
   using Node::handles_test_event;
   using Node::receives_signal;
 
-  void handle( WeightRecorderEvent& );
+  void handle( WeightRecorderEvent& ) override;
 
-  port handles_test_event( WeightRecorderEvent&, rport );
+  size_t handles_test_event( WeightRecorderEvent&, size_t ) override;
 
-  Type get_type() const;
-  SignalType receives_signal() const;
+  Type get_type() const override;
+  SignalType receives_signal() const override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void pre_run_hook();
-  void update( Time const&, const long, const long );
+  void pre_run_hook() override;
+  void update( Time const&, const long, const long ) override;
 
   struct Parameters_
   {
-    NodeCollectionDatum senders_;
-    NodeCollectionDatum targets_;
+    NodeCollectionPTR senders_;
+    NodeCollectionPTR targets_;
 
     Parameters_();
     Parameters_( const Parameters_& ) = default;
     Parameters_& operator=( const Parameters_& ) = default;
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum& );
+    void get( Dictionary& ) const;
+    void set( const Dictionary& );
   };
 
   Parameters_ P_;
 };
 
-inline port
-weight_recorder::handles_test_event( WeightRecorderEvent&, rport receptor_type )
+inline size_t
+weight_recorder::handles_test_event( WeightRecorderEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -160,6 +168,6 @@ weight_recorder::receives_signal() const
   return ALL;
 }
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef WEIGHT_RECORDER_H */

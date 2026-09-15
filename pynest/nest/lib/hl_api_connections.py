@@ -25,28 +25,34 @@ Functions for connection handling
 
 import numpy
 
-from ..ll_api import check_stack, connect_arrays, sps, sr, spp
-from .. import pynestkernel as kernel
-
-from .hl_api_connection_helpers import (_process_input_nodes, _connect_layers_needed,
-                                        _connect_spatial, _process_conn_spec,
-                                        _process_spatial_projections, _process_syn_spec)
-from .hl_api_helper import is_string
-from .hl_api_info import GetStatus
+from .. import nestkernel_api as nestkernel
+from .hl_api_connection_helpers import (
+    _connect_layers_needed,
+    _connect_spatial,
+    _process_conn_spec,
+    _process_input_nodes,
+    _process_spatial_projections,
+    _process_syn_spec,
+)
 from .hl_api_nodes import Create
 from .hl_api_parallel_computing import NumProcesses
-from .hl_api_types import NodeCollection, SynapseCollection, Mask, Parameter
+from .hl_api_types import (
+    CollocatedSynapses,
+    Mask,
+    NodeCollection,
+    Parameter,
+    SynapseCollection,
+)
 
 __all__ = [
-    'Connect',
-    'Disconnect',
-    'GetConnections',
+    "Connect",
+    "TripartiteConnect",
+    "Disconnect",
+    "GetConnections",
 ]
 
 
-@check_stack
-def GetConnections(source=None, target=None, synapse_model=None,
-                   synapse_label=None):
+def GetConnections(source=None, target=None, synapse_model=None, synapse_label=None):
     """Return a `SynapseCollection` representing the connection identifiers.
 
     Any combination of `source`, `target`, `synapse_model` and
@@ -85,36 +91,28 @@ def GetConnections(source=None, target=None, synapse_model=None,
 
     if source is not None:
         if isinstance(source, NodeCollection):
-            params['source'] = source
+            params["source"] = source
         else:
             raise TypeError("source must be NodeCollection.")
 
     if target is not None:
         if isinstance(target, NodeCollection):
-            params['target'] = target
+            params["target"] = target
         else:
             raise TypeError("target must be NodeCollection.")
 
     if synapse_model is not None:
-        params['synapse_model'] = kernel.SLILiteral(synapse_model)
+        params["synapse_model"] = synapse_model
 
     if synapse_label is not None:
-        params['synapse_label'] = synapse_label
+        params["synapse_label"] = synapse_label
 
-    sps(params)
-    sr("GetConnections")
-
-    conns = spp()
-
-    if isinstance(conns, tuple):
-        conns = SynapseCollection(None)
+    conns = nestkernel.llapi_get_connections(params)
 
     return conns
 
 
-@check_stack
-def Connect(pre, post, conn_spec=None, syn_spec=None,
-            return_synapsecollection=False):
+def Connect(pre, post, conn_spec=None, syn_spec=None, return_synapsecollection=False):
     """
     Connect `pre` nodes to `post` nodes.
 
@@ -137,10 +135,6 @@ def Connect(pre, post, conn_spec=None, syn_spec=None,
         Specifies synapse model, see below
     return_synapsecollection: bool
         Specifies whether or not we should return a :py:class:`.SynapseCollection` of pre and post connections
-
-    Raises
-    ------
-    kernel.NESTError
 
     Notes
     -----
@@ -167,6 +161,7 @@ def Connect(pre, post, conn_spec=None, syn_spec=None,
      - 'fixed_total_number', 'N'
      - 'pairwise_bernoulli', 'p'
      - 'symmetric_pairwise_bernoulli', 'p'
+     - 'pairwise_poisson', 'pairwise_avg_num_conns'
 
     See :ref:`conn_rules` for more details, including example usage.
 
@@ -195,7 +190,7 @@ def Connect(pre, post, conn_spec=None, syn_spec=None,
     will be used.
 
     Distributed parameters can be defined through NEST's different parametertypes. NEST has various
-    random parameters, spatial parameters and distributions (only accesseable for nodes with spatial positions),
+    random parameters, spatial parameters and distributions (only accessible for nodes with spatial positions),
     logical expressions and mathematical expressions, which can be used to define node and connection parameters.
 
     To see all available parameters, see documentation defined in distributions, logic, math,
@@ -203,16 +198,16 @@ def Connect(pre, post, conn_spec=None, syn_spec=None,
 
     See Also
     ---------
-    :ref:`connection_management`
+    :ref:`connectivity_concepts`
     """
+
     use_connect_arrays, pre, post = _process_input_nodes(pre, post, conn_spec)
 
-    # Converting conn_spec to dict, without putting it on the SLI stack.
+    # Converting conn_spec to dict
     processed_conn_spec = _process_conn_spec(conn_spec)
     # If syn_spec is given, its contents are checked, and if needed converted
     # to the right formats.
-    processed_syn_spec = _process_syn_spec(
-        syn_spec, processed_conn_spec, len(pre), len(post), use_connect_arrays)
+    processed_syn_spec = _process_syn_spec(syn_spec, processed_conn_spec, len(pre), len(post), use_connect_arrays)
 
     # If pre and post are arrays of node IDs, and conn_spec is unspecified,
     # the node IDs are connected one-to-one.
@@ -221,45 +216,63 @@ def Connect(pre, post, conn_spec=None, syn_spec=None,
             raise ValueError("SynapseCollection cannot be returned when connecting two arrays of node IDs")
 
         if processed_syn_spec is None:
-            raise ValueError("When connecting two arrays of node IDs, the synapse specification dictionary must "
-                             "be specified and contain at least the synapse model.")
+            raise ValueError(
+                "When connecting two arrays of node IDs, the synapse specification dictionary must "
+                "be specified and contain at least the synapse model."
+            )
 
         # In case of misspelling
         if "weights" in processed_syn_spec:
             raise ValueError("To specify weights, use 'weight' in syn_spec.")
         if "delays" in processed_syn_spec:
             raise ValueError("To specify delays, use 'delay' in syn_spec.")
+        if "dendritic_delays" in processed_syn_spec:
+            raise ValueError("To specify dendritic delays, use 'dendritic_delay' in syn_spec.")
+        if "axonal_delays" in processed_syn_spec:
+            raise ValueError("To specify axonal delays, use 'axonal_delay' in syn_spec.")
 
-        weights = numpy.array(processed_syn_spec['weight']) if 'weight' in processed_syn_spec else None
-        delays = numpy.array(processed_syn_spec['delay']) if 'delay' in processed_syn_spec else None
+        weights = numpy.array(processed_syn_spec["weight"]) if "weight" in processed_syn_spec else None
+        delays = numpy.array(processed_syn_spec["delay"]) if "delay" in processed_syn_spec else None
+        dendritic_delays = (
+            numpy.array(processed_syn_spec["dendritic_delay"]) if "dendritic_delay" in processed_syn_spec else None
+        )
+        axonal_delays = (
+            numpy.array(processed_syn_spec["axonal_delay"]) if "axonal_delay" in processed_syn_spec else None
+        )
 
         try:
-            synapse_model = processed_syn_spec['synapse_model']
+            synapse_model = processed_syn_spec["synapse_model"]
         except KeyError:
-            raise ValueError("When connecting two arrays of node IDs, the synapse specification dictionary must "
-                             "contain a synapse model.")
+            raise ValueError(
+                "When connecting two arrays of node IDs, the synapse specification dictionary must "
+                "contain a synapse model."
+            )
 
         # Split remaining syn_spec entries to key and value arrays
-        reduced_processed_syn_spec = {k: processed_syn_spec[k]
-                                      for k in set(processed_syn_spec.keys()).difference(
-                                          set(('weight', 'delay', 'synapse_model')))}
+        reduced_processed_syn_spec = {
+            k: processed_syn_spec[k]
+            for k in set(processed_syn_spec.keys()).difference(
+                set(("weight", "delay", "dendritic_delay", "axonal_delay", "synapse_model"))
+            )
+        }
 
+        # This converts the values to a 2-dim matrix of doubles regardless of what type the
+        # parameters actually should be. This is to keep the interface generic. If needed,
+        # values are converted back to int around ConnectionManager:679 (checks for is_int).
         if len(reduced_processed_syn_spec) > 0:
-            syn_param_keys = numpy.array(list(reduced_processed_syn_spec.keys()), dtype=numpy.string_)
             syn_param_values = numpy.zeros([len(reduced_processed_syn_spec), len(pre)])
-
             for i, value in enumerate(reduced_processed_syn_spec.values()):
                 syn_param_values[i] = value
+            syn_param_keys = numpy.asarray(list(reduced_processed_syn_spec.keys()))
         else:
-            syn_param_keys = None
             syn_param_values = None
+            syn_param_keys = None
 
-        connect_arrays(pre, post, weights, delays, synapse_model, syn_param_keys, syn_param_values)
+        nestkernel.llapi_connect_arrays(
+            pre, post, weights, delays, dendritic_delays, axonal_delays, synapse_model, syn_param_keys, syn_param_values
+        )
 
         return
-
-    sps(pre)
-    sps(post)
 
     if not isinstance(pre, NodeCollection):
         raise TypeError("Not implemented, presynaptic nodes must be a NodeCollection")
@@ -275,39 +288,148 @@ def Connect(pre, post, conn_spec=None, syn_spec=None,
             raise TypeError("Presynaptic NodeCollection must have spatial information")
 
         # Create the projection dictionary
-        spatial_projections = _process_spatial_projections(
-            processed_conn_spec, processed_syn_spec)
-
-        # Connect using ConnectLayers
-        _connect_spatial(pre, post, spatial_projections)
+        spatial_projections = _process_spatial_projections(processed_conn_spec, processed_syn_spec)
+        _connect_spatial(pre._datum, post._datum, spatial_projections)
     else:
-        sps(processed_conn_spec)
-        if processed_syn_spec is not None:
-            sps(processed_syn_spec)
-        sr('Connect')
+        nestkernel.llapi_connect(pre._datum, post._datum, processed_conn_spec, processed_syn_spec)
 
     if return_synapsecollection:
         return GetConnections(pre, post)
+    else:
+        return None
 
 
-@check_stack
-def Disconnect(pre, post, conn_spec='one_to_one', syn_spec='static_synapse'):
-    """Disconnect `pre` neurons from `post` neurons.
+def TripartiteConnect(pre, post, third, conn_spec, third_factor_conn_spec, syn_specs=None):
+    """
+    Connect `pre` nodes to `post` nodes and a `third`-factor nodes.
 
-    Neurons in `pre` and `post` are disconnected using the specified disconnection
+    Nodes in `pre` and `post` are connected using the specified tripartite connection rule
+    and the given synapse types (all :cpp:class:`static_synapse <nest::static_synapse>` by default).
+    Details depend on the connection rule.
+
+    Lists of synapse models and connection rules are available as
+    ``nest.synapse_models`` and ``nest.connection_rules``, respectively. Note that only tripartite
+    connection rules can be used.
+
+    Parameters
+    ----------
+    pre : NodeCollection
+        Presynaptic nodes
+    post : NodeCollection
+        Postsynaptic nodes
+    third : NodeCollection
+        Third population to include in connection
+    conn_spec : dict
+        Specifies connection rule for primary connection
+    third_factor_conn_spec: dict
+        Specifies third-factor connection rule
+    syn_specs : dict, optional
+        Specifies synapse models to be used, see below
+
+    Raises
+    ------
+    kernel.NESTError
+
+    Notes
+    -----
+    **Connectivity specification (conn_spec)**
+
+    Available tripartite rules::
+
+     - ``tripartite_bernoulli_with_pool``
+
+    See :ref:`tripartite_connectivity` for more details and :doc:`/auto_examples/astrocytes/astrocyte_small_network`
+    and :doc:`/auto_examples/astrocytes/astrocyte_brunel_bernoulli` for examples.
+
+    **Synapse specifications (syn_specs)**
+
+    Synapse specifications for tripartite connections are given as a dictionary with specifications
+    for each of the three projections to be created::
+
+     {"primary": <syn_spec>,
+     "third_in": <syn_spec>,
+     "third_out": <syn_spec>}
+
+    Here, ``"primary"`` marks the synapse specification for the projections between ``pre`` and ``post`` nodes,
+    ``"third_in"`` for connections between ``pre`` and ``third`` nodes and ``"third_out"`` for connections between
+    ``third`` and ``post`` nodes.
+
+    Each ``<syn_spec>`` entry can be any entry that would be possible as synapse specification
+    in a normal ``Connect()`` call. Any missing entries default to ``static_synapse``. If no ``<syn_spec>`` argument
+    is given at all, all three entries default to ``static_synapse``.
+
+    The synapse model and its properties can be given either as a string
+    identifying a specific synapse model (default: :cpp:class:`static_synapse <nest::static_synapse>`) or
+    as a dictionary specifying the synapse model and its parameters.
+
+    Available keys in the synapse specification dictionary are::
+
+     - 'synapse_model'
+     - 'weight'
+     - 'delay'
+     - 'receptor_type'
+     - any parameters specific to the selected synapse model.
+
+
+    .. admonition:
+
+       Tripartite connectivity is a new feature. Please expect some adjustments to
+       the syntax and semantics for the tripartite connectivity in the next NEST releases.
+
+
+    See Also
+    ---------
+    :ref:`connectivity_concepts`
+    """
+
+    # Confirm that we got node collections
+    if not isinstance(pre, NodeCollection):
+        raise TypeError("Presynaptic nodes must be a NodeCollection")
+    if not isinstance(post, NodeCollection):
+        raise TypeError("Postsynaptic nodes must be a NodeCollection")
+    if not isinstance(third, NodeCollection):
+        raise TypeError("Third-factor nodes must be a NodeCollection")
+
+    # Normalize syn_specs: ensure all three entries are in place, are collocated synapses and do not contain lists
+    syn_specs = syn_specs if syn_specs is not None else dict()
+    SYN_KEYS = {"primary", "third_in", "third_out"}
+    for key in SYN_KEYS:
+        if key not in syn_specs:
+            syn_specs[key] = {"synapse_model": "static_synapse"}
+        elif isinstance(syn_specs[key], str):
+            syn_specs[key] = {"synapse_model": syn_specs[key]}
+
+        if not isinstance(syn_specs[key], CollocatedSynapses):
+            syn_specs[key] = CollocatedSynapses(syn_specs[key])
+
+        for synspec in syn_specs[key].syn_specs:
+            for entry, value in synspec.items():
+                if isinstance(value, (list, tuple, numpy.ndarray)):
+                    raise ValueError(
+                        f"Tripartite connections do not accept parameter lists,"
+                        f"but 'syn_specs[{key}][{entry}]' is a list or similar."
+                    )
+
+    nestkernel.llapi_connect_tripartite(
+        pre._datum, post._datum, third._datum, conn_spec, third_factor_conn_spec, syn_specs
+    )
+
+
+def Disconnect(*args, conn_spec=None, syn_spec=None):
+    """Disconnect connections in a SynapseCollection, or `pre` neurons from `post` neurons.
+
+    When specifying `pre` and `post` nodes, they are disconnected using the specified disconnection
     rule (one-to-one by default) and synapse type (:cpp:class:`static_synapse <nest::static_synapse>` by default).
     Details depend on the disconnection rule.
 
     Parameters
     ----------
-    pre : NodeCollection
-        Presynaptic nodes, given as `NodeCollection`
-    post : NodeCollection
-        Postsynaptic nodes, given as `NodeCollection`
+    args : SynapseCollection or NodeCollections
+        Either a collection of connections to disconnect, or pre- and postsynaptic nodes given as NodeCollections
     conn_spec : str or dict
-        Disconnection rule, see below
+        Disconnection rule when specifying pre- and postsynaptic nodes, see below
     syn_spec : str or dict
-        Synapse specifications, see below
+        Synapse specifications when specifying pre- and postsynaptic nodes, see below
 
     Notes
     -------
@@ -317,9 +439,9 @@ def Disconnect(pre, post, conn_spec='one_to_one', syn_spec='static_synapse'):
     Apply the same rules as for connectivity specs in the :py:func:`.Connect` method
 
     Possible choices of the conn_spec are
-    ::
-     - 'one_to_one'
-     - 'all_to_all'
+
+    - 'one_to_one'
+    - 'all_to_all'
 
     **syn_spec**
 
@@ -354,15 +476,24 @@ def Disconnect(pre, post, conn_spec='one_to_one', syn_spec='static_synapse'):
 
     """
 
-    sps(pre)
-    sps(post)
-
-    if is_string(conn_spec):
-        conn_spec = {'rule': conn_spec}
-    if is_string(syn_spec):
-        syn_spec = {'synapse_model': syn_spec}
-
-    sps(conn_spec)
-    sps(syn_spec)
-
-    sr('Disconnect_g_g_D_D')
+    if len(args) == 1:
+        synapsecollection = args[0]
+        if not isinstance(synapsecollection, SynapseCollection):
+            raise TypeError("Arguments must be either a SynapseCollection or two NodeCollections")
+        if conn_spec is not None or syn_spec is not None:
+            raise ValueError("When disconnecting with a SynapseCollection, conn_spec and syn_spec cannot be specified")
+        synapsecollection.disconnect()
+    elif len(args) == 2:
+        # Fill default values
+        conn_spec = "one_to_one" if conn_spec is None else conn_spec
+        syn_spec = "static_synapse" if syn_spec is None else syn_spec
+        if isinstance(conn_spec, str):
+            conn_spec = {"rule": conn_spec}
+        if isinstance(syn_spec, str):
+            syn_spec = {"synapse_model": syn_spec}
+        pre, post = args
+        if not isinstance(pre, NodeCollection) or not isinstance(post, NodeCollection):
+            raise TypeError("Arguments must be either a SynapseCollection or two NodeCollections")
+        nestkernel.llapi_disconnect(pre._datum, post._datum, conn_spec, syn_spec)
+    else:
+        raise TypeError("Arguments must be either a SynapseCollection or two NodeCollections")

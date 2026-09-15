@@ -45,7 +45,7 @@ Description
 +++++++++++
 
 The ``mip_generator`` generates correlated spike trains using an Multiple
-Interaction Process (MIP) as described in [1]_. Underlying principle is a
+Interaction Process (MIP) as described in :footcite:p:`Kuhn2003`. Underlying principle is a
 Poisson parent process with rate r, the spikes of which are copied into the
 child processes with a certain probability p. Every node the mip_generator is
 connected to receives a distinct child process as input, whose rate is `p*r`.
@@ -88,21 +88,25 @@ SpikeEvent
 References
 ++++++++++
 
-.. [1] Kuhn A, Aertsen A, Rotter S (2003). Higher-order statistics of input
-       ensembles and the response of simple model neurons. Neural Computation
-       15:67-101.
-       DOI: https://doi.org/10.1162/089976603321043702
+.. footbibliography::
 
 See also
 ++++++++
 
 poisson_generator
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: mip_generator
+
 EndUserDocs */
 
 /*! Class mip_generator generates spike trains as described
     in the MIP model.
 */
+void register_mip_generator( const std::string& name );
+
 class mip_generator : public StimulationDevice
 {
 
@@ -117,10 +121,10 @@ public:
    */
   using Node::event_hook;
 
-  port send_test_event( Node&, rport, synindex, bool ) override;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   StimulationDevice::Type get_type() const override;
   void set_data_from_stimulation_backend( std::vector< double >& input_param ) override;
@@ -144,20 +148,20 @@ private:
    */
   struct Parameters_
   {
-    double rate_;   //!< process rate in Hz
-    double p_copy_; //!< copy probability for each spike in the parent process
+    double rate_;    //!< process rate in spks/s
+    double p_copy_;  //!< copy probability for each spike in the parent process
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dicitonary
+    void get( Dictionary& ) const;              //!< Store current values in dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from dictionary
   };
 
   // ------------------------------------------------------------
 
   struct Variables_
   {
-    poisson_distribution poisson_dist_; //!< poisson_distribution
+    poisson_distribution poisson_dist_;  //!< poisson_distribution
   };
 
   // ------------------------------------------------------------
@@ -166,8 +170,8 @@ private:
   Variables_ V_;
 };
 
-inline port
-mip_generator::send_test_event( Node& target, rport receptor_type, synindex syn_id, bool dummy_target )
+inline size_t
+mip_generator::send_test_event( Node& target, size_t receptor_type, synindex syn_id, bool dummy_target )
 {
   StimulationDevice::enforce_single_syn_type( syn_id );
 
@@ -186,17 +190,17 @@ mip_generator::send_test_event( Node& target, rport receptor_type, synindex syn_
 }
 
 inline void
-mip_generator::get_status( DictionaryDatum& d ) const
+mip_generator::get_status( Dictionary& d ) const
 {
   P_.get( d );
   StimulationDevice::get_status( d );
 }
 
 inline void
-mip_generator::set_status( const DictionaryDatum& d )
+mip_generator::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
 
   // We now know that ptmp is consistent. We do not write it back
   // to P_ before we are also sure that the properties to be set
@@ -213,6 +217,6 @@ mip_generator::get_type() const
   return StimulationDevice::Type::SPIKE_GENERATOR;
 }
 
-} // namespace nest
+}  // namespace nest
 
 #endif

@@ -41,12 +41,12 @@ ModelRangeManager::ModelRangeManager()
 }
 
 void
-ModelRangeManager::initialize()
+ModelRangeManager::initialize( const bool )
 {
 }
 
 void
-ModelRangeManager::finalize()
+ModelRangeManager::finalize( const bool )
 {
   modelranges_.clear();
   first_node_id_ = 0;
@@ -54,7 +54,7 @@ ModelRangeManager::finalize()
 }
 
 void
-ModelRangeManager::add_range( index model, index first_node_id, index last_node_id )
+ModelRangeManager::add_range( size_t model, size_t first_node_id, size_t last_node_id )
 {
   if ( not modelranges_.empty() )
   {
@@ -77,20 +77,20 @@ ModelRangeManager::add_range( index model, index first_node_id, index last_node_
   last_node_id_ = last_node_id;
 }
 
-index
-ModelRangeManager::get_model_id( index node_id ) const
+size_t
+ModelRangeManager::get_model_id( size_t node_id ) const
 {
   if ( not is_in_range( node_id ) )
   {
-    throw UnknownNode( node_id );
+    throw UnknownNode( static_cast< long >( node_id ) );
   }
 
-  int left = -1;
-  int right = modelranges_.size();
+  long left = -1;
+  long right = static_cast< long >( modelranges_.size() );
   assert( right >= 1 );
 
   // to ensure thread-safety, use local range_idx
-  size_t range_idx = right / 2; // start in center
+  long range_idx = right / 2;  // start in center
   while ( not modelranges_[ range_idx ].is_in_range( node_id ) )
   {
     if ( node_id > modelranges_[ range_idx ].get_last_node_id() )
@@ -104,19 +104,20 @@ ModelRangeManager::get_model_id( index node_id ) const
       range_idx -= ( range_idx - left ) / 2;
     }
     assert( left + 1 < right );
-    assert( range_idx < modelranges_.size() );
+    assert( range_idx >= 0 );
+    assert( static_cast< size_t >( range_idx ) < modelranges_.size() );
   }
   return modelranges_[ range_idx ].get_model_id();
 }
 
-nest::Model*
-nest::ModelRangeManager::get_model_of_node_id( index node_id )
+Model*
+ModelRangeManager::get_model_of_node_id( size_t node_id )
 {
   return kernel().model_manager.get_node_model( get_model_id( node_id ) );
 }
 
 const modelrange&
-ModelRangeManager::get_contiguous_node_id_range( index node_id ) const
+ModelRangeManager::get_contiguous_node_id_range( size_t node_id ) const
 {
   if ( not is_in_range( node_id ) )
   {
@@ -134,4 +135,4 @@ ModelRangeManager::get_contiguous_node_id_range( index node_id ) const
   throw UnknownNode( node_id );
 }
 
-} // namespace nest
+}  // namespace nest

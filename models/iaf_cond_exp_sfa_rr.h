@@ -56,7 +56,7 @@ namespace nest
  */
 extern "C" int iaf_cond_exp_sfa_rr_dynamics( double, const double*, double*, void* );
 
-/* BeginUserDocs: neuron, integrate-and-fire, conductance-based
+/* BeginUserDocs: neuron, integrate-and-fire, conductance-based, hard threshold
 
 Short description
 +++++++++++++++++
@@ -70,22 +70,22 @@ Description
 ``iaf_cond_exp_sfa_rr`` is an implementation of a spiking neuron using
 integrate-and-fire dynamics with conductance-based synapses, with additional
 spike-frequency adaptation and relative refractory mechanisms as described in
-[2]_, page 166.
+:footcite:p:`Dayan2001`, page 166.
 
 Incoming spike events induce a postsynaptic change of conductance modelled by
 an exponential function. The exponential function is normalized such that an
-event of weight 1.0 results in a peak current of 1 nS.
+event of weight 1.0 results in a peak conductance of 1 nS.
 
 Outgoing spike events induce a change of the adaptation and relative refractory
 conductances by ``q_sfa`` and ``q_rr``, respectively. Otherwise these conductances
 decay exponentially with time constants ``tau_sfa`` and ``tau_rr``, respectively.
 
-See also [1]_.
+See also :footcite:p:`Meffin2004`.
 
 Parameters
 ++++++++++
 
-The following parameters can be set in the status dictionary.
+The following parameters can be set in the status Dictionary.
 
 =========== ======  ===========================================================
  V_m        mV      Membrane potential
@@ -128,22 +128,21 @@ SpikeEvent, CurrentEvent, DataLoggingRequest
 References
 ++++++++++
 
-.. [1] Meffin H, Burkitt AN, Grayden DB (2004). An analytical
-       model for the large, fluctuating synaptic conductance state typical of
-       neocortical neurons in vivo. Journal of Computational Neuroscience,
-       16:159-175.
-       DOI: https://doi.org/10.1023/B:JCNS.0000014108.03012.81
-.. [2] Dayan P, Abbott LF (2001). Theoretical neuroscience: Computational and
-       mathematical modeling of neural systems. Cambridge, MA: MIT Press.
-       https://pure.mpg.de/pubman/faces/ViewItemOverviewPage.jsp?itemId=item_3006127
-
+.. footbibliography::
 
 See also
 ++++++++
 
 aeif_cond_alpha, aeif_cond_exp, iaf_chxk_2008
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: iaf_cond_exp_sfa_rr
+
 EndUserDocs */
+
+void register_iaf_cond_exp_sfa_rr( const std::string& name );
 
 class iaf_cond_exp_sfa_rr : public ArchivingNode
 {
@@ -151,7 +150,7 @@ class iaf_cond_exp_sfa_rr : public ArchivingNode
 public:
   iaf_cond_exp_sfa_rr();
   iaf_cond_exp_sfa_rr( const iaf_cond_exp_sfa_rr& );
-  ~iaf_cond_exp_sfa_rr();
+  ~iaf_cond_exp_sfa_rr() override;
 
   /**
    * Import sets of overloaded virtual functions.
@@ -161,23 +160,23 @@ public:
   using Node::handle;
   using Node::handles_test_event;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( SpikeEvent& );
-  void handle( CurrentEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( SpikeEvent& ) override;
+  void handle( CurrentEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( SpikeEvent&, rport );
-  port handles_test_event( CurrentEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CurrentEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
-  void update( Time const&, const long, const long );
+  void init_buffers_() override;
+  void pre_run_hook() override;
+  void update( Time const&, const long, const long ) override;
 
   // END Boilerplate function declarations ----------------------------
 
@@ -196,31 +195,31 @@ private:
   //! Independent parameters
   struct Parameters_
   {
-    double V_th_;    //!< Threshold Potential in mV
-    double V_reset_; //!< Reset Potential in mV
-    double t_ref_;   //!< Refractory period in ms
-    double g_L;      //!< Leak Conductance in nS
-    double C_m;      //!< Membrane Capacitance in pF
-    double E_ex;     //!< Excitatory reversal Potential in mV
-    double E_in;     //!< Inhibitory reversal Potential in mV
-    double E_L;      //!< Leak reversal Potential (aka resting potential) in mV
-    double tau_synE; //!< Time constant for excitatory synaptic kernel in ms
-    double tau_synI; //!< Time constant for inhibitory synaptic kernel in ms
-    double I_e;      //!< Constant Current in pA
-    double tau_sfa;  //!< spike-frequency adaptation (sfa) time constant
-    double tau_rr;   //!< relative refractory (rr) time constant
-    double E_sfa;    //!< spike-frequency adaptation (sfa) reversal Potential
-                     //!< in mV
-    double E_rr;     //!<  relative refractory (rr) reversal Potential in mV
-    double q_sfa;    //!< spike-frequency adaptation (sfa) quantal conductance
-                     //!< increase in nS
-    double q_rr;     //!< relative refractory (rr) quantal conductance increase
-                     //!< in nS
+    double V_th_;     //!< Threshold Potential in mV
+    double V_reset_;  //!< Reset Potential in mV
+    double t_ref_;    //!< Refractory period in ms
+    double g_L;       //!< Leak Conductance in nS
+    double C_m;       //!< Membrane Capacitance in pF
+    double E_ex;      //!< Excitatory reversal Potential in mV
+    double E_in;      //!< Inhibitory reversal Potential in mV
+    double E_L;       //!< Leak reversal Potential (aka resting potential) in mV
+    double tau_synE;  //!< Time constant for excitatory synaptic kernel in ms
+    double tau_synI;  //!< Time constant for inhibitory synaptic kernel in ms
+    double I_e;       //!< Constant Current in pA
+    double tau_sfa;   //!< spike-frequency adaptation (sfa) time constant
+    double tau_rr;    //!< relative refractory (rr) time constant
+    double E_sfa;     //!< spike-frequency adaptation (sfa) reversal Potential
+                      //!< in mV
+    double E_rr;      //!<  relative refractory (rr) reversal Potential in mV
+    double q_sfa;     //!< spike-frequency adaptation (sfa) quantal conductance
+                      //!< increase in nS
+    double q_rr;      //!< relative refractory (rr) quantal conductance increase
+                      //!< in nS
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dicitonary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
   };
 
 public:
@@ -245,15 +244,15 @@ public:
 
     //! neuron state, must be C-array for GSL solver
     double y_[ STATE_VEC_SIZE ];
-    int r_; //!< number of refractory steps remaining
+    int r_;  //!< number of refractory steps remaining
 
-    State_( const Parameters_& ); //!< Default initialization
+    State_( const Parameters_& );  //!< Default initialization
     State_( const State_& );
 
     State_& operator=( const State_& );
 
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, const Parameters_&, Node* );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, const Parameters_&, Node* );
   };
 
 private:
@@ -264,7 +263,7 @@ private:
    */
   struct Buffers_
   {
-    Buffers_( iaf_cond_exp_sfa_rr& ); //!< Sets buffer pointers to 0
+    Buffers_( iaf_cond_exp_sfa_rr& );  //!< Sets buffer pointers to 0
     //! Sets buffer pointers to 0
     Buffers_( const Buffers_&, iaf_cond_exp_sfa_rr& );
 
@@ -277,16 +276,16 @@ private:
     RingBuffer currents_;
 
     /** GSL ODE stuff */
-    gsl_odeiv_step* s_;    //!< stepping function
-    gsl_odeiv_control* c_; //!< adaptive stepsize control function
-    gsl_odeiv_evolve* e_;  //!< evolution function
-    gsl_odeiv_system sys_; //!< struct describing system
+    gsl_odeiv_step* s_;     //!< stepping function
+    gsl_odeiv_control* c_;  //!< adaptive stepsize control function
+    gsl_odeiv_evolve* e_;   //!< evolution function
+    gsl_odeiv_system sys_;  //!< struct describing system
 
-    // Since IntergrationStep_ is initialized with step_, and the resolution
+    // Since IntegrationStep_ is initialized with step_, and the resolution
     // cannot change after nodes have been created, it is safe to place both
     // here.
-    double step_;            //!< step size in ms
-    double IntegrationStep_; //!< current integration time step, updated by GSL
+    double step_;             //!< step size in ms
+    double IntegrationStep_;  //!< current integration time step, updated by GSL
 
     /**
      * Input current injected by CurrentEvent.
@@ -330,16 +329,16 @@ private:
 };
 
 
-inline port
-nest::iaf_cond_exp_sfa_rr::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+iaf_cond_exp_sfa_rr::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-iaf_cond_exp_sfa_rr::handles_test_event( SpikeEvent&, rport receptor_type )
+inline size_t
+iaf_cond_exp_sfa_rr::handles_test_event( SpikeEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -348,8 +347,8 @@ iaf_cond_exp_sfa_rr::handles_test_event( SpikeEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-iaf_cond_exp_sfa_rr::handles_test_event( CurrentEvent&, rport receptor_type )
+inline size_t
+iaf_cond_exp_sfa_rr::handles_test_event( CurrentEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -358,8 +357,8 @@ iaf_cond_exp_sfa_rr::handles_test_event( CurrentEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-iaf_cond_exp_sfa_rr::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+iaf_cond_exp_sfa_rr::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -370,22 +369,22 @@ iaf_cond_exp_sfa_rr::handles_test_event( DataLoggingRequest& dlr, rport receptor
 
 
 inline void
-iaf_cond_exp_sfa_rr::get_status( DictionaryDatum& d ) const
+iaf_cond_exp_sfa_rr::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-iaf_cond_exp_sfa_rr::set_status( const DictionaryDatum& d )
+iaf_cond_exp_sfa_rr::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;     // temporary copy in case of errors
-  ptmp.set( d, this );       // throws if BadProperty
-  State_ stmp = S_;          // temporary copy in case of errors
-  stmp.set( d, ptmp, this ); // throws if BadProperty
+  Parameters_ ptmp = P_;      // temporary copy in case of errors
+  ptmp.set( d, this );        // throws if BadProperty
+  State_ stmp = S_;           // temporary copy in case of errors
+  stmp.set( d, ptmp, this );  // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -398,7 +397,7 @@ iaf_cond_exp_sfa_rr::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // HAVE_GSL
-#endif // IAF_COND_EXP_SFA_RR_H
+#endif  // HAVE_GSL
+#endif  // IAF_COND_EXP_SFA_RR_H

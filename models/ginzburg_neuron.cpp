@@ -22,25 +22,38 @@
 
 #include "ginzburg_neuron.h"
 
+// Includes from nestkernel
+#include "kernel_manager.h"
+#include "model_manager_impl.h"
+#include "nest_impl.h"
+#include "universal_data_logger_impl.h"
+
+
 namespace nest
 {
+void
+register_ginzburg_neuron( const std::string& name )
+{
+  register_node_model< ginzburg_neuron >( name );
+}
+
 
 void
-gainfunction_ginzburg::get( DictionaryDatum& d ) const
+gainfunction_ginzburg::get( Dictionary& d ) const
 {
-  def< double >( d, names::theta, theta_ );
-  def< double >( d, names::c_1, c1_ );
-  def< double >( d, names::c_2, c2_ );
-  def< double >( d, names::c_3, c3_ );
+  d[ names::theta ] = theta_;
+  d[ names::c_1 ] = c1_;
+  d[ names::c_2 ] = c2_;
+  d[ names::c_3 ] = c3_;
 }
 
 void
-gainfunction_ginzburg::set( const DictionaryDatum& d, Node* node )
+gainfunction_ginzburg::set( const Dictionary& d, Node* node )
 {
-  updateValueParam< double >( d, names::theta, theta_, node );
-  updateValueParam< double >( d, names::c_1, c1_, node );
-  updateValueParam< double >( d, names::c_2, c2_, node );
-  updateValueParam< double >( d, names::c_3, c3_, node );
+  update_value_param( d, names::theta, theta_, node );
+  update_value_param( d, names::c_1, c1_, node );
+  update_value_param( d, names::c_2, c2_, node );
+  update_value_param( d, names::c_3, c3_, node );
 }
 
 /*
@@ -49,11 +62,11 @@ gainfunction_ginzburg::set( const DictionaryDatum& d, Node* node )
  */
 template <>
 void
-RecordablesMap< nest::ginzburg_neuron >::create()
+RecordablesMap< ginzburg_neuron >::create()
 {
-  // use standard names whereever you can for consistency!
-  insert_( names::S, &nest::ginzburg_neuron::get_output_state__ );
-  insert_( names::h, &nest::ginzburg_neuron::get_input__ );
+  // use standard names wherever you can for consistency!
+  insert_( names::S, &ginzburg_neuron::get_output_state__ );
+  insert_( names::h, &ginzburg_neuron::get_input__ );
 }
 
-} // namespace nest
+}  // namespace nest

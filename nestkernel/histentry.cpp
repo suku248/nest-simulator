@@ -20,17 +20,12 @@
  *
  */
 
-/**
- * \file histentry.cpp
- * Implementation of archiving_node to record and manage spike history
- * \author Moritz Helias, Abigail Morrison
- * \date april 2006
- * \note moved to separate file to avoid circular inclusion in node.h
- */
-
 #include "histentry.h"
 
-nest::histentry::histentry( double t, double Kminus, double Kminus_triplet, size_t access_counter )
+
+namespace nest
+{
+histentry::histentry( double t, double Kminus, double Kminus_triplet, size_t access_counter )
   : t_( t )
   , Kminus_( Kminus )
   , Kminus_triplet_( Kminus_triplet )
@@ -38,9 +33,45 @@ nest::histentry::histentry( double t, double Kminus, double Kminus_triplet, size
 {
 }
 
-nest::histentry_extended::histentry_extended( double t, double dw, size_t access_counter )
+histentry_extended::histentry_extended( double t, double dw, size_t access_counter )
   : t_( t )
   , dw_( dw )
   , access_counter_( access_counter )
 {
 }
+
+HistEntryEprop::HistEntryEprop( long t )
+  : t_( t )
+{
+}
+
+HistEntryEpropRecurrent::HistEntryEpropRecurrent( long t,
+  double surrogate_gradient,
+  double learning_signal,
+  double firing_rate_reg )
+  : HistEntryEprop( t )
+  , surrogate_gradient_( surrogate_gradient )
+  , learning_signal_( learning_signal )
+  , firing_rate_reg_( firing_rate_reg )
+{
+}
+
+HistEntryEpropReadout::HistEntryEpropReadout( long t, double error_signal )
+  : HistEntryEprop( t )
+  , error_signal_( error_signal )
+{
+}
+
+HistEntryEpropUpdate::HistEntryEpropUpdate( long t, size_t access_counter )
+  : HistEntryEprop( t )
+  , access_counter_( access_counter )
+{
+}
+
+HistEntryEpropFiringRateReg::HistEntryEpropFiringRateReg( long t, double firing_rate_reg )
+  : HistEntryEprop( t )
+  , firing_rate_reg_( firing_rate_reg )
+{
+}
+
+}  // namespace nest

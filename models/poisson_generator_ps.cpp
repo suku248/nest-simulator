@@ -29,23 +29,27 @@
 // Includes from nestkernel:
 #include "event_delivery_manager_impl.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
 
 // Includes from libnestutil:
 #include "dict_util.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
 
+namespace nest
+{
+void
+register_poisson_generator_ps( const std::string& name )
+{
+  register_node_model< poisson_generator_ps >( name );
+}
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameter
  * ---------------------------------------------------------------- */
 
-nest::poisson_generator_ps::Parameters_::Parameters_()
-  : rate_( 0.0 )      // Hz
-  , dead_time_( 0.0 ) // ms
+poisson_generator_ps::Parameters_::Parameters_()
+  : rate_( 0.0 )       // spks/s
+  , dead_time_( 0.0 )  // ms
   , num_targets_( 0 )
 {
 }
@@ -55,23 +59,22 @@ nest::poisson_generator_ps::Parameters_::Parameters_()
  * ---------------------------------------------------------------- */
 
 void
-nest::poisson_generator_ps::Parameters_::get( DictionaryDatum& d ) const
+poisson_generator_ps::Parameters_::get( Dictionary& d ) const
 {
-  ( *d )[ names::rate ] = rate_;
-  ( *d )[ names::dead_time ] = dead_time_;
+  d[ names::rate ] = rate_;
+  d[ names::dead_time ] = dead_time_;
 }
 
 void
-nest::poisson_generator_ps::Parameters_::set( const DictionaryDatum& d, Node* node )
+poisson_generator_ps::Parameters_::set( const Dictionary& d, Node* node )
 {
-
-  updateValueParam< double >( d, names::dead_time, dead_time_, node );
+  update_value_param( d, names::dead_time, dead_time_, node );
   if ( dead_time_ < 0 )
   {
     throw BadProperty( "The dead time cannot be negative." );
   }
 
-  updateValueParam< double >( d, names::rate, rate_, node );
+  update_value_param( d, names::rate, rate_, node );
 
   if ( rate_ < 0.0 )
   {
@@ -89,13 +92,13 @@ nest::poisson_generator_ps::Parameters_::set( const DictionaryDatum& d, Node* no
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::poisson_generator_ps::poisson_generator_ps()
+poisson_generator_ps::poisson_generator_ps()
   : StimulationDevice()
   , P_()
 {
 }
 
-nest::poisson_generator_ps::poisson_generator_ps( const poisson_generator_ps& n )
+poisson_generator_ps::poisson_generator_ps( const poisson_generator_ps& n )
   : StimulationDevice( n )
   , P_( n.P_ )
 {
@@ -107,15 +110,15 @@ nest::poisson_generator_ps::poisson_generator_ps( const poisson_generator_ps& n 
  * ---------------------------------------------------------------- */
 
 void
-nest::poisson_generator_ps::init_state_()
+poisson_generator_ps::init_state_()
 {
   StimulationDevice::init_state();
 }
 
 void
-nest::poisson_generator_ps::init_buffers_()
+poisson_generator_ps::init_buffers_()
 {
-  nest::Device::init_buffers();
+  Device::init_buffers();
 
   // forget all about past, but do not discard connection information
   B_.next_spike_.clear();
@@ -123,7 +126,7 @@ nest::poisson_generator_ps::init_buffers_()
 }
 
 void
-nest::poisson_generator_ps::pre_run_hook()
+poisson_generator_ps::pre_run_hook()
 {
   StimulationDevice::pre_run_hook();
   if ( P_.rate_ > 0 )
@@ -149,15 +152,15 @@ nest::poisson_generator_ps::pre_run_hook()
     Time min_time = B_.next_spike_.begin()->first;
 
     for ( std::vector< Buffers_::SpikeTime >::const_iterator it = B_.next_spike_.begin() + 1;
-          it != B_.next_spike_.end();
-          ++it )
+      it != B_.next_spike_.end();
+      ++it )
     {
       min_time = std::min( min_time, it->first );
     }
 
     if ( min_time < StimulationDevice::get_origin() + StimulationDevice::get_start() )
     {
-      B_.next_spike_.clear(); // will be resized with neg_infs below
+      B_.next_spike_.clear();  // will be resized with neg_infs below
     }
   }
 
@@ -176,12 +179,9 @@ nest::poisson_generator_ps::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::poisson_generator_ps::update( Time const& T, const long from, const long to )
+poisson_generator_ps::update( Time const& T, const long from, const long to )
 {
-  assert( to >= 0 && ( delay ) from < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
-  if ( P_.rate_ <= 0 || P_.num_targets_ == 0 )
+  if ( P_.rate_ <= 0 or P_.num_targets_ == 0 )
   {
     return;
   }
@@ -207,13 +207,13 @@ nest::poisson_generator_ps::update( Time const& T, const long from, const long t
 }
 
 void
-nest::poisson_generator_ps::event_hook( DSSpikeEvent& e )
+poisson_generator_ps::event_hook( DSSpikeEvent& e )
 {
   // get port number
-  const port prt = e.get_port();
+  const size_t prt = e.get_port();
 
   // we handle only one port here, get reference to vector elem
-  assert( 0 <= prt && static_cast< size_t >( prt ) < B_.next_spike_.size() );
+  assert( prt < B_.next_spike_.size() );
 
   // obtain rng
   RngPtr rng = get_vp_specific_rng( get_thread() );
@@ -266,9 +266,9 @@ nest::poisson_generator_ps::event_hook( DSSpikeEvent& e )
     // Time of spike relative to current nextspk.first stamp
     const double new_offset = -nextspk.second + V_.inv_rate_ms_ * V_.exp_dev_( rng ) + P_.dead_time_;
 
-    if ( new_offset < 0 ) // still in same stamp
+    if ( new_offset < 0 )  // still in same stamp
     {
-      nextspk.second = -new_offset; // stamps always 0 < stamp <= h
+      nextspk.second = -new_offset;  // stamps always 0 < stamp <= h
     }
     else
     {
@@ -281,9 +281,9 @@ nest::poisson_generator_ps::event_hook( DSSpikeEvent& e )
 }
 
 void
-nest::poisson_generator_ps::set_data_from_stimulation_backend( std::vector< double >& input_param )
+poisson_generator_ps::set_data_from_stimulation_backend( std::vector< double >& input_param )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
 
   // For the input backend
   if ( not input_param.empty() )
@@ -292,12 +292,14 @@ nest::poisson_generator_ps::set_data_from_stimulation_backend( std::vector< doub
     {
       throw BadParameterValue( "The size of the data for the poisson_generator_ps need to be 2 [dead_time, rate]." );
     }
-    DictionaryDatum d = DictionaryDatum( new Dictionary );
-    ( *d )[ names::dead_time ] = DoubleDatum( input_param[ 0 ] );
-    ( *d )[ names::rate ] = DoubleDatum( input_param[ 1 ] );
+    Dictionary d;
+    d[ names::dead_time ] = input_param[ 0 ];
+    d[ names::rate ] = input_param[ 1 ];
     ptmp.set( d, this );
   }
 
   // if we get here, temporary contains consistent set of properties
   P_ = ptmp;
 }
+
+}  // namespace nest

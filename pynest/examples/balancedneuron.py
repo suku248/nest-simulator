@@ -31,33 +31,27 @@ the neuron fire at the same rate as the excitatory population.
 Optimization is performed using the ``bisection`` method from Scipy,
 simulating the network repeatedly.
 
-This example is also shown in the article [1]_
+This example is also shown in the article :footcite:p:`Eppler2009`
 
 References
 ~~~~~~~~~~
 
-.. [1] Eppler JM, Helias M, Mulller E, Diesmann M, Gewaltig MO (2009). PyNEST: A convenient interface to the NEST
-       simulator, Front. Neuroinform.
-       http://dx.doi.org/10.3389/neuro.11.012.2008
-
+.. footbibliography::
 """
 
 ###############################################################################
 # First, we import all necessary modules for simulation, analysis and
 # plotting. Scipy should be imported before nest.
 
-from scipy.optimize import bisect
-
+import matplotlib.pyplot as plt
 import nest
 import nest.voltage_trace
-import matplotlib.pyplot as plt
+from scipy.optimize import bisect
 
 ###############################################################################
-# Additionally, we set the verbosity using ``set_verbosity`` to
-# suppress info messages.
+# Additionally, we set the verbosity to suppress info messages.
 
-
-nest.set_verbosity("M_WARNING")
+nest.verbosity = nest.VerbosityLevel.WARNING
 nest.ResetKernel()
 
 ###############################################################################
@@ -65,16 +59,16 @@ nest.ResetKernel()
 
 
 t_sim = 25000.0  # how long we simulate
-n_ex = 16000     # size of the excitatory population
-n_in = 4000      # size of the inhibitory population
-r_ex = 5.0       # mean rate of the excitatory population
-r_in = 20.5      # initial rate of the inhibitory population
-epsc = 45.0      # peak amplitude of excitatory synaptic currents
-ipsc = -45.0     # peak amplitude of inhibitory synaptic currents
-d = 1.0          # synaptic delay
-lower = 15.0     # lower bound of the search interval
-upper = 25.0     # upper bound of the search interval
-prec = 0.01      # how close need the excitatory rates be
+n_ex = 16000  # size of the excitatory population
+n_in = 4000  # size of the inhibitory population
+r_ex = 5.0  # mean rate of the excitatory population
+r_in = 20.5  # initial rate of the inhibitory population
+epsc = 45.0  # peak amplitude of excitatory synaptic currents
+ipsc = -45.0  # peak amplitude of inhibitory synaptic currents
+d = 1.0  # synaptic delay
+lower = 15.0  # lower bound of the search interval
+upper = 25.0  # upper bound of the search interval
+prec = 0.01  # how close need the excitatory rates be
 
 ###############################################################################
 # Third, the nodes are created using ``Create``. We store the returned
@@ -109,7 +103,7 @@ noise.rate = [n_ex * r_ex, n_in * r_in]
 
 nest.Connect(neuron, spikerecorder)
 nest.Connect(voltmeter, neuron)
-nest.Connect(noise, neuron, syn_spec={'weight': [[epsc, ipsc]], 'delay': 1.0})
+nest.Connect(noise, neuron, syn_spec={"weight": [[epsc, ipsc]], "delay": 1.0})
 
 ###############################################################################
 # To determine the optimal rate of the neurons in the inhibitory population,
@@ -124,13 +118,13 @@ nest.Connect(noise, neuron, syn_spec={'weight': [[epsc, ipsc]], 'delay': 1.0})
 
 
 def output_rate(guess):
-    print("Inhibitory rate estimate: %5.2f Hz" % guess)
+    print(f"Inhibitory rate estimate: {guess:5.2f} spks/s")
     rate = float(abs(n_in * guess))
     noise[1].rate = rate
     spikerecorder.n_events = 0
     nest.Simulate(t_sim)
     out = spikerecorder.n_events * 1000.0 / t_sim
-    print("  -> Neuron rate: %6.2f Hz (goal: %4.2f Hz)" % (out, r_ex))
+    print(f"  -> Neuron rate: {out:6.2f} spks/s (goal: {r_ex:4.2f} spks/s)")
     return out
 
 
@@ -144,13 +138,13 @@ def output_rate(guess):
 # During simulation, the ``spike_recorder`` counts the spikes of the target
 # neuron and the total number is read out at the end of the simulation
 # period. The return value of ``output_rate()`` is the firing rate of the
-# target neuron in Hz.
+# target neuron in spks/s.
 #
 # Second, the scipy function ``bisect`` is used to determine the optimal
 # firing rate of the neurons of the inhibitory population.
 
 in_rate = bisect(lambda x: output_rate(x) - r_ex, lower, upper, xtol=prec)
-print("Optimal rate for the inhibitory population: %.2f Hz" % in_rate)
+print(f"Optimal rate for the inhibitory population: {in_rate:.2f} spks/s")
 
 ###############################################################################
 # The function ``bisect`` takes four arguments: first a function whose

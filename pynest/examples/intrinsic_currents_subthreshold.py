@@ -27,7 +27,7 @@ This example illustrates how to record from a model with multiple
 intrinsic currents and visualize the results. This is illustrated
 using the ``ht_neuron`` which has four intrinsic currents: ``I_NaP``,
 ``I_KNa``, ``I_T``, and ``I_h``. It is a slightly simplified implementation of
-neuron model proposed in [1]_.
+neuron model proposed in :footcite:p:`Hill2005`.
 
 The neuron is driven by DC current, which is alternated
 between depolarizing and hyperpolarizing. Hyperpolarization
@@ -36,9 +36,7 @@ intervals become increasingly longer.
 References
 ~~~~~~~~~~
 
-.. [1] Hill and Tononi (2005) Modeling Sleep and Wakefulness in the
-       Thalamocortical System J Neurophysiol 93:1671
-       http://dx.doi.org/10.1152/jn.00915.2004.
+.. footbibliography::
 
 See Also
 ~~~~~~~~
@@ -50,14 +48,14 @@ See Also
 ###############################################################################
 # We imported all necessary modules for simulation, analysis and plotting.
 
-import nest
 import matplotlib.pyplot as plt
+import nest
 
 ###############################################################################
-# Additionally, we set the verbosity using ``set_verbosity`` to suppress info
-# messages. We also reset the kernel to be sure to start with a clean NEST.
+# Additionally, we set the verbosity to suppress info messages.
+# We also reset the kernel to be sure to start with a clean NEST.
 
-nest.set_verbosity("M_WARNING")
+nest.verbosity = nest.VerbosityLevel.WARNING
 nest.ResetKernel()
 
 ###############################################################################
@@ -69,20 +67,20 @@ nest.ResetKernel()
 # - The end of the time window to plot
 
 n_blocks = 5
-t_block = 20.
+t_block = 20.0
 t_dep = [t_block] * n_blocks
-t_hyp = [t_block * 2 ** n for n in range(n_blocks)]
-I_dep = 10.
-I_hyp = -5.
+t_hyp = [t_block * 2**n for n in range(n_blocks)]
+I_dep = 10.0
+I_hyp = -5.0
 
-t_end = 500.
+t_end = 500.0
 
 ###############################################################################
 # We create the one neuron instance and the DC current generator and store
 # the returned handles.
 
-nrn = nest.Create('ht_neuron')
-dc = nest.Create('dc_generator')
+nrn = nest.Create("ht_neuron")
+dc = nest.Create("dc_generator")
 
 ###############################################################################
 # We create a multimeter to record
@@ -110,11 +108,9 @@ dc = nest.Create('dc_generator')
 
 # create multimeter and configure it to record all information
 # we want at 0.1 ms resolution
-mm = nest.Create('multimeter',
-                 params={'interval': 0.1,
-                         'record_from': ['V_m', 'theta',
-                                         'I_NaP', 'I_KNa', 'I_T', 'I_h']}
-                 )
+mm = nest.Create(
+    "multimeter", params={"interval": 0.1, "record_from": ["V_m", "theta", "I_NaP", "I_KNa", "I_T", "I_h"]}
+)
 
 ###############################################################################
 # We connect the DC generator and the multimeter to the neuron. Note that
@@ -130,7 +126,6 @@ nest.Connect(mm, nrn)
 # interval, we set the amplitude of the DC generator to the correct value.
 
 for t_sim_dep, t_sim_hyp in zip(t_dep, t_hyp):
-
     dc.amplitude = I_dep
     nest.Simulate(t_sim_dep)
 
@@ -146,7 +141,7 @@ for t_sim_dep, t_sim_hyp in zip(t_dep, t_hyp):
 # returned by the multimeter.
 
 data = mm.events
-t = data['times']
+t = data["times"]
 
 ###############################################################################
 # The next step is to plot the results. We create a new figure, add a single
@@ -154,11 +149,11 @@ t = data['times']
 
 fig = plt.figure()
 Vax = fig.add_subplot(111)
-Vax.plot(t, data['V_m'], 'b-', lw=2, label=r'$V_m$')
-Vax.plot(t, data['theta'], 'g-', lw=2, label=r'$\Theta$')
-Vax.set_ylim(-80., 0.)
-Vax.set_ylabel('Voltageinf [mV]')
-Vax.set_xlabel('Time [ms]')
+Vax.plot(t, data["V_m"], "b-", lw=2, label=r"$V_m$")
+Vax.plot(t, data["theta"], "g-", lw=2, label=r"$\Theta$")
+Vax.set_ylim(-80.0, 0.0)
+Vax.set_ylabel("Voltageinf [mV]")
+Vax.set_xlabel("Time [ms]")
 
 ###############################################################################
 # To plot the input current, we need to create an input current trace. We
@@ -197,7 +192,8 @@ for td, th in zip(t_dep, t_hyp):
 
 
 def texify_name(name):
-    return r'${}_{{\mathrm{{{}}}}}$'.format(*name.split('_'))
+    return r"${}_{{\mathrm{{{}}}}}$".format(*name.split("_"))
+
 
 ###############################################################################
 # Next, we add a right vertical axis and plot the currents with respect to
@@ -205,16 +201,15 @@ def texify_name(name):
 
 
 Iax = Vax.twinx()
-Iax.plot(t_dc, I_dc, 'k-', lw=2, label=texify_name('I_DC'))
+Iax.plot(t_dc, I_dc, "k-", lw=2, label=texify_name("I_DC"))
 
-for iname, color in (('I_h', 'maroon'), ('I_T', 'orange'),
-                     ('I_NaP', 'crimson'), ('I_KNa', 'aqua')):
+for iname, color in (("I_h", "maroon"), ("I_T", "orange"), ("I_NaP", "crimson"), ("I_KNa", "aqua")):
     Iax.plot(t, data[iname], color=color, lw=2, label=texify_name(iname))
 
 Iax.set_xlim(0, t_end)
-Iax.set_ylim(-10., 15.)
-Iax.set_ylabel('Current [pA]')
-Iax.set_title('ht_neuron driven by DC current')
+Iax.set_ylim(-10.0, 15.0)
+Iax.set_ylabel("Current [pA]")
+Iax.set_title("ht_neuron driven by DC current")
 
 ###############################################################################
 # We need to make a little extra effort to combine lines from the two axis
@@ -223,7 +218,7 @@ Iax.set_title('ht_neuron driven by DC current')
 lines_V, labels_V = Vax.get_legend_handles_labels()
 lines_I, labels_I = Iax.get_legend_handles_labels()
 try:
-    Iax.legend(lines_V + lines_I, labels_V + labels_I, fontsize='small')
+    Iax.legend(lines_V + lines_I, labels_V + labels_I, fontsize="small")
 except TypeError:
     # work-around for older Matplotlib versions
     Iax.legend(lines_V + lines_I, labels_V + labels_I)

@@ -58,7 +58,7 @@ Description
 ``siegert_neuron`` is an implementation of a rate model with the
 non-linearity given by the gain function of the
 leaky-integrate-and-fire neuron with delta or exponentially decaying
-synapses [2]_ and [3]_ (their eq. 25). The model can be used for a
+synapses :footcite:p:`Fourcaud2002` and :footcite:p:`Schuecker2015` (their eq. 25). The model can be used for a
 mean-field analysis of spiking networks. A constant mean input can be
 provided to create neurons with a target rate, e.g. to model a constant
 external input.
@@ -72,12 +72,12 @@ check out the `Siegert_neuron_integration
 <../model_details/siegert_neuron_integration.ipynb>`_
 notebook in the NEST source code.
 
-See also [1]_, [4]_.
+See also :footcite:p:`Hahne2017`, :footcite:p:`Hahne2015`.
 
 Parameters
 ++++++++++
 
-The following parameters can be set in the status dictionary.
+The following parameters can be set in the status Dictionary.
 
 =====  ====== ==============================
  rate  1/s    Rate (1/s)
@@ -100,21 +100,7 @@ iaf_psc_exp/delta.
 References
 ++++++++++
 
-.. [1] Hahne J, Dahmen D, Schuecker J, Frommer A, Bolten M, Helias M,
-       Diesmann M (2017). Integration of continuous-time dynamics in a
-       spiking neural network simulator. Frontiers in Neuroinformatics, 11:34.
-       DOI: https://doi.org/10.3389/fninf.2017.00034
-.. [2] Fourcaud N, Brunel N (2002). Dynamics of the firing
-       probability of noisy integrate-and-fire neurons, Neural Computation,
-       14(9):2057-2110
-       DOI: https://doi.org/10.1162/089976602320264015
-.. [3] Schuecker J, Diesmann M, Helias M  (2015). Modulated escape from a
-       metastable state driven by colored noise. Physical Review E 92:052119
-       DOI: https://doi.org/10.1103/PhysRevE.92.052119
-.. [4] Hahne J, Helias M, Kunkel S, Igarashi J, Bolten M, Frommer A, Diesmann M
-       (2015). A unified framework for spiking and gap-junction interactions
-       in distributed neuronal network simulations. Frontiers in
-       Neuroinformatics, 9:22. DOI: https://doi.org/10.3389/fninf.2015.00022
+.. footbibliography::
 
 Sends
 +++++
@@ -131,7 +117,15 @@ See also
 
 diffusion_connection
 
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: siegert_neuron
+
 EndUserDocs */
+
+void register_siegert_neuron( const std::string& name );
 
 class siegert_neuron : public ArchivingNode
 {
@@ -142,7 +136,7 @@ public:
   siegert_neuron();
   siegert_neuron( const siegert_neuron& );
 
-  ~siegert_neuron();
+  ~siegert_neuron() override;
 
   /**
    * Import sets of overloaded virtual functions.
@@ -153,31 +147,31 @@ public:
   using Node::handles_test_event;
   using Node::sends_secondary_event;
 
-  void handle( DiffusionConnectionEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( DiffusionConnectionEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( DiffusionConnectionEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( DiffusionConnectionEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
   void
-  sends_secondary_event( DiffusionConnectionEvent& )
+  sends_secondary_event( DiffusionConnectionEvent& ) override
   {
   }
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
+  void init_buffers_() override;
+  void pre_run_hook() override;
 
   /** This is the actual update function. The additional boolean parameter
    * determines if the function is called by update (false) or wfr_update (true)
    */
   bool update_( Time const&, const long, const long, const bool );
 
-  void update( Time const&, const long, const long );
-  bool wfr_update( Time const&, const long, const long );
+  void update( Time const&, const long, const long ) override;
+  bool wfr_update( Time const&, const long, const long ) override;
 
   // siegert function
   double siegert( double, double );
@@ -214,11 +208,11 @@ private:
     /** reset value in mV. */
     double V_reset_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in Dictionary
 
-    void set( const DictionaryDatum&, Node* node );
+    void set( const Dictionary&, Node* node );
   };
 
   // ----------------------------------------------------------------
@@ -228,12 +222,12 @@ private:
    */
   struct State_
   {
-    double r_; //!< Rate
+    double r_;  //!< Rate
 
-    State_(); //!< Default initialization
+    State_();  //!< Default initialization
 
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, Node* node );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, Node* node );
   };
 
   // ----------------------------------------------------------------
@@ -246,11 +240,11 @@ private:
     Buffers_( siegert_neuron& );
     Buffers_( const Buffers_&, siegert_neuron& );
 
-    std::vector< double > drift_input_;     //!< buffer for drift term received by DiffusionConnection
-    std::vector< double > diffusion_input_; //!< buffer for diffusion term
+    std::vector< double > drift_input_;      //!< buffer for drift term received by DiffusionConnection
+    std::vector< double > diffusion_input_;  //!< buffer for diffusion term
     // received by DiffusionConnection
-    std::vector< double > last_y_values;           //!< remembers y_values from last wfr_update
-    UniversalDataLogger< siegert_neuron > logger_; //!< Logger for all analog data
+    std::vector< double > last_y_values;            //!< remembers y_values from last wfr_update
+    UniversalDataLogger< siegert_neuron > logger_;  //!< Logger for all analog data
   };
 
   // ----------------------------------------------------------------
@@ -295,15 +289,15 @@ siegert_neuron::update( Time const& origin, const long from, const long to )
 inline bool
 siegert_neuron::wfr_update( Time const& origin, const long from, const long to )
 {
-  State_ old_state = S_; // save state before wfr update
+  State_ old_state = S_;  // save state before wfr update
   const bool wfr_tol_exceeded = update_( origin, from, to, true );
-  S_ = old_state; // restore old state
+  S_ = old_state;  // restore old state
 
   return not wfr_tol_exceeded;
 }
 
-inline port
-siegert_neuron::handles_test_event( DiffusionConnectionEvent&, rport receptor_type )
+inline size_t
+siegert_neuron::handles_test_event( DiffusionConnectionEvent&, size_t receptor_type )
 {
   if ( receptor_type == 0 )
   {
@@ -319,8 +313,8 @@ siegert_neuron::handles_test_event( DiffusionConnectionEvent&, rport receptor_ty
   }
 }
 
-inline port
-siegert_neuron::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+siegert_neuron::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -330,21 +324,21 @@ siegert_neuron::handles_test_event( DataLoggingRequest& dlr, rport receptor_type
 }
 
 inline void
-siegert_neuron::get_status( DictionaryDatum& d ) const
+siegert_neuron::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ArchivingNode::get_status( d );
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-siegert_neuron::set_status( const DictionaryDatum& d )
+siegert_neuron::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
-  State_ stmp = S_;      // temporary copy in case of errors
-  stmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
+  State_ stmp = S_;       // temporary copy in case of errors
+  stmp.set( d, this );    // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -357,7 +351,7 @@ siegert_neuron::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // HAVE_GSL
-#endif // SIEGERT_NEURON_H
+#endif  // HAVE_GSL
+#endif  // SIEGERT_NEURON_H

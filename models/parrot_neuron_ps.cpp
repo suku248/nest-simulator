@@ -22,9 +22,6 @@
 
 #include "parrot_neuron_ps.h"
 
-// C++ includes:
-#include <limits>
-
 // Includes from libnestutil:
 #include "numerics.h"
 
@@ -32,15 +29,17 @@
 #include "event_delivery_manager_impl.h"
 #include "exceptions.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
 
 namespace nest
 {
+void
+register_parrot_neuron_ps( const std::string& name )
+{
+  register_node_model< parrot_neuron_ps >( name );
+}
+
 
 parrot_neuron_ps::parrot_neuron_ps()
   : ArchivingNode()
@@ -58,10 +57,6 @@ parrot_neuron_ps::init_buffers_()
 void
 parrot_neuron_ps::update( Time const& origin, long const from, long const to )
 {
-  assert( to >= 0 );
-  assert( static_cast< delay >( from ) < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
   {
@@ -74,7 +69,7 @@ parrot_neuron_ps::update( Time const& origin, long const from, long const to )
     long const T = origin.get_steps() + lag;
 
     double ev_offset;
-    double ev_multiplicity; // parrot stores multiplicity in weight
+    double ev_multiplicity;  // parrot stores multiplicity in weight
     bool end_of_refract;
 
     while ( B_.events_.get_next_spike( T, false, ev_offset, ev_multiplicity, end_of_refract ) )
@@ -96,13 +91,13 @@ parrot_neuron_ps::update( Time const& origin, long const from, long const to )
 }
 
 void
-parrot_neuron_ps::get_status( DictionaryDatum& d ) const
+parrot_neuron_ps::get_status( Dictionary& d ) const
 {
   ArchivingNode::get_status( d );
 }
 
 void
-parrot_neuron_ps::set_status( const DictionaryDatum& d )
+parrot_neuron_ps::set_status( const Dictionary& d )
 {
   ArchivingNode::set_status( d );
 }
@@ -122,11 +117,11 @@ parrot_neuron_ps::handle( SpikeEvent& e )
     const long Tdeliver = e.get_stamp().get_steps() + e.get_delay_steps() - 1;
 
     // parrot ignores weight of incoming connection, store multiplicity
-    B_.events_.add_spike( e.get_rel_delivery_steps( nest::kernel().simulation_manager.get_slice_origin() ),
+    B_.events_.add_spike( e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ),
       Tdeliver,
       e.get_offset(),
       static_cast< double >( e.get_multiplicity() ) );
   }
 }
 
-} // namespace
+}  // namespace nest

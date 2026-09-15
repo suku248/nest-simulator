@@ -42,7 +42,7 @@
 #include "ring_buffer.h"
 #include "universal_data_logger.h"
 
-/* BeginUserDocs: neuron, integrate-and-fire, adaptive threshold, conductance-based
+/* BeginUserDocs: neuron, integrate-and-fire, adaptation, conductance-based, soft threshold
 
 Short description
 +++++++++++++++++
@@ -66,6 +66,9 @@ The time constants are supplied by an array, ``tau_syn``, and the pertaining
 synaptic reversal potentials are supplied by the array ``E_rev``. Port numbers
 are automatically assigned in the range from 1 to n_receptors.
 During connection, the ports are selected with the property ``receptor_type``.
+
+When connecting to conductance-based multisynapse models, all synaptic weights
+must be non-negative.
 
 The membrane potential is given by the following differential equation:
 
@@ -93,10 +96,18 @@ When the neuron fires a spike, the adaptation current :math:`w <- w + b`.
 For implementation details see the
 `aeif_models_implementation <../model_details/aeif_models_implementation.ipynb>`_ notebook.
 
+.. note::
+
+    The default refractory period for ``aeif`` models is zero, consistent with the model definition in
+    Brette & Gerstner :footcite:p:`Brette2005`.  Thus, an ``aeif`` neuron with default parameters can fire multiple
+    spikes in a single time step, which can lead to exploding spike numbers and extreme slow-down of simulations.
+
+    To avoid such unphysiological behavior, you should set a refractory time ``t_ref > 0``.
+
 Parameters
 ++++++++++
 
-The following parameters can be set in the status dictionary.
+The following parameters can be set in the status Dictionary.
 
 ======== ======= =======================================
 **Dynamic state variables:**
@@ -152,10 +163,20 @@ Receives
 
 SpikeEvent, CurrentEvent, DataLoggingRequest
 
+References
+++++++++++
+
+.. footbibliography::
+
 See also
-+++++++
+++++++++
 
 aeif_cond_alpha_multisynapse
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: aeif_cond_alpha_multisynapse
 
 EndUserDocs */
 
@@ -173,13 +194,15 @@ namespace nest
  */
 extern "C" int aeif_cond_alpha_multisynapse_dynamics( double, const double*, double*, void* );
 
+void register_aeif_cond_alpha_multisynapse( const std::string& name );
+
 class aeif_cond_alpha_multisynapse : public ArchivingNode
 {
 
 public:
   aeif_cond_alpha_multisynapse();
   aeif_cond_alpha_multisynapse( const aeif_cond_alpha_multisynapse& );
-  virtual ~aeif_cond_alpha_multisynapse();
+  ~aeif_cond_alpha_multisynapse() override;
 
   friend int aeif_cond_alpha_multisynapse_dynamics( double, const double*, double*, void* );
 
@@ -191,23 +214,23 @@ public:
   using Node::handle;
   using Node::handles_test_event;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( SpikeEvent& );
-  void handle( CurrentEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( SpikeEvent& ) override;
+  void handle( CurrentEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( SpikeEvent&, rport );
-  port handles_test_event( CurrentEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CurrentEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
-  void update( Time const&, const long, const long );
+  void init_buffers_() override;
+  void pre_run_hook() override;
+  void update( Time const&, const long, const long ) override;
 
   // The next three classes need to be friends to access the State_ class/member
   friend class DynamicRecordablesMap< aeif_cond_alpha_multisynapse >;
@@ -221,33 +244,33 @@ private:
    */
   struct Parameters_
   {
-    double V_peak_;  //!< Spike detection threshold in mV
-    double V_reset_; //!< Reset Potential in mV
-    double t_ref_;   //!< Refractory period in ms
+    double V_peak_;   //!< Spike detection threshold in mV
+    double V_reset_;  //!< Reset Potential in mV
+    double t_ref_;    //!< Refractory period in ms
 
-    double g_L;     //!< Leak Conductance in nS
-    double C_m;     //!< Membrane Capacitance in pF
-    double E_L;     //!< Leak reversal Potential (aka resting potential) in mV
-    double Delta_T; //!< Slope factor in ms
-    double tau_w;   //!< Adaptation time-constant in ms
-    double a;       //!< Subthreshold adaptation in nS
-    double b;       //!< Spike-triggered adaptation in pA
-    double V_th;    //!< Spike threshold in mV
+    double g_L;      //!< Leak Conductance in nS
+    double C_m;      //!< Membrane Capacitance in pF
+    double E_L;      //!< Leak reversal Potential (aka resting potential) in mV
+    double Delta_T;  //!< Slope factor in mV
+    double tau_w;    //!< Adaptation time-constant in ms
+    double a;        //!< Subthreshold adaptation in nS
+    double b;        //!< Spike-triggered adaptation in pA
+    double V_th;     //!< Spike threshold in mV
 
-    std::vector< double > tau_syn; //!< Synaptic time constants in ms
-    std::vector< double > E_rev;   //!< Reversal potentials in mV
+    std::vector< double > tau_syn;  //!< Synaptic time constants in ms
+    std::vector< double > E_rev;    //!< Reversal potentials in mV
 
-    double I_e; //!< Intrinsic current in pA
+    double I_e;  //!< Intrinsic current in pA
 
-    double gsl_error_tol; //!< error bound for GSL integrator
+    double gsl_error_tol;  //!< error bound for GSL integrator
 
     // boolean flag which indicates whether the neuron has connections
     bool has_connections_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dictionary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
 
     //! Return the number of receptor ports
     inline size_t
@@ -276,24 +299,24 @@ private:
     enum StateVecElems
     {
       V_M = 0,
-      W,  // 1
-      DG, // 2
-      G,  // 3
+      W,   // 1
+      DG,  // 2
+      G,   // 3
       STATE_VECTOR_MIN_SIZE
     };
 
-    static const size_t NUMBER_OF_FIXED_STATES_ELEMENTS = 2; // V_M, W
-    static const size_t NUM_STATE_ELEMENTS_PER_RECEPTOR = 2; // DG, G
+    static const size_t NUMBER_OF_FIXED_STATES_ELEMENTS = 2;  // V_M, W
+    static const size_t NUM_STATE_ELEMENTS_PER_RECEPTOR = 2;  // DG, G
 
-    std::vector< double > y_; //!< neuron state
-    int r_;                   //!< number of refractory steps remaining
+    std::vector< double > y_;  //!< neuron state
+    int r_;                    //!< number of refractory steps remaining
 
-    State_( const Parameters_& ); //!< Default initialization
+    State_( const Parameters_& );  //!< Default initialization
 
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, Node* node );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, Node* node );
 
-  }; // State_
+  };  // State_
 
   // ----------------------------------------------------------------
 
@@ -313,17 +336,17 @@ private:
     RingBuffer currents_;
 
     /** GSL ODE stuff */
-    gsl_odeiv_step* s_;    //!< stepping function
-    gsl_odeiv_control* c_; //!< adaptive stepsize control function
-    gsl_odeiv_evolve* e_;  //!< evolution function
-    gsl_odeiv_system sys_; //!< struct describing system
+    gsl_odeiv_step* s_;     //!< stepping function
+    gsl_odeiv_control* c_;  //!< adaptive stepsize control function
+    gsl_odeiv_evolve* e_;   //!< evolution function
+    gsl_odeiv_system sys_;  //!< struct describing system
 
-    // Since IntergrationStep_ is initialized with step_, and the resolution
+    // Since IntegrationStep_ is initialized with step_, and the resolution
     // cannot change after nodes have been created, it is safe to place both
     // here.
-    double step_;            //!< simulation step size in ms
-    double IntegrationStep_; //!< current integration time step,
-                             //!< updated by solver
+    double step_;             //!< simulation step size in ms
+    double IntegrationStep_;  //!< current integration time step,
+                              //!< updated by solver
 
     /**
      * Input current injected by CurrentEvent.
@@ -357,7 +380,6 @@ private:
   // Data members -----------------------------------------------------------
 
   /**
-   * @defgroup aeif_cond_alpha_multisynapse
    * Instances of private data structures for the different types
    * of data pertaining to the model.
    * @note The order of definitions is important for speed.
@@ -385,12 +407,12 @@ private:
   // Utility function that inserts the synaptic conductances to the
   // recordables map
 
-  Name get_g_receptor_name( size_t receptor );
+  std::string get_g_receptor_name( size_t receptor );
   void insert_conductance_recordables( size_t first = 0 );
 };
 
-inline port
-aeif_cond_alpha_multisynapse::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+aeif_cond_alpha_multisynapse::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
@@ -398,8 +420,8 @@ aeif_cond_alpha_multisynapse::send_test_event( Node& target, rport receptor_type
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-aeif_cond_alpha_multisynapse::handles_test_event( CurrentEvent&, rport receptor_type )
+inline size_t
+aeif_cond_alpha_multisynapse::handles_test_event( CurrentEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -408,8 +430,8 @@ aeif_cond_alpha_multisynapse::handles_test_event( CurrentEvent&, rport receptor_
   return 0;
 }
 
-inline port
-aeif_cond_alpha_multisynapse::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+aeif_cond_alpha_multisynapse::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -419,16 +441,16 @@ aeif_cond_alpha_multisynapse::handles_test_event( DataLoggingRequest& dlr, rport
 }
 
 inline void
-aeif_cond_alpha_multisynapse::get_status( DictionaryDatum& d ) const
+aeif_cond_alpha_multisynapse::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
-} // namespace
+}  // namespace
 
-#endif // HAVE_GSL
-#endif // AEIF_COND_ALPHA_MULTISYNAPSE_H //
+#endif  // HAVE_GSL
+#endif  // AEIF_COND_ALPHA_MULTISYNAPSE_H //

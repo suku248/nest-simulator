@@ -31,19 +31,22 @@
 #include "stimulation_backend_mpi.h"
 #include "stimulation_device.h"
 
-nest::StimulationBackendMPI::StimulationBackendMPI()
+
+namespace nest
+{
+StimulationBackendMPI::StimulationBackendMPI()
   : enrolled_( false )
   , prepared_( false )
 {
 }
 
-nest::StimulationBackendMPI::~StimulationBackendMPI() noexcept
+StimulationBackendMPI::~StimulationBackendMPI() noexcept
 {
 }
 
 
 void
-nest::StimulationBackendMPI::initialize()
+StimulationBackendMPI::initialize()
 {
   auto nthreads = kernel().vp_manager.get_num_threads();
   device_map devices( nthreads );
@@ -51,7 +54,7 @@ nest::StimulationBackendMPI::initialize()
 }
 
 void
-nest::StimulationBackendMPI::finalize()
+StimulationBackendMPI::finalize()
 {
   // clear vector of map
   for ( auto& it_device : devices_ )
@@ -63,10 +66,10 @@ nest::StimulationBackendMPI::finalize()
 }
 
 void
-nest::StimulationBackendMPI::enroll( nest::StimulationDevice& device, const DictionaryDatum& )
+StimulationBackendMPI::enroll( StimulationDevice& device, const Dictionary& params )
 {
-  thread tid = device.get_thread();
-  index node_id = device.get_node_id();
+  size_t tid = device.get_thread();
+  size_t node_id = device.get_node_id();
 
   // for each thread, add the input device if it's not already in the map
   auto device_it = devices_[ tid ].find( node_id );
@@ -76,17 +79,20 @@ nest::StimulationBackendMPI::enroll( nest::StimulationDevice& device, const Dict
   }
   // the MPI communication will be initialised during the prepare function
   std::pair< MPI_Comm*, StimulationDevice* > pair = std::make_pair( nullptr, &device );
-  std::pair< index, std::pair< const MPI_Comm*, StimulationDevice* > > secondpair = std::make_pair( node_id, pair );
+  std::pair< size_t, std::pair< const MPI_Comm*, StimulationDevice* > > secondpair = std::make_pair( node_id, pair );
   devices_[ tid ].insert( secondpair );
   enrolled_ = true;
+
+  // Try to read the mpi_address from the device status
+  params.update_value( names::mpi_address, mpi_address_ );
 }
 
 
 void
-nest::StimulationBackendMPI::disenroll( nest::StimulationDevice& device )
+StimulationBackendMPI::disenroll( StimulationDevice& device )
 {
-  thread tid = device.get_thread();
-  index node_id = device.get_node_id();
+  size_t tid = device.get_thread();
+  size_t node_id = device.get_node_id();
 
   // remove the device from the map
   auto device_it = devices_[ tid ].find( node_id );
@@ -97,7 +103,7 @@ nest::StimulationBackendMPI::disenroll( nest::StimulationDevice& device )
 }
 
 void
-nest::StimulationBackendMPI::prepare()
+StimulationBackendMPI::prepare()
 {
   if ( not enrolled_ )
   {
@@ -110,10 +116,9 @@ nest::StimulationBackendMPI::prepare()
   }
 
   // need to be run only by the master thread : it is the case because this part is not running in parallel
-  thread thread_id_master = kernel().vp_manager.get_thread_id();
+  size_t thread_id_master = kernel().vp_manager.get_thread_id();
   // Create the connection with MPI
-  // 1) take all the ports of the connections
-  // get port and update the list of device only for master
+  // 1) take all the ports of the connections. Get port and update the list of device only for master
   for ( auto& it_device : devices_[ thread_id_master ] )
   {
     // add the link between MPI communicator and the device (devices can share the same MPI communicator)
@@ -139,8 +144,8 @@ nest::StimulationBackendMPI::prepare()
       // Only the master thread uses the MPI functions of this new communicator.
       // This is because the management of threads here is using MPI_THREAD_FUNNELED (see mpi_manager.cpp:119).
       comm = new MPI_Comm;
-      auto vector_id_device = new std::vector< int >; // vector of ID device for the rank
-      int* vector_nb_device_th { new int[ kernel().vp_manager.get_num_threads() ] {} }; // number of device by thread
+      auto vector_id_device = new std::vector< int >;  // vector of ID device for the rank
+      int* vector_nb_device_th { new int[ kernel().vp_manager.get_num_threads() ] {} };  // number of device by thread
       std::fill_n( vector_nb_device_th, kernel().vp_manager.get_num_threads(), 0 );
       // add the id of the device if there is a connection with the device.
       if ( kernel().connection_manager.get_device_connected(
@@ -157,7 +162,7 @@ nest::StimulationBackendMPI::prepare()
   }
 
   // Add the id of device of the other thread in the vector_id_device and update the count of all device
-  for ( int id_thread = 0; id_thread < kernel().vp_manager.get_num_threads(); id_thread++ )
+  for ( size_t id_thread = 0; id_thread < kernel().vp_manager.get_num_threads(); id_thread++ )
   {
     // don't do it again for the master thread
     if ( id_thread != thread_id_master )
@@ -189,19 +194,21 @@ nest::StimulationBackendMPI::prepare()
   // 2) connect the master thread to the MPI process it needs to be connected to
   for ( auto& it_comm : commMap_ )
   {
-    MPI_Comm_connect( it_comm.first.data(),
-      MPI_INFO_NULL,
-      0,
-      MPI_COMM_WORLD,
-      std::get< 0 >( it_comm.second ) ); // should use the status for handle error
+    int ret =
+      MPI_Comm_connect( it_comm.first.data(), MPI_INFO_NULL, 0, MPI_COMM_WORLD, std::get< 0 >( it_comm.second ) );
+
+    if ( ret != MPI_SUCCESS )
+    {
+      throw MPIErrorCode( ret );
+    }
     std::ostringstream msg;
     msg << "Connect to " << it_comm.first.data() << "\n";
-    LOG( M_INFO, "MPI Input connect", msg.str() );
+    LOG( VerbosityLevel::INFO, "MPI Input connect", msg.str() );
   }
 }
 
 void
-nest::StimulationBackendMPI::pre_run_hook()
+StimulationBackendMPI::pre_run_hook()
 {
   // create the variable which will contain the receiving data from the communication
   std::vector< std::pair< int*, double* > > data( commMap_.size() );
@@ -239,7 +246,7 @@ nest::StimulationBackendMPI::pre_run_hook()
 }
 
 void
-nest::StimulationBackendMPI::post_run_hook()
+StimulationBackendMPI::post_run_hook()
 {
 #pragma omp master
   {
@@ -254,11 +261,10 @@ nest::StimulationBackendMPI::post_run_hook()
 }
 
 void
-nest::StimulationBackendMPI::cleanup()
+StimulationBackendMPI::cleanup()
 {
 // Disconnect all the MPI connection and send information about this disconnection
-// Clean all the elements in the map
-// disconnect MPI message
+// Clean all the elements in the map and disconnect MPI message
 #pragma omp master
   {
     for ( auto& it_comm : commMap_ )
@@ -273,7 +279,7 @@ nest::StimulationBackendMPI::cleanup()
     }
     // clear map of devices
     commMap_.clear();
-    thread thread_id_master = kernel().vp_manager.get_thread_id();
+    size_t thread_id_master = kernel().vp_manager.get_thread_id();
     for ( auto& it_device : devices_[ thread_id_master ] )
     {
       it_device.second.first = nullptr;
@@ -283,13 +289,27 @@ nest::StimulationBackendMPI::cleanup()
 }
 
 void
-nest::StimulationBackendMPI::get_port( nest::StimulationDevice* device, std::string* port_name )
+StimulationBackendMPI::get_port( StimulationDevice* device, std::string* port_name )
 {
-  get_port( device->get_node_id(), device->get_label(), port_name );
+  const std::string& label = device->get_label();
+  // The MPI address can be provided by two different means.
+  // a) the address is given via the mpi_address device status
+  // b) the file is provided via a file: {data_path}/{data_prefix}{label}/{node_id}.txt
+
+  // Case a: MPI address is given via device status, use the supplied address
+  if ( not mpi_address_.empty() )
+  {
+    *port_name = mpi_address_;
+  }
+  // Case b: fallback to get_port implementation that reads the address from file
+  else
+  {
+    get_port( device->get_node_id(), label, port_name );
+  }
 }
 
 void
-nest::StimulationBackendMPI::get_port( const index index_node, const std::string& label, std::string* port_name )
+StimulationBackendMPI::get_port( const size_t index_node, const std::string& label, std::string* port_name )
 {
   // path of the file : path+label+id+.txt
   // (file contains only one line with name of the port)
@@ -313,8 +333,11 @@ nest::StimulationBackendMPI::get_port( const index index_node, const std::string
   }
   // add the id of the device to the path
   basename << "/" << index_node << ".txt";
-  std::cout << basename.rdbuf() << std::endl;
   std::ifstream file( basename.str() );
+  if ( !file.good() )
+  {
+    throw MPIPortsFileMissing( index_node, basename.str() );
+  }
 
   // read the file
   if ( file.is_open() )
@@ -325,7 +348,7 @@ nest::StimulationBackendMPI::get_port( const index index_node, const std::string
 }
 
 std::pair< int*, double* >
-nest::StimulationBackendMPI::receive_spike_train( const MPI_Comm& comm, std::vector< int >& devices_id )
+StimulationBackendMPI::receive_spike_train( const MPI_Comm& comm, std::vector< int >& devices_id )
 {
   // Send size of the list id
   int size_list = { int( devices_id.size() ) };
@@ -337,10 +360,10 @@ nest::StimulationBackendMPI::receive_spike_train( const MPI_Comm& comm, std::vec
     // Receive the size of data
     MPI_Status status_mpi;
     // Receive the size of the data in total and for each devices
-    int* nb_size_data_per_id { new int[ size_list + 1 ] {} }; // delete in the function clean_memory_input_data
+    int* nb_size_data_per_id { new int[ size_list + 1 ] {} };  // delete in the function clean_memory_input_data
     MPI_Recv( nb_size_data_per_id, size_list + 1, MPI_INT, MPI_ANY_SOURCE, devices_id[ 0 ], comm, &status_mpi );
     // Receive the data
-    double* data { new double[ nb_size_data_per_id[ 0 ] ] {} }; // delete in the function clean_memory_input_data
+    double* data { new double[ nb_size_data_per_id[ 0 ] ] {} };  // delete in the function clean_memory_input_data
     MPI_Recv( data, nb_size_data_per_id[ 0 ], MPI_DOUBLE, status_mpi.MPI_SOURCE, devices_id[ 0 ], comm, &status_mpi );
     // return the size of the data by device and the data
     return std::make_pair( nb_size_data_per_id, data );
@@ -350,18 +373,18 @@ nest::StimulationBackendMPI::receive_spike_train( const MPI_Comm& comm, std::vec
 }
 
 void
-nest::StimulationBackendMPI::update_device( int* array_index,
+StimulationBackendMPI::update_device( int* array_index,
   std::vector< int >& devices_id,
   std::pair< int*, double* > data )
 {
-  if ( data.first != nullptr )
+  if ( data.first )
   {
     // if there is some device
     if ( data.first[ 0 ] != 0 )
     {
       // if there are some data
-      thread thread_id = kernel().vp_manager.get_thread_id();
-      int index_id_device = 0; // the index for the array of device in the data
+      size_t thread_id = kernel().vp_manager.get_thread_id();
+      int index_id_device = 0;  // the index for the array of device in the data
       // get the first id of the device for the current thread
       // if the thread_id == 0, the index_id_device equals 0
       if ( thread_id != 0 )
@@ -395,18 +418,18 @@ nest::StimulationBackendMPI::update_device( int* array_index,
 }
 
 void
-nest::StimulationBackendMPI::clean_memory_input_data( std::vector< std::pair< int*, double* > >& data )
+StimulationBackendMPI::clean_memory_input_data( std::vector< std::pair< int*, double* > >& data )
 {
   // for all the pairs of data, free the memory of data and the array with the size
   for ( auto pair_data : data )
   {
-    if ( pair_data.first != nullptr )
+    if ( pair_data.first )
     {
       // clean the memory allocated in the function receive_spike_train
       delete[] pair_data.first;
       pair_data.first = nullptr;
     }
-    if ( pair_data.second != nullptr )
+    if ( pair_data.second )
     {
       // clean the memory allocated in the function receive_spike_train
       delete[] pair_data.second;
@@ -414,3 +437,5 @@ nest::StimulationBackendMPI::clean_memory_input_data( std::vector< std::pair< in
     }
   }
 }
+
+}  // namespace nest

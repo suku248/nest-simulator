@@ -57,9 +57,9 @@ if ( NOT SIONLIB_CONFIG STREQUAL "SIONLIB_CONFIG-NOTFOUND" )
   # get arguments for sionconfig --cflags and --libs
   set( CONF_FLAGS "--cxx" ) # we use cxx
   # find parallelization
-  if ( OPENMP_FOUND AND MPI_CXX_FOUND )
+  if ( OpenMP_FOUND AND MPI_CXX_FOUND )
     set( CONF_FLAGS ${CONF_FLAGS} "--ompi" )
-  elseif ( OPENMP_FOUND )
+  elseif ( OpenMP_FOUND )
     set( CONF_FLAGS ${CONF_FLAGS} "--omp" )
   elseif ( MPI_CXX_FOUND )
     set( CONF_FLAGS ${CONF_FLAGS} "--mpi" )
@@ -69,7 +69,6 @@ if ( NOT SIONLIB_CONFIG STREQUAL "SIONLIB_CONFIG-NOTFOUND" )
   if ( CMAKE_CXX_COMPILER_ID STREQUAL "GNU" )
     set( CONF_FLAGS ${CONF_FLAGS} "--gcc" )
   endif ()
-
 
   # use sionconfig to get --cflags
   execute_process(
@@ -116,10 +115,10 @@ if ( NOT SIONLIB_CONFIG STREQUAL "SIONLIB_CONFIG-NOTFOUND" )
             NAMES ${lib_name}
             HINTS ${SIONLIB_ROOT_DIR}/lib
             )
-        if ( NOT FULL_${lib_name} STREQUAL "FULL_${lib_name}-NOTFOUND" )
+        if ( NOT "${FULL_${lib_name}}" STREQUAL "FULL_${lib_name}-NOTFOUND" )
           set( SIONLIB_LIBRARIES ${SIONLIB_LIBRARIES} ${FULL_${lib_name}} CACHE INTERNAL "sionlib" )
         else ()
-          message( WARNING "Cannot find SIONlib library '${lib_name}'." )
+          printWarning( "Cannot find SIONlib library '${lib_name}'." )
           unset( SIONLIB_LIBRARIES CACHE )
           break()
         endif ()

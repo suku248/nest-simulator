@@ -30,11 +30,6 @@
 #include "exceptions.h"
 #include "kernel_manager.h"
 
-// Includes from sli:
-#include "arraydatum.h"
-#include "dictutils.h"
-#include "namedatum.h"
-
 namespace nest
 {
 
@@ -43,11 +38,12 @@ Node::Node()
   , node_id_( 0 )
   , thread_lid_( invalid_index )
   , model_id_( -1 )
-  , thread_( 0 )
-  , vp_( invalid_thread_ )
+  , thread_( invalid_thread )
+  , vp_( invalid_thread )
   , frozen_( false )
   , initialized_( false )
   , node_uses_wfr_( false )
+  , tmp_nc_index_( invalid_index )
 {
 }
 
@@ -62,6 +58,7 @@ Node::Node( const Node& n )
   // copy must always initialized its own buffers
   , initialized_( false )
   , node_uses_wfr_( n.node_uses_wfr_ )
+  , tmp_nc_index_( invalid_index )
 {
 }
 
@@ -122,50 +119,45 @@ Node::get_model_() const
   return *kernel().model_manager.get_node_model( model_id_ );
 }
 
-DictionaryDatum
+Dictionary
 Node::get_status_dict_()
 {
-  return DictionaryDatum( new Dictionary );
+  return {};
 }
 
 void
-Node::set_local_device_id( const index )
+Node::set_local_device_id( const size_t )
 {
-  assert( false && "set_local_device_id() called on a non-device node of type" );
+  assert( false and "set_local_device_id() called on a non-device node of type" );
 }
 
-index
+size_t
 Node::get_local_device_id() const
 {
-  assert( false && "set_local_device_id() called on a non-device node." );
+  assert( false and "get_local_device_id() called on a non-device node." );
+  return invalid_index;
 }
 
-void
-Node::add_correction_entry_stdp_ax_delay( Event&, const double, const double )
-{
-  throw UnexpectedEvent( "Node does not support framework for STDP synapses with predominantly axonal delays." );
-}
-
-DictionaryDatum
+Dictionary
 Node::get_status_base()
 {
-  DictionaryDatum dict = get_status_dict_();
+  Dictionary dict = get_status_dict_();
 
   // add information available for all nodes
-  ( *dict )[ names::local ] = kernel().node_manager.is_local_node( this );
-  ( *dict )[ names::model ] = LiteralDatum( get_name() );
-  ( *dict )[ names::model_id ] = get_model_id();
-  ( *dict )[ names::global_id ] = get_node_id();
-  ( *dict )[ names::vp ] = get_vp();
-  ( *dict )[ names::element_type ] = LiteralDatum( get_element_type() );
+  dict[ names::local ] = kernel().node_manager.is_local_node( this );
+  dict[ names::model ] = get_name();
+  dict[ names::model_id ] = get_model_id();
+  dict[ names::global_id ] = static_cast< long >( get_node_id() );
+  dict[ names::vp ] = static_cast< long >( get_vp() );
+  dict[ names::element_type ] = get_element_type();
 
   // add information available only for local nodes
   if ( not is_proxy() )
   {
-    ( *dict )[ names::frozen ] = is_frozen();
-    ( *dict )[ names::node_uses_wfr ] = node_uses_wfr();
-    ( *dict )[ names::thread_local_id ] = get_thread_lid();
-    ( *dict )[ names::thread ] = get_thread();
+    dict[ names::frozen ] = is_frozen();
+    dict[ names::node_uses_wfr ] = node_uses_wfr();
+    dict[ names::thread_local_id ] = static_cast< long >( get_thread_lid() );
+    dict[ names::thread ] = static_cast< long >( get_thread() );
   }
 
   // now call the child class' hook
@@ -175,7 +167,7 @@ Node::get_status_base()
 }
 
 void
-Node::set_status_base( const DictionaryDatum& dict )
+Node::set_status_base( const Dictionary& dict )
 {
   try
   {
@@ -184,10 +176,10 @@ Node::set_status_base( const DictionaryDatum& dict )
   catch ( BadProperty& e )
   {
     throw BadProperty(
-      String::compose( "Setting status of a '%1' with node ID %2: %3", get_name(), get_node_id(), e.message() ) );
+      String::compose( "Setting status of a '%1' with node ID %2: %3", get_name(), get_node_id(), e.what() ) );
   }
 
-  updateValue< bool >( dict, names::frozen, frozen_ );
+  dict.update_value( names::frozen, frozen_ );
 }
 
 /**
@@ -203,11 +195,11 @@ Node::wfr_update( Time const&, const long, const long )
 /**
  * Default implementation of check_connection just throws IllegalConnection
  */
-port
-Node::send_test_event( Node&, rport, synindex, bool )
+size_t
+Node::send_test_event( Node&, size_t, synindex, bool )
 {
   throw IllegalConnection(
-    "Source node does not send output.\n"
+    "Source node does not send output."
     "  Note that recorders must be connected as Connect(neuron, recorder)." );
 }
 
@@ -216,9 +208,57 @@ Node::send_test_event( Node&, rport, synindex, bool )
  * throws IllegalConnection
  */
 void
-Node::register_stdp_connection( double, double )
+Node::register_stdp_connection( double, double, double )
 {
   throw IllegalConnection( "The target node does not support STDP synapses." );
+}
+
+bool
+Node::supports_axonal_delay_corrections() const
+{
+  return false;
+}
+
+void
+Node::register_eprop_connection()
+{
+  throw IllegalConnection( "The target node does not support eprop synapses." );
+}
+
+void
+Node::initialize_update_history()
+{
+  throw IllegalConnection( "The target node does not support eprop synapses." );
+}
+
+long
+Node::get_shift() const
+{
+  throw IllegalConnection( "The target node is not an e-prop neuron." );
+}
+
+void
+Node::write_update_to_history( const long, const long, const bool, const bool )
+{
+  throw IllegalConnection( "The target node is not an e-prop neuron." );
+}
+
+void
+Node::erase_used_eprop_history()
+{
+  throw IllegalConnection( "The target node is not an e-prop neuron." );
+}
+
+void
+Node::erase_used_eprop_history( const long, const long )
+{
+  throw IllegalConnection( "The target node is not an e-prop neuron." );
+}
+
+bool
+Node::is_eprop_recurrent_node() const
+{
+  throw IllegalConnection( "The target node is not an e-prop neuron." );
 }
 
 /**
@@ -232,12 +272,25 @@ Node::handle( SpikeEvent& )
 {
   throw UnexpectedEvent( "The target node does not handle spike input." );
 }
+void
+Node::handle( CorrectionSpikeEvent& )
+{
+  throw UnexpectedEvent( "The target node does not handle spike input." );
+}
 
-port
-Node::handles_test_event( SpikeEvent&, rport )
+size_t
+Node::handles_test_event( SpikeEvent&, size_t )
 {
   throw IllegalConnection(
-    "The target node or synapse model does not support spike input.\n"
+    "The target node or synapse model does not support spike input."
+    "  Note that volt/multimeters must be connected as Connect(meter, neuron)." );
+}
+
+size_t
+Node::handles_test_event( CorrectionSpikeEvent&, size_t )
+{
+  throw IllegalConnection(
+    "The target node or synapse model does not support spike input with axonal delays."
     "  Note that volt/multimeters must be connected as Connect(meter, neuron)." );
 }
 
@@ -247,8 +300,8 @@ Node::handle( WeightRecorderEvent& )
   throw UnexpectedEvent( "The target node does not handle weight recorder events." );
 }
 
-port
-Node::handles_test_event( WeightRecorderEvent&, rport )
+size_t
+Node::handles_test_event( WeightRecorderEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support weight recorder events." );
 }
@@ -259,8 +312,8 @@ Node::handle( RateEvent& )
   throw UnexpectedEvent( "The target node does not handle rate input." );
 }
 
-port
-Node::handles_test_event( RateEvent&, rport )
+size_t
+Node::handles_test_event( RateEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support rate input." );
 }
@@ -271,8 +324,8 @@ Node::handle( CurrentEvent& )
   throw UnexpectedEvent( "The target node does not handle current input." );
 }
 
-port
-Node::handles_test_event( CurrentEvent&, rport )
+size_t
+Node::handles_test_event( CurrentEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support current input." );
 }
@@ -283,8 +336,8 @@ Node::handle( DataLoggingRequest& )
   throw UnexpectedEvent( "The target node does not handle data logging requests." );
 }
 
-port
-Node::handles_test_event( DataLoggingRequest&, rport )
+size_t
+Node::handles_test_event( DataLoggingRequest&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support data logging requests." );
 }
@@ -301,8 +354,8 @@ Node::handle( ConductanceEvent& )
   throw UnexpectedEvent( "The target node does not handle conductance input." );
 }
 
-port
-Node::handles_test_event( ConductanceEvent&, rport )
+size_t
+Node::handles_test_event( ConductanceEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support conductance input." );
 }
@@ -313,20 +366,20 @@ Node::handle( DoubleDataEvent& )
   throw UnexpectedEvent();
 }
 
-port
-Node::handles_test_event( DoubleDataEvent&, rport )
+size_t
+Node::handles_test_event( DoubleDataEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support double data event." );
 }
 
-port
-Node::handles_test_event( DSSpikeEvent&, rport )
+size_t
+Node::handles_test_event( DSSpikeEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support spike input." );
 }
 
-port
-Node::handles_test_event( DSCurrentEvent&, rport )
+size_t
+Node::handles_test_event( DSCurrentEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support DS current input." );
 }
@@ -337,11 +390,10 @@ Node::handle( GapJunctionEvent& )
   throw UnexpectedEvent( "The target node does not handle gap junction input." );
 }
 
-port
-Node::handles_test_event( GapJunctionEvent&, rport )
+size_t
+Node::handles_test_event( GapJunctionEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support gap junction input." );
-  return invalid_port_;
 }
 
 void
@@ -356,11 +408,10 @@ Node::handle( InstantaneousRateConnectionEvent& )
   throw UnexpectedEvent( "The target node does not handle instantaneous rate input." );
 }
 
-port
-Node::handles_test_event( InstantaneousRateConnectionEvent&, rport )
+size_t
+Node::handles_test_event( InstantaneousRateConnectionEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support instantaneous rate input." );
-  return invalid_port_;
 }
 
 void
@@ -375,11 +426,10 @@ Node::handle( DiffusionConnectionEvent& )
   throw UnexpectedEvent( "The target node does not handle diffusion input." );
 }
 
-port
-Node::handles_test_event( DiffusionConnectionEvent&, rport )
+size_t
+Node::handles_test_event( DiffusionConnectionEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support diffusion input." );
-  return invalid_port_;
 }
 
 void
@@ -394,11 +444,10 @@ Node::handle( DelayedRateConnectionEvent& )
   throw UnexpectedEvent( "The target node does not handle delayed rate input." );
 }
 
-port
-Node::handles_test_event( DelayedRateConnectionEvent&, rport )
+size_t
+Node::handles_test_event( DelayedRateConnectionEvent&, size_t )
 {
   throw IllegalConnection( "The target node or synapse model does not support delayed rate input." );
-  return invalid_port_;
 }
 
 void
@@ -407,6 +456,44 @@ Node::sends_secondary_event( DelayedRateConnectionEvent& )
   throw IllegalConnection( "The source node does not support delayed rate output." );
 }
 
+void
+Node::handle( LearningSignalConnectionEvent& )
+{
+  throw UnexpectedEvent();
+}
+
+void
+Node::handle( SICEvent& )
+{
+  throw UnexpectedEvent();
+}
+
+size_t
+Node::handles_test_event( LearningSignalConnectionEvent&, size_t )
+{
+  throw IllegalConnection(
+    "The target node cannot handle learning signal events or"
+    " synapse is not of type eprop_learning_signal_connection_bsshslm_2020." );
+  return invalid_port;
+}
+
+void
+Node::sends_secondary_event( LearningSignalConnectionEvent& )
+{
+  throw IllegalConnection();
+}
+
+size_t
+Node::handles_test_event( SICEvent&, size_t )
+{
+  throw IllegalConnection();
+}
+
+void
+Node::sends_secondary_event( SICEvent& )
+{
+  throw IllegalConnection();
+}
 
 double
 Node::get_LTD_value( double )
@@ -428,13 +515,13 @@ Node::get_K_values( double, double&, double&, double& )
 }
 
 void
-nest::Node::get_history( double, double, std::deque< histentry >::iterator*, std::deque< histentry >::iterator* )
+Node::get_history( double, double, std::deque< histentry >::iterator*, std::deque< histentry >::iterator* )
 {
   throw UnexpectedEvent();
 }
 
 void
-nest::Node::get_LTP_history( double,
+Node::get_LTP_history( double,
   double,
   std::deque< histentry_extended >::iterator*,
   std::deque< histentry_extended >::iterator* )
@@ -443,7 +530,7 @@ nest::Node::get_LTP_history( double,
 }
 
 void
-nest::Node::get_urbanczik_history( double,
+Node::get_urbanczik_history( double,
   double,
   std::deque< histentry_extended >::iterator*,
   std::deque< histentry_extended >::iterator*,
@@ -453,39 +540,65 @@ nest::Node::get_urbanczik_history( double,
 }
 
 double
-nest::Node::get_C_m( int )
+Node::get_C_m( int )
 {
   throw UnexpectedEvent();
 }
 
 double
-nest::Node::get_g_L( int )
+Node::get_g_L( int )
 {
   throw UnexpectedEvent();
 }
 
 double
-nest::Node::get_tau_L( int )
+Node::get_tau_L( int )
 {
   throw UnexpectedEvent();
 }
 
 double
-nest::Node::get_tau_s( int )
+Node::get_tau_s( int )
 {
   throw UnexpectedEvent();
 }
 
 double
-nest::Node::get_tau_syn_ex( int )
+Node::get_tau_syn_ex( int )
 {
   throw UnexpectedEvent();
 }
 
 double
-nest::Node::get_tau_syn_in( int )
+Node::get_tau_syn_in( int )
 {
   throw UnexpectedEvent();
+}
+
+void
+Node::compute_gradient( const long,
+  const long,
+  double&,
+  double&,
+  double&,
+  double&,
+  double&,
+  double&,
+  const CommonSynapseProperties&,
+  WeightOptimizer*,
+  bool,
+  bool,
+  double&,
+  long&,
+  long& )
+{
+  throw IllegalConnection( "The target node does not support compute_gradient()." );
+}
+
+double
+Node::compute_gradient( std::vector< long >&, const long, const long, const double, const bool )
+{
+  throw IllegalConnection( "The target node does not support compute_gradient()." );
 }
 
 void
@@ -500,4 +613,4 @@ Node::event_hook( DSCurrentEvent& e )
   e.get_receiver().handle( e );
 }
 
-} // namespace
+}  // namespace

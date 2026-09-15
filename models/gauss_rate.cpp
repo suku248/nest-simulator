@@ -22,23 +22,41 @@
 
 #include "gauss_rate.h"
 
+// Includes from nestkernel
+#include "kernel_manager.h"
+#include "model_manager_impl.h"
+#include "nest_impl.h"
+
+
 namespace nest
 {
-
 void
-nonlinearities_gauss_rate::get( DictionaryDatum& d ) const
+register_gauss_rate_ipn( const std::string& name )
 {
-  def< double >( d, names::g, g_ );
-  def< double >( d, names::mu, mu_ );
-  def< double >( d, names::sigma, sigma_ );
+  register_node_model< gauss_rate_ipn >( name );
 }
 
 void
-nonlinearities_gauss_rate::set( const DictionaryDatum& d, Node* node )
+register_rate_transformer_gauss( const std::string& name )
 {
-  updateValueParam< double >( d, names::g, g_, node );
-  updateValueParam< double >( d, names::mu, mu_, node );
-  updateValueParam< double >( d, names::sigma, sigma_, node );
+  register_node_model< rate_transformer_gauss >( name );
+}
+
+
+void
+nonlinearities_gauss_rate::get( Dictionary& d ) const
+{
+  d[ names::g ] = g_;
+  d[ names::mu ] = mu_;
+  d[ names::sigma ] = sigma_;
+}
+
+void
+nonlinearities_gauss_rate::set( const Dictionary& d, Node* node )
+{
+  update_value_param( d, names::g, g_, node );
+  update_value_param( d, names::mu, mu_, node );
+  update_value_param( d, names::sigma, sigma_, node );
 }
 
 /*
@@ -47,19 +65,19 @@ nonlinearities_gauss_rate::set( const DictionaryDatum& d, Node* node )
  */
 template <>
 void
-RecordablesMap< nest::gauss_rate_ipn >::create()
+RecordablesMap< gauss_rate_ipn >::create()
 {
-  // use standard names whereever you can for consistency!
-  insert_( names::rate, &nest::gauss_rate_ipn::get_rate_ );
-  insert_( names::noise, &nest::gauss_rate_ipn::get_noise_ );
+  // use standard names wherever you can for consistency!
+  insert_( names::rate, &gauss_rate_ipn::get_rate_ );
+  insert_( names::noise, &gauss_rate_ipn::get_noise_ );
 }
 
 template <>
 void
-RecordablesMap< nest::rate_transformer_gauss >::create()
+RecordablesMap< rate_transformer_gauss >::create()
 {
-  // use standard names whereever you can for consistency!
-  insert_( names::rate, &nest::rate_transformer_gauss::get_rate_ );
+  // use standard names wherever you can for consistency!
+  insert_( names::rate, &rate_transformer_gauss::get_rate_ );
 }
 
-} // namespace nest
+}  // namespace nest

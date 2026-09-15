@@ -40,10 +40,6 @@
 #include "kernel_manager.h"
 #include "universal_data_logger_impl.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-
 
 namespace nest
 {
@@ -51,73 +47,76 @@ namespace nest
 class Compartment
 {
 private:
-  // aggragators for numerical integration
+  //! aggragators for numerical integration
   double xx_;
   double yy_;
 
 public:
-  // compartment index
+  //! compartment index
   long comp_index;
-  // parent compartment index
+  //! parent compartment index
   long p_index;
-  // tree structure indices
+  //! tree structure indices
   Compartment* parent;
   std::vector< Compartment > children;
-  // vector for synapses
-  CompartmentCurrents compartment_currents;
 
-  // buffer for currents
+  //! buffer for currents
   RingBuffer currents;
-  // voltage variable
+  //! electrical parameters
+  double ca;  // compartment capacitance [uF]
+  double gc;  // coupling conductance with parent (meaningless if root) [uS]
+  double gl;  // leak conductance of compartment [uS]
+  double el;  // leak current reversal potential [mV]
+
+  //! voltage variable
   double v_comp;
-  // electrical parameters
-  double ca; // compartment capacitance [uF]
-  double gc; // coupling conductance with parent (meaningless if root) [uS]
-  double gl; // leak conductance of compartment [uS]
-  double el; // leak current reversal potential [mV]
-  // auxiliary variables for efficienchy
+
+  //! auxiliary variables for efficienchy
   double gg0;
   double ca__div__dt;
   double gl__div__2;
   double gc__div__2;
   double gl__times__el;
-  // for numerical integration
+  //! for numerical integration
   double ff;
   double gg;
   double hh;
-  // passage counter for recursion
+  //! passage counter for recursion
   int n_passed;
 
-  // constructor, destructor
+  //! vector for synapses
+  CompartmentCurrents compartment_currents;
+
   Compartment( const long compartment_index, const long parent_index );
-  Compartment( const long compartment_index, const long parent_index, const DictionaryDatum& compartment_params );
+  Compartment( const long compartment_index, const long parent_index, const Dictionary& compartment_params );
   ~Compartment() {};
 
   // initialization
   void pre_run_hook();
-  std::map< Name, double* > get_recordables();
+  std::map< std::string, double* > get_recordables();
 
-  // matrix construction
+  //! matrix construction
   void construct_matrix_element( const long lag );
 
-  // maxtrix inversion
+  //! maxtrix inversion
   inline void gather_input( const std::pair< double, double >& in );
   inline std::pair< double, double > io();
   inline double calc_v( const double v_in );
-}; // Compartment
+};  // Compartment
 
 
 /*
 Short helper functions for solving the matrix equation. Can hopefully be inlined
 */
 inline void
-nest::Compartment::gather_input( const std::pair< double, double >& in )
+Compartment::gather_input( const std::pair< double, double >& in )
 {
   xx_ += in.first;
   yy_ += in.second;
 }
+
 inline std::pair< double, double >
-nest::Compartment::io()
+Compartment::io()
 {
   // include inputs from child compartments
   gg -= xx_;
@@ -129,8 +128,9 @@ nest::Compartment::io()
 
   return std::make_pair( g_val, f_val );
 }
+
 inline double
-nest::Compartment::calc_v( const double v_in )
+Compartment::calc_v( const double v_in )
 {
   // reset recursion variables
   xx_ = 0.0;
@@ -146,7 +146,7 @@ nest::Compartment::calc_v( const double v_in )
 class CompTree
 {
 private:
-  /*
+  /**
   structural data containers for the compartment model
   */
   mutable Compartment root_;
@@ -156,30 +156,38 @@ private:
 
   long size_ = 0;
 
-  // recursion functions for matrix inversion
+  //! recursion functions for matrix inversion
   void solve_matrix_downsweep( Compartment* compartment_ptr, std::vector< Compartment* >::iterator leaf_it );
   void solve_matrix_upsweep( Compartment* compartment, double vv );
 
-  // functions for pointer initialization
+  //! functions for pointer initialization
   void set_parents();
   void set_compartments();
   void set_leafs();
 
 public:
-  // constructor, destructor
   CompTree();
   ~CompTree() {};
 
-  // initialization functions for tree structure
+  //! add a compartment to the tree structure
   void add_compartment( const long parent_index );
-  void add_compartment( const long parent_index, const DictionaryDatum& compartment_params );
+  void add_compartment( const long parent_index, const Dictionary& compartment_params );
   void add_compartment( Compartment* compartment, const long parent_index );
-  void pre_run_hook();
-  void init_pointers();
-  void set_syn_buffers( std::vector< RingBuffer >& syn_buffers );
-  std::map< Name, double* > get_recordables();
 
-  // get a compartment pointer from the tree
+  //! initialize the tree for simulation
+  void pre_run_hook();
+
+  //! fix all pointers in the tree, the tree structure should not be modified between calling
+  //! this function and starting the simulation
+  void init_pointers();
+
+  //! associate each receptor with a spike buffer
+  void set_syn_buffers( std::vector< RingBuffer >& syn_buffers );
+
+  //! make all state variables accessible for recording
+  std::map< std::string, double* > get_recordables();
+
+  //! get a compartment pointer from the tree
   Compartment* get_compartment( const long compartment_index ) const;
   Compartment* get_compartment( const long compartment_index, Compartment* compartment, const long raise_flag ) const;
   Compartment* get_compartment_opt( const long compartment_indx ) const;
@@ -189,26 +197,26 @@ public:
     return &root_;
   };
 
-  // get tree size (number of compartments)
+  //! get tree size (number of compartments)
   long
   get_size() const
   {
     return size_;
   };
 
-  // get voltage values
+  //! get voltage values
   std::vector< double > get_voltage() const;
   double get_compartment_voltage( const long compartment_index );
 
-  // construct the numerical integration matrix and vector
+  //! construct the numerical integration matrix and vector
   void construct_matrix( const long lag );
-  // solve the matrix equation for next timestep voltage
+  //! solve the matrix equation for next timestep voltage
   void solve_matrix();
 
-  // print function
+  //! print function
   void print_tree() const;
-}; // CompTree
+};  // CompTree
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef CM_TREE_H */

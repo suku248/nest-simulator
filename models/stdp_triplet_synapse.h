@@ -30,7 +30,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: synapse, spike-timing-dependent plasticity
+/* BeginUserDocs: synapse, chemical, functional, stdp
 
 Short description
 +++++++++++++++++
@@ -41,19 +41,19 @@ Description
 +++++++++++
 
 ``stdp_triplet_synapse`` is a connection with spike time dependent
-plasticity accounting for spike triplet effects (as defined in [1]_).
+plasticity accounting for spike triplet effects (as defined in :footcite:p:`Pfister2006`).
 
 Notes:
 
-- Presynaptic traces ``r_1`` and ``r_2`` of [1]_ are stored in the connection as
+- Presynaptic traces ``r_1`` and ``r_2`` of :footcite:p:`Pfister2006` are stored in the connection as
   ``Kplus`` and ``Kplus_triplet`` and decay with time-constants ``tau_plus`` and
   ``tau_plus_triplet``, respectively.
-- Postsynaptic traces ``o_1`` and ``o_2`` of [1]_ are acquired from the postsynaptic
+- Postsynaptic traces ``o_1`` and ``o_2`` of :footcite:p:`Pfister2006` are acquired from the postsynaptic
   neuron states ``Kminus_`` and ``triplet_Kminus_`` which decay on time-constants
   ``tau_minus`` and ``tau_minus_triplet``, respectively. These two time-constants
   can be set as properties of the postsynaptic neuron.
-- This version implements the 'all-to-all' spike interaction of [1]_. The
-  'nearest-spike' interaction of [1]_ can currently not be implemented
+- This version implements the 'all-to-all' spike interaction of :footcite:p:`Pfister2006`. The
+  'nearest-spike' interaction of :footcite:p:`Pfister2006` can currently not be implemented
   without changing the postsynaptic archiving-node (clip the traces to a
   maximum of 1).
 
@@ -69,25 +69,25 @@ Parameters
 
 =================  ======  ===========================================
  tau_plus          real    Time constant of short presynaptic trace
-                           (tau_plus of [1]_)
+                           (tau_plus of :footcite:p:`Pfister2006`)
  tau_plus_triplet  real    Time constant of long presynaptic trace
-                           (tau_x of [1]_)
+                           (tau_x of :footcite:p:`Pfister2006`)
  Aplus             real    Weight of pair potentiation rule
-                           (A_plus_2 of [1]_)
+                           (A_plus_2 of :footcite:p:`Pfister2006`)
  Aplus_triplet     real    Weight of triplet potentiation rule
-                           (A_plus_3 of [1]_)
+                           (A_plus_3 of :footcite:p:`Pfister2006`)
  Aminus            real    Weight of pair depression rule
-                           (A_minus_2 of [1]_)
+                           (A_minus_2 of :footcite:p:`Pfister2006`)
  Aminus_triplet    real    Weight of triplet depression rule
-                           (A_minus_3 of [1]_)
+                           (A_minus_3 of :footcite:p:`Pfister2006`)
  Wmax              real    Maximum allowed weight
 =================  ======  ===========================================
 
 =============== ======  ===========================================
 **States**
 -------------------------------------------------------------------
- Kplus          real    Pre-synaptic trace (r_1 of [1]_)
- Kplus_triplet  real    Triplet pre-synaptic trace (r_2 of [1]_)
+ Kplus          real    Pre-synaptic trace (r_1 of :footcite:p:`Pfister2006`)
+ Kplus_triplet  real    Triplet pre-synaptic trace (r_2 of :footcite:p:`Pfister2006`)
 =============== ======  ===========================================
 
 Transmits
@@ -98,14 +98,18 @@ SpikeEvent
 References
 ++++++++++
 
-.. [1] Pfister JP, Gerstner W (2006). Triplets of spikes in a model
-       of spike timing-dependent plasticity.  The Journal of Neuroscience
-       26(38):9673-9682. DOI: https://doi.org/10.1523/JNEUROSCI.1425-06.2006
+.. footbibliography::
 
 See also
 ++++++++
 
 stdp_triplet_synapse_hpc, stdp_synapse, static_synapse
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: stdp_triplet_synapse
+
 
 EndUserDocs */
 
@@ -113,13 +117,19 @@ EndUserDocs */
 // (used for pointer / target index addressing)
 // derived from generic connection template
 
+void register_stdp_triplet_synapse( const std::string& name );
+
 template < typename targetidentifierT >
-class stdp_triplet_synapse : public Connection< targetidentifierT >
+class stdp_triplet_synapse : public Connection< targetidentifierT, TotalDelay >
 {
 
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
@@ -145,7 +155,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places
   // these functions are used. Since ConnectionBase depends on the template
   // parameter, they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -153,19 +163,19 @@ public:
   /**
    * Get all properties of this connection and put them into a dictionary.
    */
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
   /**
    * Set properties of this connection from the values given in dictionary.
    */
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   /**
    * Send an event to the receiver of this connection.
    * \param e The event to send
    * \param cp common properties of all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
   {
@@ -173,10 +183,10 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
@@ -194,13 +204,13 @@ public:
    * \param receptor_type The ID of the requested receptor type
    */
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
 
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    t.register_stdp_connection( t_lastspike_ - get_delay(), get_delay() );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
   void
@@ -238,6 +248,9 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties stdp_triplet_synapse< targetidentifierT >::properties;
+
 /**
  * Send an event to the receiver of this connection.
  * \param e The event to send
@@ -245,12 +258,11 @@ private:
  * \param cp Common properties object, containing the stdp parameters.
  */
 template < typename targetidentifierT >
-inline void
-stdp_triplet_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+stdp_triplet_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
-
   double t_spike = e.get_stamp().get_ms();
-  double dendritic_delay = get_delay();
+  double dendritic_delay = get_delay_ms();
   Node* target = get_target( t );
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
@@ -294,9 +306,11 @@ stdp_triplet_synapse< targetidentifierT >::send( Event& e, thread t, const Commo
   e();
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
-// Defaults come from reference [1]_ data fitting and table 3.
+// Defaults come from Pfister & Gerstner (2006) data fitting and table 3.
 template < typename targetidentifierT >
 stdp_triplet_synapse< targetidentifierT >::stdp_triplet_synapse()
   : ConnectionBase()
@@ -316,36 +330,36 @@ stdp_triplet_synapse< targetidentifierT >::stdp_triplet_synapse()
 
 template < typename targetidentifierT >
 void
-stdp_triplet_synapse< targetidentifierT >::get_status( DictionaryDatum& d ) const
+stdp_triplet_synapse< targetidentifierT >::get_status( Dictionary& d ) const
 {
   ConnectionBase::get_status( d );
-  def< double >( d, names::weight, weight_ );
-  def< double >( d, names::tau_plus, tau_plus_ );
-  def< double >( d, names::tau_plus_triplet, tau_plus_triplet_ );
-  def< double >( d, names::Aplus, Aplus_ );
-  def< double >( d, names::Aminus, Aminus_ );
-  def< double >( d, names::Aplus_triplet, Aplus_triplet_ );
-  def< double >( d, names::Aminus_triplet, Aminus_triplet_ );
-  def< double >( d, names::Kplus, Kplus_ );
-  def< double >( d, names::Kplus_triplet, Kplus_triplet_ );
-  def< double >( d, names::Wmax, Wmax_ );
+  d[ names::weight ] = weight_;
+  d[ names::tau_plus ] = tau_plus_;
+  d[ names::tau_plus_triplet ] = tau_plus_triplet_;
+  d[ names::Aplus ] = Aplus_;
+  d[ names::Aminus ] = Aminus_;
+  d[ names::Aplus_triplet ] = Aplus_triplet_;
+  d[ names::Aminus_triplet ] = Aminus_triplet_;
+  d[ names::Kplus ] = Kplus_;
+  d[ names::Kplus_triplet ] = Kplus_triplet_;
+  d[ names::Wmax ] = Wmax_;
 }
 
 template < typename targetidentifierT >
 void
-stdp_triplet_synapse< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+stdp_triplet_synapse< targetidentifierT >::set_status( const Dictionary& d, ConnectorModel& cm )
 {
   ConnectionBase::set_status( d, cm );
-  updateValue< double >( d, names::weight, weight_ );
-  updateValue< double >( d, names::tau_plus, tau_plus_ );
-  updateValue< double >( d, names::tau_plus_triplet, tau_plus_triplet_ );
-  updateValue< double >( d, names::Aplus, Aplus_ );
-  updateValue< double >( d, names::Aminus, Aminus_ );
-  updateValue< double >( d, names::Aplus_triplet, Aplus_triplet_ );
-  updateValue< double >( d, names::Aminus_triplet, Aminus_triplet_ );
-  updateValue< double >( d, names::Kplus, Kplus_ );
-  updateValue< double >( d, names::Kplus_triplet, Kplus_triplet_ );
-  updateValue< double >( d, names::Wmax, Wmax_ );
+  d.update_value( names::weight, weight_ );
+  d.update_value( names::tau_plus, tau_plus_ );
+  d.update_value( names::tau_plus_triplet, tau_plus_triplet_ );
+  d.update_value( names::Aplus, Aplus_ );
+  d.update_value( names::Aminus, Aminus_ );
+  d.update_value( names::Aplus_triplet, Aplus_triplet_ );
+  d.update_value( names::Aminus_triplet, Aminus_triplet_ );
+  d.update_value( names::Kplus, Kplus_ );
+  d.update_value( names::Kplus_triplet, Kplus_triplet_ );
+  d.update_value( names::Wmax, Wmax_ );
 
   // check if weight_ and Wmax_ has the same sign
   if ( not( ( ( weight_ >= 0 ) - ( weight_ < 0 ) ) == ( ( Wmax_ >= 0 ) - ( Wmax_ < 0 ) ) ) )
@@ -358,12 +372,12 @@ stdp_triplet_synapse< targetidentifierT >::set_status( const DictionaryDatum& d,
     throw BadProperty( "State Kplus must be positive." );
   }
 
-  if ( not( Kplus_triplet_ >= 0 ) )
+  if ( Kplus_triplet_ < 0 )
   {
     throw BadProperty( "State Kplus_triplet must be positive." );
   }
 }
 
-} // of namespace nest
+}  // of namespace nest
 
-#endif // of #ifndef STDP_TRIPLET_SYNAPSE_H
+#endif  // of #ifndef STDP_TRIPLET_SYNAPSE_H

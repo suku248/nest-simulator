@@ -34,10 +34,6 @@
 #include "nest_timeconverter.h"
 #include "recording_device.h"
 
-// Includes from sli:
-#include "dictutils.h"
-#include "name.h"
-
 /* BeginUserDocs: device, recorder
 
 Short description
@@ -66,16 +62,18 @@ recordables to have them sampled during simulation.
 
 ::
 
-   mm = nest.Create('multimeter', 1, {'record_from': ['V_m', 'g_ex']})
+   mm = nest.Create('multimeter', 1, {'record_from': ['V_m', 'g_ex'],
+   'record_to': 'memory'})
 
 The sampling interval for recordings (given in ms) can be controlled
 using the ``multimeter`` parameter ``interval``. The default value of
 1.0 ms can be changed by supplying a new value either in the call to
-``Create`` or by using ``SetStatus`` on the model instance.
+``Create`` or by using ``SetStatus`` on the model instance. To sample
+values at every simulation time step, use
 
 ::
 
-   nest.SetStatus(mm, 'interval': 0.1})
+   nest.SetStatus(mm, {'interval': nest.resolution})
 
 The recording interval must be greater than or equal to the
 :ref:`simulation resolution <simulation_resolution>`, which defaults
@@ -96,8 +94,8 @@ it should record from by using the standard ``Connect`` routine.
     nest.Connect(mm, neurons)
 
 To learn more about possible connection patterns and additional
-options when using ``Connect``, see the guide on :ref:`connection
-management <connection_management>`.
+options when using ``Connect``, see the guide on :ref:`connectivity
+concepts <connectivity_concepts>`.
 
 The above call to ``Connect`` would fail if the neurons would not
 support the sampling of the values ``V_m`` and ``g_ex``. It would also
@@ -120,14 +118,23 @@ record_from
 interval
     A float (default: 1.0) specifying the interval in ms, at which
     data is collected from the nodes, the multimeter is connected to.
+    Must be a multiple of the resolution.
 
 See also
 ++++++++
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: multimeter
 
 EndUserDocs */
 
 namespace nest
 {
+
+void register_multimeter( const std::string& name );
+void register_voltmeter( const std::string& name );
 
 class multimeter : public RecordingDevice
 {
@@ -141,13 +148,13 @@ public:
    *       sample their targets through local communication.
    */
   bool
-  has_proxies() const
+  has_proxies() const override
   {
     return false;
   }
 
-  Name
-  get_element_type() const
+  std::string
+  get_element_type() const override
   {
     return names::recorder;
   }
@@ -161,20 +168,20 @@ public:
   using Node::handles_test_event;
   using Node::sends_signal;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( DataLoggingReply& );
+  void handle( DataLoggingReply& ) override;
 
-  SignalType sends_signal() const;
+  SignalType sends_signal() const override;
 
-  Type get_type() const;
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  Type get_type() const override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
-  void calibrate_time( const TimeConverter& tc );
+  void calibrate_time( const TimeConverter& tc ) override;
 
 protected:
-  void pre_run_hook();
+  void pre_run_hook() override;
 
   /**
    * Collect and output membrane potential information.
@@ -183,22 +190,22 @@ protected:
    * that information. The sampled nodes must provide data from
    * the previous time slice.
    */
-  void update( Time const&, const long, const long );
+  void update( Time const&, const long, const long ) override;
 
 private:
   struct Buffers_;
 
   struct Parameters_
   {
-    Time interval_;                   //!< recording interval, in ms
-    Time offset_;                     //!< offset relative to 0, in ms
-    std::vector< Name > record_from_; //!< which data to record
+    Time interval_;                           //!< recording interval, in ms
+    Time offset_;                             //!< offset relative to 0, in ms
+    std::vector< std::string > record_from_;  //!< which data to record
 
     Parameters_();
     Parameters_( const Parameters_& );
     Parameters_& operator=( const Parameters_& );
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, const Buffers_&, Node* node );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, const Buffers_&, Node* node );
   };
 
   // ------------------------------------------------------------
@@ -224,14 +231,14 @@ private:
 
 
 inline void
-nest::multimeter::get_status( DictionaryDatum& d ) const
+multimeter::get_status( Dictionary& d ) const
 {
   RecordingDevice::get_status( d );
   P_.get( d );
 
   if ( is_model_prototype() )
   {
-    return; // no data to collect
+    return;  // no data to collect
   }
 
   // if we are the device on thread 0, also get the data from the
@@ -248,11 +255,11 @@ nest::multimeter::get_status( DictionaryDatum& d ) const
 }
 
 inline void
-nest::multimeter::set_status( const DictionaryDatum& d )
+multimeter::set_status( const Dictionary& d )
 {
   // protect multimeter from being frozen
   bool freeze = false;
-  if ( updateValue< bool >( d, names::frozen, freeze ) && freeze )
+  if ( d.update_value( names::frozen, freeze ) and freeze )
   {
     throw BadProperty( "multimeter cannot be frozen." );
   }
@@ -265,13 +272,13 @@ nest::multimeter::set_status( const DictionaryDatum& d )
 }
 
 inline SignalType
-nest::multimeter::sends_signal() const
+multimeter::sends_signal() const
 {
   return ALL;
 }
 
 inline void
-nest::multimeter::calibrate_time( const TimeConverter& tc )
+multimeter::calibrate_time( const TimeConverter& tc )
 {
   P_.interval_ = tc.from_old_tics( P_.interval_.get_tics() );
   P_.offset_ = tc.from_old_tics( P_.offset_.get_tics() );
@@ -289,6 +296,6 @@ public:
   voltmeter( const voltmeter& );
 };
 
-} // namespace nest
+}  // namespace nest
 
 #endif

@@ -32,8 +32,6 @@
 #include "exceptions.h"
 #include "kernel_manager.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
 namespace nest
 {
@@ -52,7 +50,7 @@ Model::set_threads()
 }
 
 void
-Model::set_threads_( thread t )
+Model::set_threads_( size_t t )
 {
   for ( size_t i = 0; i < memory_.size(); ++i )
   {
@@ -67,9 +65,9 @@ Model::set_threads_( thread t )
 }
 
 void
-Model::reserve_additional( thread t, size_t n )
+Model::reserve_additional( size_t t, size_t n )
 {
-  assert( ( size_t ) t < memory_.size() );
+  assert( t < memory_.size() );
   memory_[ t ].reserve( n );
 }
 
@@ -105,7 +103,7 @@ Model::mem_capacity()
 }
 
 void
-Model::set_status( DictionaryDatum d )
+Model::set_status( const Dictionary& d )
 {
   try
   {
@@ -113,14 +111,14 @@ Model::set_status( DictionaryDatum d )
   }
   catch ( BadProperty& e )
   {
-    throw BadProperty( String::compose( "Setting status of model '%1': %2", get_name(), e.message() ) );
+    throw BadProperty( String::compose( "Setting status of model '%1': %2", get_name(), e.what() ) );
   }
 }
 
-DictionaryDatum
-Model::get_status( void )
+Dictionary
+Model::get_status()
 {
-  DictionaryDatum d = get_status_();
+  Dictionary d = get_status_();
 
   std::vector< long > tmp( memory_.size() );
   for ( size_t t = 0; t < tmp.size(); ++t )
@@ -128,25 +126,25 @@ Model::get_status( void )
     tmp[ t ] = memory_[ t ].size();
   }
 
-  ( *d )[ names::instantiations ] = Token( tmp );
-  ( *d )[ names::type_id ] = LiteralDatum( kernel().model_manager.get_node_model( type_id_ )->get_name() );
+  d[ names::instantiations ] = tmp;
+  d[ names::type_id ] = kernel().model_manager.get_node_model( type_id_ )->get_name();
 
   for ( size_t t = 0; t < tmp.size(); ++t )
   {
     tmp[ t ] = memory_[ t ].capacity();
   }
 
-  ( *d )[ names::capacity ] = Token( tmp );
+  d[ names::capacity ] = tmp;
 
   for ( size_t t = 0; t < tmp.size(); ++t )
   {
     tmp[ t ] = memory_[ t ].capacity() - memory_[ t ].size();
   }
 
-  ( *d )[ names::available ] = Token( tmp );
+  d[ names::available ] = tmp;
 
-  ( *d )[ names::model ] = LiteralDatum( get_name() );
+  d[ names::model ] = get_name();
   return d;
 }
 
-} // namespace
+}  // namespace

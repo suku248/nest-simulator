@@ -25,7 +25,7 @@ Start MUSIC using mpirun
              -np 2 ./recv --music-config simplepy.music --app-label to
 
     This looks long and cumbersome, of course, but it can be useful.
-    Since it’s parsed by the shell you are not limited to what the
+    Since it's parsed by the shell you are not limited to what the
     ``music`` launcher can parse, but the binary can be
     anything the shell can handle, including an explicit interpreter
     invocation or a shell script.
@@ -42,12 +42,12 @@ Disable messages
 ----------------
 
     NEST can be quite chatty as it connects things, especially with large
-    networks. If we don’t want all that output, we can tell it to display only
+    networks. If we don't want all that output, we can tell it to display only
     error messages:
 
     .. code:: python
 
-        nest.set_verbosity("M_ERROR")
+        nest.verbosity = nest.VerbosityLevel.ERROR
 
     There is unfortunately no straightforward way to suppress the
     initial welcome message. That is somewhat unfortunate, as they add
@@ -81,7 +81,7 @@ Comma as decimal point
 Build Autotool-enable project
 -----------------------------
 
-    To build an Autotool-enabled C/C++ project, you don’t actually need to
+    To build an Autotool-enabled C/C++ project, you don't actually need to
     be in the main directory. You can create a subdirectory and build
     everything from there. For instance, with the simple C++ MUSIC project
     in section :ref:`C++ build <music_tutorial_3>`, we can do this:

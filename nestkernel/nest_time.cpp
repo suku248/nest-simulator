@@ -25,33 +25,14 @@
 // C++ includes:
 #include <string>
 
-// Generated includes:
-#include "config.h"
-
 // Includes from libnestutil:
+#include "exceptions.h"
 #include "numerics.h"
-
-// Includes from sli:
-#include "doubledatum.h"
-#include "integerdatum.h"
-#include "token.h"
 
 using namespace nest;
 
-/* Obtain time resolution information from configuration
-   variables or use defaults.
-*/
-
-#ifndef CONFIG_TICS_PER_MS
-#define CONFIG_TICS_PER_MS 1000.0
-#endif
-
-#ifndef CONFIG_TICS_PER_STEP
-#define CONFIG_TICS_PER_STEP 100
-#endif
-
-const double Time::Range::TICS_PER_MS_DEFAULT = CONFIG_TICS_PER_MS;
-const tic_t Time::Range::TICS_PER_STEP_DEFAULT = CONFIG_TICS_PER_STEP;
+constexpr double Time::Range::TICS_PER_MS_DEFAULT = 1000.0;
+constexpr tic_t Time::Range::TICS_PER_STEP_DEFAULT = 100;
 
 tic_t Time::Range::TICS_PER_STEP = Time::Range::TICS_PER_STEP_DEFAULT;
 double Time::Range::TICS_PER_STEP_INV = 1. / static_cast< double >( Time::Range::TICS_PER_STEP );
@@ -66,10 +47,10 @@ double Time::Range::STEPS_PER_MS = 1 / Time::Range::MS_PER_STEP;
 // define for unit -- const'ness is in the header
 // should only be necessary when not folded away
 // by the compiler as compile time consts
-const tic_t Time::LimitPosInf::tics;
-const delay Time::LimitPosInf::steps;
-const tic_t Time::LimitNegInf::tics;
-const delay Time::LimitNegInf::steps;
+constexpr tic_t Time::LimitPosInf::tics;
+constexpr long Time::LimitPosInf::steps;
+constexpr tic_t Time::LimitNegInf::tics;
+constexpr long Time::LimitNegInf::steps;
 
 tic_t
 Time::compute_max()
@@ -79,14 +60,14 @@ Time::compute_max()
 
   tic_t tics;
   if ( lmax
-    < static_cast< tic_t >( static_cast< double >( tmax ) * Range::TICS_PER_STEP_INV ) ) // step size is limiting factor
+    < static_cast< long >( static_cast< double >( tmax ) * Range::TICS_PER_STEP_INV ) )  // step size is limiting factor
   {
     tics = Range::TICS_PER_STEP * ( lmax / Range::INF_MARGIN );
   }
-  else // tic size is limiting factor
+  else  // tic size is limiting factor
   {
     tics = tmax / Range::INF_MARGIN;
-  } // make sure that tics and steps match so that we can have simple range
+  }  // make sure that tics and steps match so that we can have simple range
   // checking when going back and forth, regardless of limiting factor
   return tics - ( tics % Range::TICS_PER_STEP );
 }
@@ -139,25 +120,6 @@ Time::reset_resolution()
   LIM_MIN = -max;
 }
 
-double
-Time::ms::fromtoken( const Token& t )
-{
-  IntegerDatum* idat = dynamic_cast< IntegerDatum* >( t.datum() );
-  if ( idat )
-  {
-    return static_cast< double >( idat->get() );
-  }
-
-  DoubleDatum* ddat = dynamic_cast< DoubleDatum* >( t.datum() );
-  if ( ddat )
-  {
-    return ddat->get();
-  }
-
-  throw TypeMismatch( IntegerDatum().gettypename().toString() + " or " + DoubleDatum().gettypename().toString(),
-    t.datum()->gettypename().toString() );
-}
-
 tic_t
 Time::fromstamp( Time::ms_stamp t )
 {
@@ -169,9 +131,9 @@ Time::fromstamp( Time::ms_stamp t )
   {
     return LIM_NEG_INF.tics;
   }
+
   // why not just fmod STEPS_PER_MS? This gives different
-  // results in corner cases --- and I don't think the
-  // intended ones.
+  // results in corner cases --- and I don't think the intended ones.
   tic_t n = static_cast< tic_t >( t.t * Range::TICS_PER_MS );
   n -= ( n % Range::TICS_PER_STEP );
   const double ms = n * Range::TICS_PER_STEP_INV * Range::MS_PER_STEP;
@@ -216,4 +178,10 @@ operator<<( std::ostream& strm, const Time& t )
   }
 
   return strm;
+}
+
+void
+Time::throw_bad_delay_( double val )
+{
+  throw BadDelay( val, "Delay value must be greater than or equal to zero." );
 }

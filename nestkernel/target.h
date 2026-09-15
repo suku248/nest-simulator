@@ -35,8 +35,10 @@ namespace nest
 {
 
 /**
- * This class implements a 64-bit target neuron identifier type. It uniquely identifies
- * a target neuron on a (remote) machine. Used in TargetTable for the presynaptic part
+ * This class implements a 64-bit target neuron identifier type.
+ *
+ * It uniquely identifies a target neuron on a (remote) machine.
+ * Used in TargetTable for the presynaptic part
  * of the connection infrastructure.
  *
  * The bitwise layout of the neuron identifier for the "standard" CMAKE option:
@@ -96,39 +98,39 @@ private:
 public:
   Target();
   Target( const Target& target );
-  Target( const thread tid, const thread rank, const synindex syn_id, const index lcid );
+  Target( const size_t tid, const size_t rank, const synindex syn_id, const size_t lcid );
 
   Target& operator=( const Target& );
 
   /**
    * Set local connection id.
    */
-  void set_lcid( const index lcid );
+  void set_lcid( const size_t lcid );
 
   /**
    * Return local connection id.
    */
-  index get_lcid() const;
+  size_t get_lcid() const;
 
   /**
    * Set rank.
    */
-  void set_rank( const thread rank );
+  void set_rank( const size_t rank );
 
   /**
    * Return rank.
    */
-  thread get_rank() const;
+  size_t get_rank() const;
 
   /**
    * Set thread id.
    */
-  void set_tid( const thread tid );
+  void set_tid( const size_t tid );
 
   /**
    * Return thread id.
    */
-  thread get_tid() const;
+  size_t get_tid() const;
 
   /**
    * Set the synapse-type id.
@@ -159,6 +161,11 @@ public:
    * Return offset.
    */
   double get_offset() const;
+
+  /**
+   *  Set the status of the target identifier to processed
+   */
+  void mark_for_removal();
 };
 
 //!< check legal size
@@ -172,7 +179,7 @@ inline Target::Target()
 inline Target::Target( const Target& target )
   : remote_target_id_( target.remote_target_id_ )
 {
-  set_status( TARGET_ID_UNPROCESSED ); // initialize
+  set_status( TARGET_ID_UNPROCESSED );  // initialize
 }
 
 inline Target&
@@ -183,55 +190,52 @@ Target::operator=( const Target& other )
   return *this;
 }
 
-inline Target::Target( const thread tid, const thread rank, const synindex syn_id, const index lcid )
+inline Target::Target( const size_t tid, const size_t rank, const synindex syn_id, const size_t lcid )
   : remote_target_id_( 0 )
 {
-  assert( tid <= MAX_TID );
-  assert( rank <= MAX_RANK );
-  assert( syn_id <= MAX_SYN_ID );
-  assert( lcid <= MAX_LCID );
-
+  // We need to call set_*() methods to properly encode values in bitfield.
+  // Validity of arguments is asserted in set_*() methods.
   set_lcid( lcid );
   set_rank( rank );
   set_tid( tid );
   set_syn_id( syn_id );
-  set_status( TARGET_ID_UNPROCESSED ); // initialize
+  set_status( TARGET_ID_UNPROCESSED );  // initialize
 }
 
 inline void
-Target::set_lcid( const index lcid )
+Target::set_lcid( const size_t lcid )
 {
-  assert( lcid <= MAX_LCID );
+  assert( lcid < MAX_LCID );
   remote_target_id_ = ( remote_target_id_ & ( ~MASK_LCID ) ) | ( static_cast< uint64_t >( lcid ) << BITPOS_LCID );
 }
 
-inline index
+inline size_t
 Target::get_lcid() const
 {
   return ( ( remote_target_id_ & MASK_LCID ) >> BITPOS_LCID );
 }
 
 inline void
-Target::set_rank( const thread rank )
+Target::set_rank( const size_t rank )
 {
-  assert( rank <= MAX_RANK );
+  assert( rank <= MAX_RANK );  // MAX_RANK is allowed since it is not used as invalid value
   remote_target_id_ = ( remote_target_id_ & ( ~MASK_RANK ) ) | ( static_cast< uint64_t >( rank ) << BITPOS_RANK );
 }
 
-inline thread
+inline size_t
 Target::get_rank() const
 {
   return ( ( remote_target_id_ & MASK_RANK ) >> BITPOS_RANK );
 }
 
 inline void
-Target::set_tid( const thread tid )
+Target::set_tid( const size_t tid )
 {
-  assert( tid <= MAX_TID );
+  assert( tid <= MAX_TID );  // MAX_TID is allowed since it is not used as invalid value
   remote_target_id_ = ( remote_target_id_ & ( ~MASK_TID ) ) | ( static_cast< uint64_t >( tid ) << BITPOS_TID );
 }
 
-inline thread
+inline size_t
 Target::get_tid() const
 {
   return ( ( remote_target_id_ & MASK_TID ) >> BITPOS_TID );
@@ -240,7 +244,7 @@ Target::get_tid() const
 inline void
 Target::set_syn_id( const synindex syn_id )
 {
-  assert( syn_id <= MAX_SYN_ID );
+  assert( syn_id < MAX_SYN_ID );
   remote_target_id_ = ( remote_target_id_ & ( ~MASK_SYN_ID ) ) | ( static_cast< uint64_t >( syn_id ) << BITPOS_SYN_ID );
 }
 
@@ -256,10 +260,10 @@ Target::set_status( enum_status_target_id set_status_to )
   switch ( set_status_to )
   {
   case TARGET_ID_PROCESSED:
-    remote_target_id_ = remote_target_id_ | MASK_PROCESSED_FLAG; // set single bit
+    remote_target_id_ = remote_target_id_ | MASK_PROCESSED_FLAG;  // set single bit
     break;
   case TARGET_ID_UNPROCESSED:
-    remote_target_id_ = remote_target_id_ & ~MASK_PROCESSED_FLAG; // clear single bit
+    remote_target_id_ = remote_target_id_ & ~MASK_PROCESSED_FLAG;  // clear single bit
     break;
   default:
     throw InternalError( "Invalid remote target id status." );
@@ -269,7 +273,7 @@ Target::set_status( enum_status_target_id set_status_to )
 inline enum_status_target_id
 Target::get_status() const
 {
-  if ( ( remote_target_id_ & MASK_PROCESSED_FLAG ) >> BITPOS_PROCESSED_FLAG ) // test single bit
+  if ( ( remote_target_id_ & MASK_PROCESSED_FLAG ) >> BITPOS_PROCESSED_FLAG )  // test single bit
   {
     return ( TARGET_ID_PROCESSED );
   }
@@ -287,6 +291,13 @@ Target::get_offset() const
 {
   return 0;
 }
+
+inline void
+Target::mark_for_removal()
+{
+  set_status( TARGET_ID_PROCESSED );
+}
+
 
 class OffGridTarget : public Target
 {
@@ -317,6 +328,6 @@ OffGridTarget::get_offset() const
   return offset_;
 }
 
-} // namespace nest
+}  // namespace nest
 
-#endif // TARGET_H
+#endif /* #ifndef TARGET_H */

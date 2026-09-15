@@ -23,18 +23,17 @@
 #ifndef MASK_H
 #define MASK_H
 
+// C++ includes:
+#include <memory>
+
 // Includes from libnestutil:
+#include "dictionary.h"
 #include "numerics.h"
 
 // Includes from nestkernel:
 #include "exceptions.h"
 #include "nest_names.h"
 #include "nest_types.h"
-#include "nestmodule.h"
-
-// Includes from sli:
-#include "dictdatum.h"
-#include "dictutils.h"
 
 // Includes from spatial:
 #include "position.h"
@@ -42,8 +41,7 @@
 namespace nest
 {
 class AbstractMask;
-
-typedef sharedPtrDatum< AbstractMask, &NestModule::MaskType > MaskDatum;
+using MaskPTR = std::shared_ptr< AbstractMask >;
 
 
 /**
@@ -52,9 +50,6 @@ typedef sharedPtrDatum< AbstractMask, &NestModule::MaskType > MaskDatum;
 class AbstractMask
 {
 public:
-  /**
-   * Virtual destructor
-   */
   virtual ~AbstractMask()
   {
   }
@@ -67,29 +62,32 @@ public:
   /**
    * @returns a dictionary with the definition for this mask.
    */
-  virtual DictionaryDatum
+  virtual Dictionary
   get_dict() const
   {
     throw KernelException( "Can not convert mask to dict" );
   }
 
   /**
-   * Create the intersection of this mask with another. Masks must have
-   * the same dimension
+   * Create the intersection of this mask with another.
+   *
+   * Masks must have the same dimension
    * @returns a new dynamically allocated mask.
    */
   virtual AbstractMask* intersect_mask( const AbstractMask& other ) const = 0;
 
   /**
-   * Create the union of this mask with another. Masks must have the same
-   * dimension.
+   * Create the union of this mask with another.
+   *
+   * Masks must have the same dimension.
    * @returns a new dynamically allocated mask.
    */
   virtual AbstractMask* union_mask( const AbstractMask& other ) const = 0;
 
   /**
-   * Create the difference of this mask and another. Masks must have the
-   * same dimension.
+   * Create the difference of this mask and another.
+   *
+   * Masks must have the same dimension.
    * @returns a new dynamically allocated mask.
    */
   virtual AbstractMask* minus_mask( const AbstractMask& other ) const = 0;
@@ -104,7 +102,7 @@ class Mask : public AbstractMask
 public:
   using AbstractMask::inside;
 
-  ~Mask()
+  ~Mask() override
   {
   }
 
@@ -116,7 +114,7 @@ public:
   /**
    * @returns true if point is inside mask.
    */
-  bool inside( const std::vector< double >& pt ) const;
+  bool inside( const std::vector< double >& pt ) const override;
 
   /**
    * @returns true if the whole box is inside the mask.
@@ -144,9 +142,9 @@ public:
    */
   virtual Mask* clone() const = 0;
 
-  AbstractMask* intersect_mask( const AbstractMask& other ) const;
-  AbstractMask* union_mask( const AbstractMask& other ) const;
-  AbstractMask* minus_mask( const AbstractMask& other ) const;
+  AbstractMask* intersect_mask( const AbstractMask& other ) const override;
+  AbstractMask* union_mask( const AbstractMask& other ) const override;
+  AbstractMask* minus_mask( const AbstractMask& other ) const override;
 };
 
 /**
@@ -218,14 +216,14 @@ public:
    * polar_angle   - Rotation angle in degrees from z-axis (double), the polar
    *                 angle does not apply in 2D, optional
    */
-  BoxMask( const DictionaryDatum& );
+  BoxMask( const Dictionary& );
 
   BoxMask( const Position< D >& lower_left,
     const Position< D >& upper_right,
     const double azimuth_angle = 0.0,
     const double polar_angle = 0.0 );
 
-  ~BoxMask()
+  ~BoxMask() override
   {
   }
 
@@ -234,28 +232,28 @@ public:
   /**
    * @returns true if point is inside the box
    */
-  bool inside( const Position< D >& p ) const;
+  bool inside( const Position< D >& p ) const override;
 
   /**
    * @returns true if the whole given box is inside this box
    */
-  bool inside( const Box< D >& b ) const;
+  bool inside( const Box< D >& b ) const override;
 
   /**
    * @returns true if the whole given box is outside this box
    */
-  bool outside( const Box< D >& b ) const;
+  bool outside( const Box< D >& b ) const override;
 
-  Box< D > get_bbox() const;
+  Box< D > get_bbox() const override;
 
-  DictionaryDatum get_dict() const;
+  Dictionary get_dict() const override;
 
-  Mask< D >* clone() const;
+  Mask< D >* clone() const override;
 
   /**
    * @returns the name of this mask type.
    */
-  static Name get_name();
+  static std::string get_name();
 
 protected:
   /**
@@ -266,7 +264,7 @@ protected:
   Position< D > lower_left_;
   Position< D > upper_right_;
 
-  /*
+  /**
    * The {min,max}_values_ correspond to the minimum and maximum x, y, z values
    * after the box has been rotated. That is, the lower_left and upper_right of
    * the bounding box of the rotated box. If the box is not rotated,
@@ -324,9 +322,9 @@ public:
    * "radius" with a double value and optionally the key "anchor" (the
    * center position) with an array of doubles.
    */
-  BallMask( const DictionaryDatum& );
+  BallMask( const Dictionary& );
 
-  ~BallMask()
+  ~BallMask() override
   {
   }
 
@@ -335,28 +333,28 @@ public:
   /**
    * @returns true if point is inside the circle
    */
-  bool inside( const Position< D >& p ) const;
+  bool inside( const Position< D >& p ) const override;
 
   /**
    * @returns true if the whole box is inside the circle
    */
-  bool inside( const Box< D >& ) const;
+  bool inside( const Box< D >& ) const override;
 
   /**
    * @returns true if the whole box is outside the circle
    */
-  bool outside( const Box< D >& b ) const;
+  bool outside( const Box< D >& b ) const override;
 
-  Box< D > get_bbox() const;
+  Box< D > get_bbox() const override;
 
-  DictionaryDatum get_dict() const;
+  Dictionary get_dict() const override;
 
-  Mask< D >* clone() const;
+  Mask< D >* clone() const override;
 
   /**
    * @returns the name of this mask type.
    */
-  static Name get_name();
+  static std::string get_name();
 
 protected:
   Position< D > center_;
@@ -403,19 +401,19 @@ public:
     if ( major_axis_ <= 0 or minor_axis_ <= 0 or polar_axis_ <= 0 )
     {
       throw BadProperty(
-        "nest::EllipseMask<D>: "
+        "EllipseMask<D>: "
         "All axis > 0 required." );
     }
     if ( major_axis_ < minor_axis_ )
     {
       throw BadProperty(
-        "nest::EllipseMask<D>: "
+        "EllipseMask<D>: "
         "major_axis greater than minor_axis required." );
     }
     if ( D == 2 and not( polar_angle_ == 0.0 ) )
     {
       throw BadProperty(
-        "nest::EllipseMask<D>: "
+        "EllipseMask<D>: "
         "polar_angle not defined in 2D." );
     }
 
@@ -429,9 +427,9 @@ public:
    * "polar_angle" with a double, an array of doubles, a double and a double,
    * respectively.
    */
-  EllipseMask( const DictionaryDatum& );
+  EllipseMask( const Dictionary& );
 
-  ~EllipseMask()
+  ~EllipseMask() override
   {
   }
 
@@ -440,28 +438,28 @@ public:
   /**
    * @returns true if point is inside the ellipse
    */
-  bool inside( const Position< D >& p ) const;
+  bool inside( const Position< D >& p ) const override;
 
   /**
    * @returns true if the whole box is inside the ellipse
    */
-  bool inside( const Box< D >& ) const;
+  bool inside( const Box< D >& ) const override;
 
   /**
    * @returns true if the whole box is outside the ellipse
    */
-  bool outside( const Box< D >& b ) const;
+  bool outside( const Box< D >& b ) const override;
 
-  Box< D > get_bbox() const;
+  Box< D > get_bbox() const override;
 
-  DictionaryDatum get_dict() const;
+  Dictionary get_dict() const override;
 
-  Mask< D >* clone() const;
+  Mask< D >* clone() const override;
 
   /**
    * @returns the name of this mask type.
    */
-  static Name get_name();
+  static std::string get_name();
 
 private:
   void create_bbox_();
@@ -553,9 +551,6 @@ public:
   {
   }
 
-  /**
-   * Copy constructor
-   */
   UnionMask( const UnionMask& m )
     : Mask< D >( m )
     , mask1_( m.mask1_->clone() )
@@ -602,9 +597,6 @@ public:
   {
   }
 
-  /**
-   * Copy constructor
-   */
   DifferenceMask( const DifferenceMask& m )
     : Mask< D >( m )
     , mask1_( m.mask1_->clone() )
@@ -651,9 +643,6 @@ public:
   {
   }
 
-  /**
-   * Copy constructor
-   */
   ConverseMask( const ConverseMask& m )
     : Mask< D >( m )
     , m_( m.m_->clone() )
@@ -699,9 +688,6 @@ public:
   {
   }
 
-  /**
-   * Copy constructor
-   */
   AnchoredMask( const AnchoredMask& m )
     : Mask< D >( m )
     , m_( m.m_->clone() )
@@ -722,7 +708,7 @@ public:
 
   Box< D > get_bbox() const;
 
-  DictionaryDatum get_dict() const;
+  Dictionary get_dict() const;
 
   Mask< D >* clone() const;
 
@@ -732,50 +718,50 @@ protected:
 };
 
 template <>
-inline Name
+inline std::string
 BoxMask< 2 >::get_name()
 {
   return names::rectangular;
 }
 
 template <>
-inline Name
+inline std::string
 BoxMask< 3 >::get_name()
 {
   return names::box;
 }
 
 template < int D >
-BoxMask< D >::BoxMask( const DictionaryDatum& d )
+BoxMask< D >::BoxMask( const Dictionary& d )
 {
-  lower_left_ = getValue< std::vector< double > >( d, names::lower_left );
-  upper_right_ = getValue< std::vector< double > >( d, names::upper_right );
+  lower_left_ = d.get< std::vector< double > >( names::lower_left );
+  upper_right_ = d.get< std::vector< double > >( names::upper_right );
 
   if ( not( lower_left_ < upper_right_ ) )
   {
     throw BadProperty(
-      "nest::BoxMask<D>: "
+      "BoxMask<D>: "
       "Upper right must be strictly to the right and above lower left." );
   }
 
-  if ( d->known( names::azimuth_angle ) )
+  if ( d.known( names::azimuth_angle ) )
   {
-    azimuth_angle_ = getValue< double >( d, names::azimuth_angle );
+    azimuth_angle_ = d.get< double >( names::azimuth_angle );
   }
   else
   {
     azimuth_angle_ = 0.0;
   }
 
-  if ( d->known( names::polar_angle ) )
+  if ( d.known( names::polar_angle ) )
   {
     if ( D == 2 )
     {
       throw BadProperty(
-        "nest::BoxMask<D>: "
+        "BoxMask<D>: "
         "polar_angle not defined in 2D." );
     }
-    polar_angle_ = getValue< double >( d, names::polar_angle );
+    polar_angle_ = d.get< double >( names::polar_angle );
   }
   else
   {
@@ -851,7 +837,7 @@ inline BoxMask< D >::BoxMask( const Position< D >& lower_left,
   if ( D == 2 and not( polar_angle_ == 0.0 ) )
   {
     throw BadProperty(
-      "nest::BoxMask<D>: "
+      "BoxMask<D>: "
       "polar_angle not defined in 2D." );
   }
 
@@ -893,85 +879,83 @@ inline BoxMask< D >::BoxMask( const Position< D >& lower_left,
 }
 
 template <>
-inline Name
+inline std::string
 BallMask< 2 >::get_name()
 {
   return names::circular;
 }
 
 template <>
-inline Name
+inline std::string
 BallMask< 3 >::get_name()
 {
   return names::spherical;
 }
 
 template < int D >
-BallMask< D >::BallMask( const DictionaryDatum& d )
+BallMask< D >::BallMask( const Dictionary& d )
 {
-  radius_ = getValue< double >( d, names::radius );
+  radius_ = d.get< double >( names::radius );
   if ( radius_ <= 0 )
   {
-    throw BadProperty(
-      "nest::BallMask<D>: "
-      "radius > 0 required." );
+    throw BadProperty( "BallMask<D>: radius > 0 required." );
   }
 
-  if ( d->known( names::anchor ) )
+  if ( d.known( names::anchor ) )
   {
-    center_ = getValue< std::vector< double > >( d, names::anchor );
+    center_ = d.get< std::vector< double > >( names::anchor );
   }
 }
 
 template <>
-inline Name
+inline std::string
 EllipseMask< 2 >::get_name()
 {
   return names::elliptical;
 }
 
 template <>
-inline Name
+inline std::string
 EllipseMask< 3 >::get_name()
 {
   return names::ellipsoidal;
 }
 
 template < int D >
-EllipseMask< D >::EllipseMask( const DictionaryDatum& d )
+EllipseMask< D >::EllipseMask( const Dictionary& d )
 {
-  major_axis_ = getValue< double >( d, names::major_axis );
-  minor_axis_ = getValue< double >( d, names::minor_axis );
+  major_axis_ = d.get< double >( names::major_axis );
+  minor_axis_ = d.get< double >( names::minor_axis );
   if ( major_axis_ <= 0 or minor_axis_ <= 0 )
   {
     throw BadProperty(
-      "nest::EllipseMask<D>: "
+      "EllipseMask<D>: "
       "All axis > 0 required." );
   }
   if ( major_axis_ < minor_axis_ )
   {
     throw BadProperty(
-      "nest::EllipseMask<D>: "
+      "EllipseMask<D>: "
       "major_axis greater than minor_axis required." );
   }
 
   x_scale_ = 4.0 / ( major_axis_ * major_axis_ );
   y_scale_ = 4.0 / ( minor_axis_ * minor_axis_ );
 
-  if ( d->known( names::polar_axis ) )
+  if ( d.known( names::polar_axis ) )
   {
     if ( D == 2 )
     {
       throw BadProperty(
-        "nest::EllipseMask<D>: "
+        "EllipseMask<D>: "
         "polar_axis not defined in 2D." );
     }
-    polar_axis_ = getValue< double >( d, names::polar_axis );
+    polar_axis_ = d.get< double >( names::polar_axis );
 
     if ( polar_axis_ <= 0 )
     {
       throw BadProperty(
-        "nest::EllipseMask<D>: "
+        "EllipseMask<D>: "
         "All axis > 0 required." );
     }
 
@@ -983,29 +967,29 @@ EllipseMask< D >::EllipseMask( const DictionaryDatum& d )
     z_scale_ = 0.0;
   }
 
-  if ( d->known( names::anchor ) )
+  if ( d.known( names::anchor ) )
   {
-    center_ = getValue< std::vector< double > >( d, names::anchor );
+    center_ = d.get< std::vector< double > >( names::anchor );
   }
 
-  if ( d->known( names::azimuth_angle ) )
+  if ( d.known( names::azimuth_angle ) )
   {
-    azimuth_angle_ = getValue< double >( d, names::azimuth_angle );
+    azimuth_angle_ = d.get< double >( names::azimuth_angle );
   }
   else
   {
     azimuth_angle_ = 0.0;
   }
 
-  if ( d->known( names::polar_angle ) )
+  if ( d.known( names::polar_angle ) )
   {
     if ( D == 2 )
     {
       throw BadProperty(
-        "nest::EllipseMask<D>: "
+        "EllipseMask<D>: "
         "polar_angle not defined in 2D." );
     }
-    polar_angle_ = getValue< double >( d, names::polar_angle );
+    polar_angle_ = d.get< double >( names::polar_angle );
   }
   else
   {
@@ -1020,6 +1004,6 @@ EllipseMask< D >::EllipseMask( const DictionaryDatum& d )
   create_bbox_();
 }
 
-} // namespace nest
+}  // namespace nest
 
 #endif

@@ -29,7 +29,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: synapse, connection with delay, rate
+/* BeginUserDocs: synapse, abstract, rate
 
 Short description
 +++++++++++++++++
@@ -45,7 +45,7 @@ between rate model neurons.
 To create instantaneous rate connections please use
 the synapse type ``rate_connection_instantaneous``.
 
-See also [1]_.
+See also :footcite:p:`Hahne2017`.
 
 Transmits
 +++++++++
@@ -55,15 +55,17 @@ DelayedRateConnectionEvent
 References
 ++++++++++
 
-.. [1] Hahne J, Dahmen D, Schuecker J, Frommer A, Bolten M, Helias M,
-       Diesmann M (2017). Integration of continuous-time dynamics in a
-       spiking neural network simulator. Frontiers in Neuroinformatics, 11:34.
-       DOI: https://doi.org/10.3389/fninf.2017.00034
+.. footbibliography::
 
 See also
 ++++++++
 
 rate_connection_instantaneous, rate_neuron_ipn, rate_neuron_opn
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: rate_connection_delayed
 
 EndUserDocs */
 
@@ -71,25 +73,30 @@ EndUserDocs */
  * Class representing a delayed rate connection. A rate_connection_delayed
  * has the properties weight, delay and receiver port.
  */
+void register_rate_connection_delayed( const std::string& name );
+
 template < typename targetidentifierT >
-class RateConnectionDelayed : public Connection< targetidentifierT >
+class rate_connection_delayed : public Connection< targetidentifierT, TotalDelay >
 {
 
 public:
   // this line determines which common properties to use
   typedef CommonSynapseProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
-  typedef DelayedRateConnectionEvent EventType;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY;
 
   /**
    * Default Constructor.
    * Sets default values for all parameters. Needed by GenericConnectorModel.
    */
-  RateConnectionDelayed()
+  rate_connection_delayed()
     : ConnectionBase()
     , weight_( 1.0 )
   {
   }
+
+  std::unique_ptr< SecondaryEvent > get_secondary_event();
 
   // Explicitly declare all methods inherited from the dependent base
   // ConnectionBase.
@@ -102,14 +109,14 @@ public:
   using ConnectionBase::get_target;
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex, const CommonPropertiesType& )
   {
-    EventType ge;
+    DelayedRateConnectionEvent ge;
 
     s.sends_secondary_event( ge );
     ge.set_sender( s );
-    Connection< targetidentifierT >::target_.set_rport( t.handles_test_event( ge, receptor_type ) );
-    Connection< targetidentifierT >::target_.set_target( &t );
+    Connection< targetidentifierT, TotalDelay >::target_.set_rport( t.handles_test_event( ge, receptor_type ) );
+    Connection< targetidentifierT, TotalDelay >::target_.set_target( &t );
   }
 
   /**
@@ -117,19 +124,21 @@ public:
    * \param e The event to send
    * \param p The port under which this connection is stored in the Connector.
    */
-  void
-  send( Event& e, thread t, const CommonSynapseProperties& )
+  bool
+  send( Event& e, size_t t, const CommonSynapseProperties& )
   {
     e.set_weight( weight_ );
     e.set_delay_steps( get_delay_steps() );
     e.set_receiver( *get_target( t ) );
     e.set_rport( get_rport() );
     e();
+
+    return true;
   }
 
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   void
   set_weight( double w )
@@ -138,26 +147,36 @@ public:
   }
 
 private:
-  double weight_; //!< connection weight
+  double weight_;  //!< connection weight
 };
 
 template < typename targetidentifierT >
+constexpr ConnectionModelProperties rate_connection_delayed< targetidentifierT >::properties;
+
+template < typename targetidentifierT >
 void
-RateConnectionDelayed< targetidentifierT >::get_status( DictionaryDatum& d ) const
+rate_connection_delayed< targetidentifierT >::get_status( Dictionary& d ) const
 {
   ConnectionBase::get_status( d );
-  def< double >( d, names::weight, weight_ );
-  def< long >( d, names::size_of, sizeof( *this ) );
+  d[ names::weight ] = weight_;
+  d[ names::size_of ] = static_cast< long >( sizeof( *this ) );
 }
 
 template < typename targetidentifierT >
 void
-RateConnectionDelayed< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+rate_connection_delayed< targetidentifierT >::set_status( const Dictionary& d, ConnectorModel& cm )
 {
   ConnectionBase::set_status( d, cm );
-  updateValue< double >( d, names::weight, weight_ );
+  d.update_value( names::weight, weight_ );
 }
 
-} // namespace
+template < typename targetidentifierT >
+std::unique_ptr< SecondaryEvent >
+rate_connection_delayed< targetidentifierT >::get_secondary_event()
+{
+  return std::make_unique< DelayedRateConnectionEvent >();
+}
+
+}  // namespace
 
 #endif /* #ifndef RATE_CONNECTION_DELAYED_H */

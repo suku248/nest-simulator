@@ -25,25 +25,23 @@
 
 // Includes from nestkernel:
 #include "connector_model.h"
-#include "nest_datums.h"
 #include "nest_types.h"
-#include "node.h"
-
-// Includes from sli:
-#include "dictdatum.h"
 
 
 namespace nest
 {
 
 // forward declarations
+class weight_recorder;
 class ConnectorModel;
+class Node;
 class TimeConverter;
 
 /**
  * Class containing the common properties for all connections of a certain type.
+ *
  * Everything that needs to be stored commonly for all synapses goes into a
- * CommonProperty class derived by this base class.
+ * CommonProperty class derived from this base class.
  * Base class for all CommonProperty classes.
  * If the synapse type does not have any common properties, this class may be
  * used as a placeholder.
@@ -53,55 +51,41 @@ class CommonSynapseProperties
 public:
   /**
    * Standard constructor. Sets all common properties to default values.
+   * Default implementation of an empty CommonSynapseProperties object.
    */
   CommonSynapseProperties();
 
-  /**
-   * Destructor.
-   */
   ~CommonSynapseProperties();
 
   /**
    * Get all properties and put them into a dictionary.
    */
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
   /**
    * Set properties from the values given in dictionary.
    */
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
 
   /**
    * Calibrate all time objects, which might be contained in this object.
    */
-
   void calibrate( const TimeConverter& );
 
   /**
-   * get reference to registering node
-   */
-  Node* get_node();
-
-  /**
-   * get node ID of volume transmitter
+   * Get node ID of volume transmitter
    */
   long get_vt_node_id() const;
 
   /**
-   * get node ID of weight_recorder
+   * Get weight_recorder
    */
-  index get_wr_node_id() const;
-
-  /**
-   * get weight_recorder
-   */
-  NodeCollectionDatum get_weight_recorder() const;
+  weight_recorder* get_weight_recorder() const;
 
 
 private:
-  NodeCollectionDatum weight_recorder_;
-  long wr_node_id_;
+  weight_recorder* weight_recorder_;
 };
 
 inline long
@@ -110,19 +94,12 @@ CommonSynapseProperties::get_vt_node_id() const
   return -1;
 }
 
-inline index
-CommonSynapseProperties::get_wr_node_id() const
-{
-  return wr_node_id_;
-}
-
-inline NodeCollectionDatum
+inline weight_recorder*
 CommonSynapseProperties::get_weight_recorder() const
 {
   return weight_recorder_;
 }
 
+}  // of namespace nest
 
-} // of namespace nest
-
-#endif
+#endif /* #ifndef COMMON_SYNAPSE_PROPERTIES_H */

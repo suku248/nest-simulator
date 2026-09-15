@@ -27,59 +27,60 @@
 
 // Includes from libnestutil:
 #include "dict_util.h"
+#include "iaf_propagator.h"
 #include "numerics.h"
-#include "propagator_stability.h"
 #include "regula_falsi.h"
 
 // Includes from nestkernel:
 #include "exceptions.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
 #include "universal_data_logger_impl.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
 
+namespace nest
+{
 /* ----------------------------------------------------------------
  * Recordables map
  * ---------------------------------------------------------------- */
 
-nest::RecordablesMap< nest::iaf_psc_exp_ps > nest::iaf_psc_exp_ps::recordablesMap_;
+RecordablesMap< iaf_psc_exp_ps > iaf_psc_exp_ps::recordablesMap_;
 
-namespace nest
+void
+register_iaf_psc_exp_ps( const std::string& name )
 {
+  register_node_model< iaf_psc_exp_ps >( name );
+}
+
 // Override the create() method with one call to RecordablesMap::insert_()
 // for each quantity to be recorded.
 template <>
 void
 RecordablesMap< iaf_psc_exp_ps >::create()
 {
-  // use standard names whereever you can for consistency!
+  // use standard names wherever you can for consistency!
   insert_( names::V_m, &iaf_psc_exp_ps::get_V_m_ );
-}
 }
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::iaf_psc_exp_ps::Parameters_::Parameters_()
-  : tau_m_( 10.0 )                                       // ms
-  , tau_ex_( 2.0 )                                       // ms
-  , tau_in_( 2.0 )                                       // ms
-  , c_m_( 250.0 )                                        // pF
-  , t_ref_( 2.0 )                                        // ms
-  , E_L_( -70.0 )                                        // mV
-  , I_e_( 0.0 )                                          // pA
-  , U_th_( -55.0 - E_L_ )                                // mV, rel to E_L_
-  , U_min_( -std::numeric_limits< double >::infinity() ) // mV
-  , U_reset_( -70.0 - E_L_ )                             // mV, rel to E_L_
+iaf_psc_exp_ps::Parameters_::Parameters_()
+  : tau_m_( 10.0 )                                        // ms
+  , tau_ex_( 2.0 )                                        // ms
+  , tau_in_( 2.0 )                                        // ms
+  , c_m_( 250.0 )                                         // pF
+  , t_ref_( 2.0 )                                         // ms
+  , E_L_( -70.0 )                                         // mV
+  , I_e_( 0.0 )                                           // pA
+  , U_th_( -55.0 - E_L_ )                                 // mV, rel to E_L_
+  , U_min_( -std::numeric_limits< double >::infinity() )  // mV
+  , U_reset_( -70.0 - E_L_ )                              // mV, rel to E_L_
 {
 }
 
-nest::iaf_psc_exp_ps::State_::State_()
+iaf_psc_exp_ps::State_::State_()
   : y0_( 0.0 )
   , y1_ex_( 0.0 )
   , y1_in_( 0.0 )
@@ -90,12 +91,12 @@ nest::iaf_psc_exp_ps::State_::State_()
 {
 }
 
-nest::iaf_psc_exp_ps::Buffers_::Buffers_( iaf_psc_exp_ps& n )
+iaf_psc_exp_ps::Buffers_::Buffers_( iaf_psc_exp_ps& n )
   : logger_( n )
 {
 }
 
-nest::iaf_psc_exp_ps::Buffers_::Buffers_( const Buffers_&, iaf_psc_exp_ps& n )
+iaf_psc_exp_ps::Buffers_::Buffers_( const Buffers_&, iaf_psc_exp_ps& n )
   : logger_( n )
 {
 }
@@ -105,37 +106,37 @@ nest::iaf_psc_exp_ps::Buffers_::Buffers_( const Buffers_&, iaf_psc_exp_ps& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_psc_exp_ps::Parameters_::get( DictionaryDatum& d ) const
+iaf_psc_exp_ps::Parameters_::get( Dictionary& d ) const
 {
-  def< double >( d, names::E_L, E_L_ );
-  def< double >( d, names::I_e, I_e_ );
-  def< double >( d, names::V_th, U_th_ + E_L_ );
-  def< double >( d, names::V_min, U_min_ + E_L_ );
-  def< double >( d, names::V_reset, U_reset_ + E_L_ );
-  def< double >( d, names::C_m, c_m_ );
-  def< double >( d, names::tau_m, tau_m_ );
-  def< double >( d, names::tau_syn_ex, tau_ex_ );
-  def< double >( d, names::tau_syn_in, tau_in_ );
-  def< double >( d, names::t_ref, t_ref_ );
+  d[ names::E_L ] = E_L_;
+  d[ names::I_e ] = I_e_;
+  d[ names::V_th ] = U_th_ + E_L_;
+  d[ names::V_min ] = U_min_ + E_L_;
+  d[ names::V_reset ] = U_reset_ + E_L_;
+  d[ names::C_m ] = c_m_;
+  d[ names::tau_m ] = tau_m_;
+  d[ names::tau_syn_ex ] = tau_ex_;
+  d[ names::tau_syn_in ] = tau_in_;
+  d[ names::t_ref ] = t_ref_;
 }
 
 double
-nest::iaf_psc_exp_ps::Parameters_::set( const DictionaryDatum& d, Node* node )
+iaf_psc_exp_ps::Parameters_::set( const Dictionary& d, Node* node )
 {
   // if E_L_ is changed, we need to adjust all variables defined relative to
   // E_L_
   const double ELold = E_L_;
-  updateValueParam< double >( d, names::E_L, E_L_, node );
+  update_value_param( d, names::E_L, E_L_, node );
   const double delta_EL = E_L_ - ELold;
 
-  updateValueParam< double >( d, names::tau_m, tau_m_, node );
-  updateValueParam< double >( d, names::tau_syn_ex, tau_ex_, node );
-  updateValueParam< double >( d, names::tau_syn_in, tau_in_, node );
-  updateValueParam< double >( d, names::C_m, c_m_, node );
-  updateValueParam< double >( d, names::t_ref, t_ref_, node );
-  updateValueParam< double >( d, names::I_e, I_e_, node );
+  update_value_param( d, names::tau_m, tau_m_, node );
+  update_value_param( d, names::tau_syn_ex, tau_ex_, node );
+  update_value_param( d, names::tau_syn_in, tau_in_, node );
+  update_value_param( d, names::C_m, c_m_, node );
+  update_value_param( d, names::t_ref, t_ref_, node );
+  update_value_param( d, names::I_e, I_e_, node );
 
-  if ( updateValueParam< double >( d, names::V_th, U_th_, node ) )
+  if ( update_value_param( d, names::V_th, U_th_, node ) )
   {
     U_th_ -= E_L_;
   }
@@ -144,7 +145,7 @@ nest::iaf_psc_exp_ps::Parameters_::set( const DictionaryDatum& d, Node* node )
     U_th_ -= delta_EL;
   }
 
-  if ( updateValueParam< double >( d, names::V_min, U_min_, node ) )
+  if ( update_value_param( d, names::V_min, U_min_, node ) )
   {
     U_min_ -= E_L_;
   }
@@ -153,7 +154,7 @@ nest::iaf_psc_exp_ps::Parameters_::set( const DictionaryDatum& d, Node* node )
     U_min_ -= delta_EL;
   }
 
-  if ( updateValueParam< double >( d, names::V_reset, U_reset_, node ) )
+  if ( update_value_param( d, names::V_reset, U_reset_, node ) )
   {
     U_reset_ -= E_L_;
   }
@@ -178,7 +179,7 @@ nest::iaf_psc_exp_ps::Parameters_::set( const DictionaryDatum& d, Node* node )
   {
     throw BadProperty( "Refractory time must be at least one time step." );
   }
-  if ( tau_m_ <= 0 || tau_ex_ <= 0 || tau_in_ <= 0 )
+  if ( tau_m_ <= 0 or tau_ex_ <= 0 or tau_in_ <= 0 )
   {
     throw BadProperty( "All time constants must be strictly positive." );
   }
@@ -187,18 +188,18 @@ nest::iaf_psc_exp_ps::Parameters_::set( const DictionaryDatum& d, Node* node )
 }
 
 void
-nest::iaf_psc_exp_ps::State_::get( DictionaryDatum& d, const Parameters_& p ) const
+iaf_psc_exp_ps::State_::get( Dictionary& d, const Parameters_& p ) const
 {
-  def< double >( d, names::V_m, y2_ + p.E_L_ ); // Membrane potential
-  def< double >( d, names::I_syn_ex, y1_ex_ );  // Excitatory synaptic current
-  def< double >( d, names::I_syn_in, y1_in_ );  // Inhibitory synaptic current
-  def< bool >( d, names::is_refractory, is_refractory_ );
+  d[ names::V_m ] = y2_ + p.E_L_;  // Membrane potential
+  d[ names::I_syn_ex ] = y1_ex_;   // Excitatory synaptic current
+  d[ names::I_syn_in ] = y1_in_;   // Inhibitory synaptic current
+  d[ names::is_refractory ] = is_refractory_;
 }
 
 void
-nest::iaf_psc_exp_ps::State_::set( const DictionaryDatum& d, const Parameters_& p, double delta_EL, Node* node )
+iaf_psc_exp_ps::State_::set( const Dictionary& d, const Parameters_& p, double delta_EL, Node* node )
 {
-  if ( updateValueParam< double >( d, names::V_m, y2_, node ) )
+  if ( update_value_param( d, names::V_m, y2_, node ) )
   {
     y2_ -= p.E_L_;
   }
@@ -206,15 +207,15 @@ nest::iaf_psc_exp_ps::State_::set( const DictionaryDatum& d, const Parameters_& 
   {
     y2_ -= delta_EL;
   }
-  updateValueParam< double >( d, names::I_syn_ex, y1_ex_, node );
-  updateValueParam< double >( d, names::I_syn_in, y1_in_, node );
+  update_value_param( d, names::I_syn_ex, y1_ex_, node );
+  update_value_param( d, names::I_syn_in, y1_in_, node );
 }
 
 /* ----------------------------------------------------------------
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::iaf_psc_exp_ps::iaf_psc_exp_ps()
+iaf_psc_exp_ps::iaf_psc_exp_ps()
   : ArchivingNode()
   , P_()
   , S_()
@@ -223,7 +224,7 @@ nest::iaf_psc_exp_ps::iaf_psc_exp_ps()
   recordablesMap_.create();
 }
 
-nest::iaf_psc_exp_ps::iaf_psc_exp_ps( const iaf_psc_exp_ps& n )
+iaf_psc_exp_ps::iaf_psc_exp_ps( const iaf_psc_exp_ps& n )
   : ArchivingNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
@@ -236,18 +237,18 @@ nest::iaf_psc_exp_ps::iaf_psc_exp_ps( const iaf_psc_exp_ps& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_psc_exp_ps::init_buffers_()
+iaf_psc_exp_ps::init_buffers_()
 {
   B_.events_.resize();
   B_.events_.clear();
-  B_.currents_.clear(); // includes resize
+  B_.currents_.clear();  // includes resize
   B_.logger_.reset();
 
   ArchivingNode::clear_history();
 }
 
 void
-nest::iaf_psc_exp_ps::pre_run_hook()
+iaf_psc_exp_ps::pre_run_hook()
 {
   // ensures initialization in case mm connected after Simulate
   B_.logger_.init();
@@ -260,8 +261,10 @@ nest::iaf_psc_exp_ps::pre_run_hook()
   V_.P20_ = -P_.tau_m_ / P_.c_m_ * numerics::expm1( -V_.h_ms_ / P_.tau_m_ );
 
   // these are determined according to a numeric stability criterion
-  V_.P21_ex_ = propagator_32( P_.tau_ex_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
-  V_.P21_in_ = propagator_32( P_.tau_in_, P_.tau_m_, P_.c_m_, V_.h_ms_ );
+  propagator_ex_ = IAFPropagatorExp( P_.tau_ex_, P_.tau_m_, P_.c_m_ );
+  propagator_in_ = IAFPropagatorExp( P_.tau_in_, P_.tau_m_, P_.c_m_ );
+  V_.P21_ex_ = propagator_ex_.evaluate( V_.h_ms_ );
+  V_.P21_in_ = propagator_in_.evaluate( V_.h_ms_ );
 
   V_.refractory_steps_ = Time( Time::ms( P_.t_ref_ ) ).get_steps();
   // since t_ref_ >= sim step size, this can only fail in error
@@ -273,12 +276,8 @@ nest::iaf_psc_exp_ps::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to )
+iaf_psc_exp_ps::update( const Time& origin, const long from, const long to )
 {
-  assert( to >= 0 );
-  assert( static_cast< delay >( from ) < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
   // at start of slice, tell input queue to prepare for delivery
   if ( from == 0 )
   {
@@ -301,7 +300,7 @@ nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to
 
     // if neuron returns from refractoriness during this step, place
     // pseudo-event in queue to mark end of refractory period
-    if ( S_.is_refractory_ && ( T + 1 - S_.last_spike_step_ == V_.refractory_steps_ ) )
+    if ( S_.is_refractory_ and T + 1 - S_.last_spike_step_ == V_.refractory_steps_ )
     {
       B_.events_.add_refractory( T, S_.last_spike_offset_ );
     }
@@ -328,7 +327,7 @@ nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to
       {
         // If we use S_.y2_ * std::exp( -V_.h_ms_ / P_.tau_m_ ) instead of
         // V_.expm1_tau_m_ * S_.y2_ + S_.y2_ here, the accuracy decreases,
-        // see test_iaf_ps_dc_t_accuracy.sli for details.
+        // see test_iaf_ps_dc_t_accuracy.py for details.
         S_.y2_ = V_.P20_ * ( P_.I_e_ + S_.y0_ ) + V_.P21_ex_ * S_.y1_ex_ + V_.P21_in_ * S_.y1_in_
           + V_.expm1_tau_m_ * S_.y2_ + S_.y2_;
 
@@ -358,7 +357,7 @@ nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to
 
       // Time within step is measured by offsets, which are h at the beginning
       // and 0 at the end of the step.
-      double last_offset = V_.h_ms_; // start of step
+      double last_offset = V_.h_ms_;  // start of step
 
       do
       {
@@ -391,7 +390,7 @@ nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to
         {
           if ( ev_weight >= 0.0 )
           {
-            S_.y1_ex_ += ev_weight; // exc. spike input
+            S_.y1_ex_ += ev_weight;  // exc. spike input
           }
           else
           {
@@ -409,7 +408,7 @@ nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to
 
       // no events remaining, plain update step across remainder
       // of interval
-      if ( last_offset > 0 ) // not at end of step, do remainder
+      if ( last_offset > 0 )  // not at end of step, do remainder
       {
         propagate_( last_offset );
         if ( S_.y2_ >= P_.U_th_ )
@@ -417,7 +416,7 @@ nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to
           emit_spike_( origin, lag, V_.h_ms_ - last_offset, last_offset );
         }
       }
-    } // else
+    }  // else
 
     // Set new input current. The current change occurs at the
     // end of the interval and thus must come AFTER the threshold-
@@ -426,12 +425,12 @@ nest::iaf_psc_exp_ps::update( const Time& origin, const long from, const long to
 
     // log state data
     B_.logger_.record_data( origin.get_steps() + lag );
-  } // for
+  }  // for
 }
 
 // function handles exact spike times
 void
-nest::iaf_psc_exp_ps::handle( SpikeEvent& e )
+iaf_psc_exp_ps::handle( SpikeEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -441,14 +440,14 @@ nest::iaf_psc_exp_ps::handle( SpikeEvent& e )
   */
   const long Tdeliver = e.get_stamp().get_steps() + e.get_delay_steps() - 1;
 
-  B_.events_.add_spike( e.get_rel_delivery_steps( nest::kernel().simulation_manager.get_slice_origin() ),
+  B_.events_.add_spike( e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ),
     Tdeliver,
     e.get_offset(),
     e.get_weight() * e.get_multiplicity() );
 }
 
 void
-nest::iaf_psc_exp_ps::handle( CurrentEvent& e )
+iaf_psc_exp_ps::handle( CurrentEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -456,11 +455,11 @@ nest::iaf_psc_exp_ps::handle( CurrentEvent& e )
   const double w = e.get_weight();
 
   // add weighted current; HEP 2002-10-04
-  B_.currents_.add_value( e.get_rel_delivery_steps( nest::kernel().simulation_manager.get_slice_origin() ), w * c );
+  B_.currents_.add_value( e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ), w * c );
 }
 
 void
-nest::iaf_psc_exp_ps::handle( DataLoggingRequest& e )
+iaf_psc_exp_ps::handle( DataLoggingRequest& e )
 {
   B_.logger_.handle( e );
 }
@@ -468,7 +467,7 @@ nest::iaf_psc_exp_ps::handle( DataLoggingRequest& e )
 // auxiliary functions ---------------------------------------------
 
 void
-nest::iaf_psc_exp_ps::propagate_( const double dt )
+iaf_psc_exp_ps::propagate_( const double dt )
 {
   // dt == 0 may occur if two spikes arrive simultaneously;
   // propagate_() shall not be called then; see #368.
@@ -478,8 +477,8 @@ nest::iaf_psc_exp_ps::propagate_( const double dt )
   {
     const double P20 = -P_.tau_m_ / P_.c_m_ * numerics::expm1( -dt / P_.tau_m_ );
 
-    const double P21_ex = propagator_32( P_.tau_ex_, P_.tau_m_, P_.c_m_, dt );
-    const double P21_in = propagator_32( P_.tau_in_, P_.tau_m_, P_.c_m_, dt );
+    const double P21_ex = propagator_ex_.evaluate( dt );
+    const double P21_in = propagator_in_.evaluate( dt );
 
     S_.y2_ =
       P20 * ( P_.I_e_ + S_.y0_ ) + P21_ex * S_.y1_ex_ + P21_in * S_.y1_in_ + S_.y2_ * std::exp( -dt / P_.tau_m_ );
@@ -493,7 +492,7 @@ nest::iaf_psc_exp_ps::propagate_( const double dt )
 }
 
 void
-nest::iaf_psc_exp_ps::emit_spike_( const Time& origin, const long lag, const double t0, const double dt )
+iaf_psc_exp_ps::emit_spike_( const Time& origin, const long lag, const double t0, const double dt )
 {
   // dt == 0 if two input spikes arrived simultaneously,
   // but threshold cannot be crossed during empty interval,
@@ -519,9 +518,9 @@ nest::iaf_psc_exp_ps::emit_spike_( const Time& origin, const long lag, const dou
 }
 
 void
-nest::iaf_psc_exp_ps::emit_instant_spike_( const Time& origin, const long lag, const double spike_offs )
+iaf_psc_exp_ps::emit_instant_spike_( const Time& origin, const long lag, const double spike_offs )
 {
-  assert( S_.y2_ >= P_.U_th_ ); // ensure we are superthreshold
+  assert( S_.y2_ >= P_.U_th_ );  // ensure we are superthreshold
 
   // set stamp and offset for spike
   S_.last_spike_step_ = origin.get_steps() + lag + 1;
@@ -540,15 +539,17 @@ nest::iaf_psc_exp_ps::emit_instant_spike_( const Time& origin, const long lag, c
 }
 
 double
-nest::iaf_psc_exp_ps::threshold_distance( double t_step ) const
+iaf_psc_exp_ps::threshold_distance( double t_step ) const
 {
   const double P20 = -P_.tau_m_ / P_.c_m_ * numerics::expm1( -t_step / P_.tau_m_ );
 
-  const double P21_ex = propagator_32( P_.tau_ex_, P_.tau_m_, P_.c_m_, t_step );
-  const double P21_in = propagator_32( P_.tau_in_, P_.tau_m_, P_.c_m_, t_step );
+  const double P21_ex = propagator_ex_.evaluate( t_step );
+  const double P21_in = propagator_in_.evaluate( t_step );
 
   double y2_root = P20 * ( P_.I_e_ + V_.y0_before_ ) + P21_ex * V_.y1_ex_before_ + P21_in * V_.y1_in_before_
     + V_.y2_before_ * std::exp( -t_step / P_.tau_m_ );
 
   return y2_root - P_.U_th_;
 }
+
+}  // namespace nest

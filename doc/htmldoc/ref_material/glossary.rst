@@ -5,62 +5,16 @@
 Glossary
 ========
 
+.. _units_measure:
+
+Units of measure
+----------------
+
 .. glossary::
  :sorted:
 
- iaf
-   Integrate and fire.
-
- gif
-   Generalized integrate and fire.
-
- cond
-   Conductance-based.
-
- psc
-   Post-synaptic current (current-based).
-
- hh
-   Hodgkin huxley.
-
- rng
-   Random number generator.
-
- wfr
-   Waveform relaxation method.
-
- aeif
-   Adaptive exponential integrate and fire.
-
- ht
-   Hill and tononi.
-
- pp
-   Point process.
-
- in
-   Inhibitory.
-
- ex
-   Excitatory.
-
- MAM
-   Multi-area model.
-
- mpi
-   Message passing interface.
-
- stdp
-   Spike-timing dependent plasticity synapse.
-
- st
-   Short term plasticity.
-
- vp
-   Virtual process.
-
  time
-   Milliseconds (ms).
+   Time in milliseconds (ms).
 
  tau_m
    Membrane time constant in milliseconds (ms).
@@ -87,22 +41,19 @@ Glossary
    Nanosiemens (nS).
 
  g_L
-   Leak conductance in Nanosiemens (nS).
+   Leak conductance in nanosiemens (nS).
 
  g_K
-   Potassium peak conductance in Nanosiemens (nS).
+   Potassium peak conductance in nanosiemens (nS).
 
  g_Na
-   Sodium peak conductance in Nanosiemens (nS).
+   Sodium peak conductance in nanosiemens (nS).
 
  spike rates
-   Spikes/second.
-
- modulation frequencies
-   Herz (Hz).
+   The number of spikes that occurred in a certain time interval, usually expressed in terms of spikes per second (spks/s or s^-1).
 
  frequency
-   Frequncy in Hertz (Hz).
+   Frequency in Hertz (Hz). Note that spike rates are often better expressed in terms of spikes per second (spks/s or s^-1).
 
  voltage
    Millivolts (mV).
@@ -116,7 +67,7 @@ Glossary
  V_th
    Spike threshold in Millivolts (mV).
 
- V_reset double
+ V_reset
    Reset potential of the membrane in Millivolts (mV).
 
  V_min
@@ -132,7 +83,198 @@ Glossary
    Sodium reversal potential in Millivolts (mV).
 
  E_K
-   Potassium reversal potential in Millivolts (mV).
+   Potassium reversal potential in millivolts (mV).
+
+.. _model_terms:
+
+Terms for models in NEST
+------------------------
+
+.. glossary::
+ :sorted:
+
+ iaf
+   Integrate-and-fire. Also known in other sources as `IF`.
+
+ gif
+   Generalized integrate-and-fire. From the Gerstner lab.
+
+ glif
+   Generalized leaky integrate-and-fire. From the Allen institute.
+
+ cond
+   Conductance-based. Also known in other sources as `COBA`.
+
+ psc
+   Post-synaptic current (current-based). Also known in other sources as `CUBA`.
+
+ hh
+   Hodgkin Huxley.
+
+ aeif
+   Adaptive exponential integrate-and-fire. Also known in other sources as `AdEx`.
+
+ ht
+   Hill and Tononi.
+
+ pp
+   Point process.
+
+ in
+   Inhibitory.
+
+ ex
+   Excitatory.
+
+ stdp
+   Spike-timing dependent plasticity.
+
+ st
+   Short-term plasticity.
+
+ psp
+   Post-synaptic potential.
+
+ sfa
+   Spike-frequency adaptation.
+
+ cm
+   Compartmental model.
+
+.. _model_keyword_glossary:
+
+Model selector keywords
+-----------------------
+
+The :ref:`model selector <model_selector>` uses keywords (tags) to categorise models.
+
+.. _synapse_keywords:
+
+Synapse keywords
+~~~~~~~~~~~~~~~~
+
+chemical
+  Unidirectional spike transmission from presynaptic to postsynaptic neuron.
+
+electrical
+  Bidirectional voltage-based transmission.
+
+abstract
+  Non-biological models, often used for rate-based simulations.
+
+rate
+  Rate-coded transmission (continuous signals).
+
+learning
+  Learning signal connections for e-prop.
+
+functional
+  Synapses with dynamic functional properties.
+
+static
+  Static synapses with no plasticity.
+
+stochastic
+  Stochastic spike transmission where neurotransmitter release is probabilistic.
+
+stp
+  Short-term plasticity.
+
+stdp
+  Spike-timing dependent plasticity.
+
+3-factor
+  3-factor plasticity rules (e.g., Clopath, Urbanczik, Vogels-Sprekeler).
+
+astrocyte
+  Astrocyte coupling mode.
+
+.. _neuron_keywords:
+
+Neuron keywords
+~~~~~~~~~~~~~~~
+
+neuron
+  A model of a biological neuron. NEST implements point neurons, multi-compartment neurons, rate neurons, and binary neurons.
+
+integrate-and-fire
+  Neuron model that integrates synaptic input until the membrane potential reaches a threshold, at which point a spike is fired and the potential is reset.
+
+current-based
+  Models post-synaptic responses as changes in current. The response is independent of the neuronal state.
+
+conductance-based
+  Models post-synaptic responses as changes in conductance. The response depends on the membrane potential, capturing more realistic synaptic behavior.
+
+hard threshold
+  Neuron fires deterministically when the membrane potential reaches a fixed threshold. Does not model the intrinsic dynamics of spike generation.
+
+soft threshold
+  Neuron models the voltage-dependent conductances underlying spike generation, producing dynamics that mimic the action potential waveform.
+
+adaptation
+  Neuron has a mechanism that reduces excitability after spiking, such as an adaptive threshold or spike-triggered hyperpolarizing current.
+
+adaptive threshold
+  A spike threshold that increases temporarily after each spike and decays back to baseline, modelling spike-frequency adaptation.
+
+compartmental model
+  Neuron subdivided into multiple compartments representing different morphological parts (soma, dendrites), with inputs received and coupled across compartments.
+
+binary
+  Neuron with two or three discrete states (On/Off). The simplest threshold activation models, used in theoretical neuroscience and disease modelling.
+
+precise
+  Neuron model that calculates exact spike times rather than grid-constrained spike times, at higher computational cost.
+
+parrot
+  Auxiliary neuron that repeats all incoming spikes. Used for testing, benchmarking, or creating shared spike input patterns.
+
+stochastic
+  Neuron that does not fire deterministically; spike times are drawn from a point process with a firing rate determined by the membrane potential.
+
+point process
+  Stochastic neuron model where spike times are described by a point process with a time-dependent firing rate.
+
+Hodgkin-Huxley
+  A conductance-based neuron model based on Hodgkin and Huxley (1952), *A quantitative description of membrane current and its application to conduction and excitation in nerve*, The Journal of Physiology 117. See also :term:`Hodgkin-Huxley`.
+
+Clopath plasticity
+  A voltage-based STDP plasticity rule based on Clopath et al. (2010), *Connectivity reflects coding: a model of voltage-based STDP with homeostasis*, Nature Neuroscience 13:3.
+
+Hill-Tononi plasticity
+  A thalamocortical neuron model based on Hill and Tononi (2005), *Modeling sleep and wakefulness in the thalamocortical system*, Journal of Neurophysiology 93:1671–1698.
+
+e-prop plasticity
+  A learning rule for recurrent spiking networks based on Bellec et al. (2020), *A solution to the learning dilemma for recurrent networks of spiking neurons*, Nature Communications 11:3625.
+
+Other abbreviations
+-------------------
+
+.. glossary::
+ :sorted:
+
+
+ rng
+   Random number generator.
+
+ wfr
+   Waveform relaxation method.
+
+ MAM
+   Multi-area model.
+
+ mpi
+   Message passing interface.
+
+ vp
+   Virtual process.
+
+Commonly used terms in NEST
+----------------------------
+
+.. glossary::
+ :sorted:
 
  subthreshold dynamics
    Non-spiking backgound activity of the synapses.
@@ -196,9 +338,6 @@ Glossary
  Gaussian white noise
    A random process with a mean of zero.
 
- sfa
-   Spike-frequency adaptation.
-
  point neuron
    A simple neuron model where its soma along with the membrane potential dynamics are modeled as a resistance–capacitance circuit.
 
@@ -212,9 +351,6 @@ Glossary
 
  eligibility trace
    A property of a synapse, which allows it to be modified for a period of time when some constraints are satisfied.
-
- reversal potential
-   The membrane potential in which a neuron causes no net current flow.
 
  alpha function
    Instance of a synaptic response.
@@ -241,14 +377,8 @@ Glossary
  renewal process
    Spike-time statistical analysis.
 
- spike train
-   A sequence of action potentials.
-
  spike-frequency adaptation
    After stimulation, neurons show a reduction in the firing frequency of their spike response following an initial increase.
-
- GIF
-   Generalized integrate-and-fire model.
 
  coefficient of variation
    Standard deviation divided by the mean.
@@ -262,14 +392,8 @@ Glossary
  soma
    Cell body of the neuron.
 
- psp
-   Post-synaptic potential.
-
- PSC
-   Post-synatpic current.
-
- absolute refractory
-   An interval after a neuron fires a spike to prevent it from firing a spike again.
+ absolute refractory period
+   Interval directly following a spike emission in which the sender neuron cannot fire again.
 
  indegree
    Amount of connections to post-synaptic cells.

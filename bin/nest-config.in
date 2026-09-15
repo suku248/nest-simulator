@@ -12,13 +12,15 @@ Known values for OPTION are:
 
   --prefix              NEST install prefix for architecture-independent files
   --exec-prefix         NEST install prefix for architecture-dependent files
-  --libs                print library linking information
+  --libs                print library linking information for extension modules
   --cflags              print pre-processor and compiler flags
   --includes            print includes
   --compiler            print the compiler used to compile NEST
+  --compiler-name       Print the compiler name used to compile NEST
+  --compiler-version    Print the compiler version used to compile NEST
   --python-executable   print full path to Python interpreter used
   --python-version      print Python version string for interpreter
-  --static-libraries    print "ON" if configured for static libraries, "OFF" otherwise
+  --static-linking      print "ON" if configured for static linking, "OFF" otherwise
   --docdir              print the relative path (to prefix) to the installed documentation
   --datadir             print the relative path (to prefix) to the installed data
   --libdir              print the relative path (to prefix) to the installed libraries
@@ -27,34 +29,35 @@ Known values for OPTION are:
 
 EOF
 
-    exit $1
+    exit "${1}"
 }
 
 if test $# -eq 0; then
     usage 1
 fi
 
-cflags=false
-libs=false
-
 while test $# -gt 0; do
     case "$1" in
-    -*=*) optarg=`echo "$1" | sed 's/[-_a-zA-Z0-9]*=//'` ;;
-    *) optarg= ;;
+    -*=*)
+        optarg="$(echo "$1" | sed 's/[-_a-zA-Z0-9]*=//')"
+        ;;
+    *)
+        optarg=
+        ;;
     esac
 
     case "$1" in
     --prefix=*)
-        prefix=$optarg
+        prefix="${optarg}"
         ;;
     --prefix)
-        echo $prefix
+        echo "${prefix}"
         ;;
     --exec-prefix)
-        echo $exec_prefix
+        echo "${exec_prefix}"
         ;;
     --version)
-        echo "@NEST_VERSION_STRING@"
+        echo "@NEST_VERSION@"
         ;;
     --help)
         usage 0
@@ -63,13 +66,19 @@ while test $# -gt 0; do
         echo "@ALL_INCLUDES@"
         ;;
     --cflags)
-        echo "@ALL_CXXFLAGS@"
+        echo "@ALL_CXXFLAGS@ @OpenMP_CXX_FLAGS@ @MPI_CXX_COMPILE_FLAGS@ -std=c++@CMAKE_CXX_STANDARD@"
         ;;
     --libs)
-        echo "-L$prefix/@CMAKE_INSTALL_LIBDIR@/nest @ALL_LIBS@"
+        echo "-L${prefix}/@CMAKE_INSTALL_LIBDIR@/nest @MODULE_LINK_LIBS@"
         ;;
     --compiler)
         echo "@CMAKE_CXX_COMPILER@"
+        ;;
+    --compiler-name)
+        echo "@CMAKE_CXX_COMPILER_ID@"
+        ;;
+    --compiler-version)
+        echo "@CMAKE_CXX_COMPILER_VERSION@"
         ;;
     --python-executable)
         echo "@Python_EXECUTABLE@"
@@ -78,8 +87,8 @@ while test $# -gt 0; do
         echo "@Python_VERSION@"
         ;;
 
-    --static-libraries)
-        echo "@static-libraries@"
+    --static-linking)
+        echo "@NEST_WITH_STATIC_LINKING@"
         ;;
     --docdir)
         echo "@CMAKE_INSTALL_DOCDIR@"
@@ -91,8 +100,7 @@ while test $# -gt 0; do
         echo "@CMAKE_INSTALL_LIBDIR@"
         ;;
     *)
-        usage
-        exit 1
+        usage 1
         ;;
     esac
     shift

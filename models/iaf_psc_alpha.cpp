@@ -27,25 +27,25 @@
 
 // Includes from libnestutil:
 #include "dict_util.h"
-#include "numerics.h"
-#include "propagator_stability.h"
-
-// Includes from nestkernel:
 #include "exceptions.h"
+#include "iaf_propagator.h"
 #include "kernel_manager.h"
+#include "nest_impl.h"
+#include "numerics.h"
 #include "ring_buffer_impl.h"
 #include "universal_data_logger_impl.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
-
-nest::RecordablesMap< nest::iaf_psc_alpha > nest::iaf_psc_alpha::recordablesMap_;
 
 namespace nest
 {
+RecordablesMap< iaf_psc_alpha > iaf_psc_alpha::recordablesMap_;
+
+void
+register_iaf_psc_alpha( const std::string& name )
+{
+  register_node_model< iaf_psc_alpha >( name );
+}
+
 
 /*
  * Override the create() method with one call to RecordablesMap::insert_()
@@ -55,7 +55,7 @@ template <>
 void
 RecordablesMap< iaf_psc_alpha >::create()
 {
-  // use standard names whereever you can for consistency!
+  // use standard names wherever you can for consistency!
   insert_( names::V_m, &iaf_psc_alpha::get_V_m_ );
   insert_( names::I_syn_ex, &iaf_psc_alpha::get_I_syn_ex_ );
   insert_( names::I_syn_in, &iaf_psc_alpha::get_I_syn_in_ );
@@ -66,16 +66,16 @@ RecordablesMap< iaf_psc_alpha >::create()
  * ---------------------------------------------------------------- */
 
 iaf_psc_alpha::Parameters_::Parameters_()
-  : Tau_( 10.0 )             // ms
-  , C_( 250.0 )              // pF
-  , TauR_( 2.0 )             // ms
-  , E_L_( -70.0 )            // mV
-  , I_e_( 0.0 )              // pA
-  , V_reset_( -70.0 - E_L_ ) // mV, rel to E_L_
-  , Theta_( -55.0 - E_L_ )   // mV, rel to E_L_
+  : Tau_( 10.0 )              // ms
+  , C_( 250.0 )               // pF
+  , TauR_( 2.0 )              // ms
+  , E_L_( -70.0 )             // mV
+  , I_e_( 0.0 )               // pA
+  , V_reset_( -70.0 - E_L_ )  // mV, rel to E_L_
+  , Theta_( -55.0 - E_L_ )    // mV, rel to E_L_
   , LowerBound_( -std::numeric_limits< double >::infinity() )
-  , tau_ex_( 2.0 ) // ms
-  , tau_in_( 2.0 ) // ms
+  , tau_ex_( 2.0 )  // ms
+  , tau_in_( 2.0 )  // ms
 {
 }
 
@@ -95,30 +95,30 @@ iaf_psc_alpha::State_::State_()
  * ---------------------------------------------------------------- */
 
 void
-iaf_psc_alpha::Parameters_::get( DictionaryDatum& d ) const
+iaf_psc_alpha::Parameters_::get( Dictionary& d ) const
 {
-  def< double >( d, names::E_L, E_L_ ); // Resting potential
-  def< double >( d, names::I_e, I_e_ );
-  def< double >( d, names::V_th, Theta_ + E_L_ ); // threshold value
-  def< double >( d, names::V_reset, V_reset_ + E_L_ );
-  def< double >( d, names::V_min, LowerBound_ + E_L_ );
-  def< double >( d, names::C_m, C_ );
-  def< double >( d, names::tau_m, Tau_ );
-  def< double >( d, names::t_ref, TauR_ );
-  def< double >( d, names::tau_syn_ex, tau_ex_ );
-  def< double >( d, names::tau_syn_in, tau_in_ );
+  d[ names::E_L ] = E_L_;  // Resting potential
+  d[ names::I_e ] = I_e_;
+  d[ names::V_th ] = Theta_ + E_L_;  // threshold value
+  d[ names::V_reset ] = V_reset_ + E_L_;
+  d[ names::V_min ] = LowerBound_ + E_L_;
+  d[ names::C_m ] = C_;
+  d[ names::tau_m ] = Tau_;
+  d[ names::t_ref ] = TauR_;
+  d[ names::tau_syn_ex ] = tau_ex_;
+  d[ names::tau_syn_in ] = tau_in_;
 }
 
 double
-iaf_psc_alpha::Parameters_::set( const DictionaryDatum& d, Node* node )
+iaf_psc_alpha::Parameters_::set( const Dictionary& d, Node* node )
 {
   // if E_L_ is changed, we need to adjust all variables defined relative to
   // E_L_
   const double ELold = E_L_;
-  updateValueParam< double >( d, names::E_L, E_L_, node );
+  update_value_param( d, names::E_L, E_L_, node );
   const double delta_EL = E_L_ - ELold;
 
-  if ( updateValueParam< double >( d, names::V_reset, V_reset_, node ) )
+  if ( update_value_param( d, names::V_reset, V_reset_, node ) )
   {
     V_reset_ -= E_L_;
   }
@@ -127,7 +127,7 @@ iaf_psc_alpha::Parameters_::set( const DictionaryDatum& d, Node* node )
     V_reset_ -= delta_EL;
   }
 
-  if ( updateValueParam< double >( d, names::V_th, Theta_, node ) )
+  if ( update_value_param( d, names::V_th, Theta_, node ) )
   {
     Theta_ -= E_L_;
   }
@@ -136,7 +136,7 @@ iaf_psc_alpha::Parameters_::set( const DictionaryDatum& d, Node* node )
     Theta_ -= delta_EL;
   }
 
-  if ( updateValueParam< double >( d, names::V_min, LowerBound_, node ) )
+  if ( update_value_param( d, names::V_min, LowerBound_, node ) )
   {
     LowerBound_ -= E_L_;
   }
@@ -145,12 +145,12 @@ iaf_psc_alpha::Parameters_::set( const DictionaryDatum& d, Node* node )
     LowerBound_ -= delta_EL;
   }
 
-  updateValueParam< double >( d, names::I_e, I_e_, node );
-  updateValueParam< double >( d, names::C_m, C_, node );
-  updateValueParam< double >( d, names::tau_m, Tau_, node );
-  updateValueParam< double >( d, names::tau_syn_ex, tau_ex_, node );
-  updateValueParam< double >( d, names::tau_syn_in, tau_in_, node );
-  updateValueParam< double >( d, names::t_ref, TauR_, node );
+  update_value_param( d, names::I_e, I_e_, node );
+  update_value_param( d, names::C_m, C_, node );
+  update_value_param( d, names::tau_m, Tau_, node );
+  update_value_param( d, names::tau_syn_ex, tau_ex_, node );
+  update_value_param( d, names::tau_syn_in, tau_in_, node );
+  update_value_param( d, names::t_ref, TauR_, node );
 
   if ( C_ <= 0.0 )
   {
@@ -162,7 +162,7 @@ iaf_psc_alpha::Parameters_::set( const DictionaryDatum& d, Node* node )
     throw BadProperty( "Membrane time constant must be > 0." );
   }
 
-  if ( tau_ex_ <= 0.0 || tau_in_ <= 0.0 )
+  if ( tau_ex_ <= 0.0 or tau_in_ <= 0.0 )
   {
     throw BadProperty( "All synaptic time constants must be > 0." );
   }
@@ -180,15 +180,15 @@ iaf_psc_alpha::Parameters_::set( const DictionaryDatum& d, Node* node )
 }
 
 void
-iaf_psc_alpha::State_::get( DictionaryDatum& d, const Parameters_& p ) const
+iaf_psc_alpha::State_::get( Dictionary& d, const Parameters_& p ) const
 {
-  def< double >( d, names::V_m, y3_ + p.E_L_ ); // Membrane potential
+  d[ names::V_m ] = y3_ + p.E_L_;  // Membrane potential
 }
 
 void
-iaf_psc_alpha::State_::set( const DictionaryDatum& d, const Parameters_& p, double delta_EL, Node* node )
+iaf_psc_alpha::State_::set( const Dictionary& d, const Parameters_& p, double delta_EL, Node* node )
 {
-  if ( updateValueParam< double >( d, names::V_m, y3_, node ) )
+  if ( update_value_param( d, names::V_m, y3_, node ) )
   {
     y3_ -= p.E_L_;
   }
@@ -237,7 +237,7 @@ iaf_psc_alpha::iaf_psc_alpha( const iaf_psc_alpha& n )
 void
 iaf_psc_alpha::init_buffers_()
 {
-  B_.input_buffer_.clear(); // includes resize
+  B_.input_buffer_.clear();  // includes resize
 
   B_.logger_.reset();
 
@@ -247,6 +247,8 @@ iaf_psc_alpha::init_buffers_()
 void
 iaf_psc_alpha::pre_run_hook()
 {
+  AxonalDelayArchivingNode::pre_run_hook_();
+
   // ensures initialization in case mm connected after Simulate
   B_.logger_.init();
 
@@ -266,10 +268,8 @@ iaf_psc_alpha::pre_run_hook()
   V_.P21_in_ = h * V_.P11_in_;
 
   // these are determined according to a numeric stability criterion
-  V_.P31_ex_ = propagator_31( P_.tau_ex_, P_.Tau_, P_.C_, h );
-  V_.P32_ex_ = propagator_32( P_.tau_ex_, P_.Tau_, P_.C_, h );
-  V_.P31_in_ = propagator_31( P_.tau_in_, P_.Tau_, P_.C_, h );
-  V_.P32_in_ = propagator_32( P_.tau_in_, P_.Tau_, P_.C_, h );
+  std::tie( V_.P31_ex_, V_.P32_ex_ ) = IAFPropagatorAlpha( P_.tau_ex_, P_.Tau_, P_.C_ ).evaluate( h );
+  std::tie( V_.P31_in_, V_.P32_in_ ) = IAFPropagatorAlpha( P_.tau_in_, P_.Tau_, P_.C_ ).evaluate( h );
 
   V_.EPSCInitialValue_ = 1.0 * numerics::e / P_.tau_ex_;
   V_.IPSCInitialValue_ = 1.0 * numerics::e / P_.tau_in_;
@@ -306,9 +306,6 @@ iaf_psc_alpha::pre_run_hook()
 void
 iaf_psc_alpha::update( Time const& origin, const long from, const long to )
 {
-  assert( to >= 0 && ( delay ) from < kernel().connection_manager.get_min_delay() );
-  assert( from < to );
-
   for ( long lag = from; lag < to; ++lag )
   {
     if ( S_.r_ == 0 )
@@ -331,7 +328,7 @@ iaf_psc_alpha::update( Time const& origin, const long from, const long to )
     S_.dI_ex_ *= V_.P11_ex_;
 
     // get read access to the correct input-buffer slot
-    const index input_buffer_slot = kernel().event_delivery_manager.get_modulo( lag );
+    const size_t input_buffer_slot = kernel().event_delivery_manager.get_modulo( lag );
     auto& input = B_.input_buffer_.get_values_all_channels( input_buffer_slot );
 
     // Apply spikes delivered in this step; spikes arriving at T+1 have
@@ -371,6 +368,8 @@ iaf_psc_alpha::update( Time const& origin, const long from, const long to )
 
     // log state data
     B_.logger_.record_data( origin.get_steps() + lag );
+
+    reset_correction_entries_stdp_ax_delay_( lag );
   }
 }
 
@@ -379,7 +378,7 @@ iaf_psc_alpha::handle( SpikeEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
-  const index input_buffer_slot = kernel().event_delivery_manager.get_modulo(
+  const size_t input_buffer_slot = kernel().event_delivery_manager.get_modulo(
     e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ) );
 
   const double s = e.get_weight() * e.get_multiplicity();
@@ -389,11 +388,25 @@ iaf_psc_alpha::handle( SpikeEvent& e )
 }
 
 void
+iaf_psc_alpha::handle( CorrectionSpikeEvent& e )
+{
+  assert( e.get_delay_steps() > 0 );
+
+  const size_t input_buffer_slot = kernel().event_delivery_manager.get_modulo(
+    e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ) );
+
+  const double s = ( e.get_new_weight() - e.get_weight() ) * e.get_multiplicity();
+
+  // separate buffer channels for excitatory and inhibitory inputs
+  B_.input_buffer_.add_value( input_buffer_slot, e.get_weight() > 0 ? Buffers_::SYN_EX : Buffers_::SYN_IN, s );
+}
+
+void
 iaf_psc_alpha::handle( CurrentEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
-  const index input_buffer_slot = kernel().event_delivery_manager.get_modulo(
+  const size_t input_buffer_slot = kernel().event_delivery_manager.get_modulo(
     e.get_rel_delivery_steps( kernel().simulation_manager.get_slice_origin() ) );
 
   const double I = e.get_current();
@@ -408,4 +421,4 @@ iaf_psc_alpha::handle( DataLoggingRequest& e )
   B_.logger_.handle( e );
 }
 
-} // namespace
+}  // namespace nest

@@ -30,13 +30,6 @@
 #include "nest_types.h"
 #include "node_collection.h"
 
-// Includes from sli:
-#include "arraydatum.h"
-#include "booldatum.h"
-#include "dictdatum.h"
-#include "iostreamdatum.h"
-#include "token.h"
-
 // Includes from spatial:
 #include "free_layer.h"
 #include "layer.h"
@@ -53,16 +46,22 @@ class LayerMetadata : public NodeCollectionMetadata
 {
 public:
   LayerMetadata( AbstractLayerPTR );
-  ~LayerMetadata()
+  ~LayerMetadata() override
   {
   }
 
-  void set_status( const DictionaryDatum&, bool ) {};
+  void set_status( const Dictionary&, bool ) override {};
 
   void
-  get_status( DictionaryDatum& d ) const
+  get_status( Dictionary& d, NodeCollection const* const nc ) const override
   {
-    layer_->get_status( d );
+    layer_->get_status( d, nc );
+  }
+
+  void
+  get_status( Dictionary& d, const NodeCollectionPTR nc ) const override
+  {
+    get_status( d, nc.get() );
   }
 
   //! Returns pointer to object with layer representation
@@ -74,65 +73,71 @@ public:
 
   // Using string as enum would make stuff more complicated
   std::string
-  get_type() const
+  get_type() const override
   {
     return "spatial";
   }
 
   void
-  set_first_node_id( index node_id )
+  set_first_node_id( size_t node_id ) override
   {
     first_node_id_ = node_id;
   }
 
-  index
-  get_first_node_id() const
+  size_t
+  get_first_node_id() const override
   {
     return first_node_id_;
   }
 
   bool
-  operator==( const NodeCollectionMetadataPTR rhs ) const
+  operator==( const NodeCollectionMetadataPTR rhs ) const override
   {
     const auto rhs_layer_metadata = dynamic_cast< LayerMetadata* >( rhs.get() );
-    if ( rhs_layer_metadata == nullptr )
+    if ( not rhs_layer_metadata )
     {
       return false;
     }
     // Compare status dictionaries of this layer and rhs layer
-    DictionaryDatum dict( new Dictionary() );
-    DictionaryDatum rhs_dict( new Dictionary() );
-    get_status( dict );
-    rhs_layer_metadata->get_status( rhs_dict );
-    return *dict == *rhs_dict;
+    Dictionary dict;
+    Dictionary rhs_dict;
+
+    // Since we do not have access to the node collection here, we
+    // compare based on all metadata, irrespective of any slicing
+    get_status( dict, /* nc */ nullptr );
+    rhs_layer_metadata->get_status( rhs_dict, /* nc */ nullptr );
+    return dict == rhs_dict;
   }
 
 private:
-  const AbstractLayerPTR layer_; //!< layer object
-  index first_node_id_;
+  const AbstractLayerPTR layer_;  //!< layer object
+  size_t first_node_id_;
 };
 
 AbstractLayerPTR get_layer( NodeCollectionPTR layer_nc );
-NodeCollectionPTR create_layer( const DictionaryDatum& layer_dict );
-ArrayDatum get_position( NodeCollectionPTR layer_nc );
-std::vector< double > get_position( const index node_id );
-ArrayDatum displacement( NodeCollectionPTR layer_to_nc, NodeCollectionPTR layer_from_nc );
-ArrayDatum displacement( NodeCollectionPTR layer_nc, const ArrayDatum point );
+NodeCollectionPTR create_layer( const Dictionary& layer_dict );
+std::vector< std::vector< double > > get_position( NodeCollectionPTR layer_nc );
+std::vector< double > get_position( const size_t node_id );
+std::vector< std::vector< double > > displacement( NodeCollectionPTR layer_to_nc, NodeCollectionPTR layer_from_nc );
+std::vector< std::vector< double > > displacement( NodeCollectionPTR layer_nc,
+  const std::vector< std::vector< double > >& point );
 std::vector< double > distance( NodeCollectionPTR layer_to_nc, NodeCollectionPTR layer_from_nc );
-std::vector< double > distance( NodeCollectionPTR layer_nc, const ArrayDatum point );
-std::vector< double > distance( const ArrayDatum conns );
-MaskDatum create_mask( const DictionaryDatum& mask_dict );
-BoolDatum inside( const std::vector< double >& point, const MaskDatum& mask );
-MaskDatum intersect_mask( const MaskDatum& mask1, const MaskDatum& mask2 );
-MaskDatum union_mask( const MaskDatum& mask1, const MaskDatum& mask2 );
-MaskDatum minus_mask( const MaskDatum& mask1, const MaskDatum& mask2 );
-void connect_layers( NodeCollectionPTR source_nc, NodeCollectionPTR target_nc, const DictionaryDatum& dict );
-void dump_layer_nodes( NodeCollectionPTR layer_nc, OstreamDatum& out );
-void dump_layer_connections( const Token& syn_model,
-  NodeCollectionPTR source_layer_nc,
-  NodeCollectionPTR target_layer_nc,
-  OstreamDatum& out_file );
-DictionaryDatum get_layer_status( NodeCollectionPTR layer_nc );
+std::vector< double > distance( NodeCollectionPTR layer_nc, const std::vector< std::vector< double > >& point );
+std::vector< double > distance( const std::vector< ConnectionID >& conns );
+MaskPTR create_mask( const Dictionary& mask_dict );
+NodeCollectionPTR
+select_nodes_by_mask( const NodeCollectionPTR layer_nc, const std::vector< double >& anchor, const MaskPTR mask );
+bool inside( const std::vector< double >& point, const MaskPTR mask );
+MaskPTR intersect_mask( const MaskPTR mask1, const MaskPTR mask2 );
+MaskPTR union_mask( const MaskPTR mask1, const MaskPTR mask2 );
+MaskPTR minus_mask( const MaskPTR mask1, const MaskPTR mask2 );
+void connect_layers( NodeCollectionPTR source_nc, NodeCollectionPTR target_nc, const Dictionary& dict );
+void dump_layer_nodes( NodeCollectionPTR layer_nc, const std::string& filename );
+void dump_layer_connections( const NodeCollectionPTR source_layer,
+  const NodeCollectionPTR target_layer,
+  const std::string& synapse_model,
+  const std::string& filename );
+Dictionary get_layer_status( NodeCollectionPTR layer_nc );
 }
 
 #endif /* SPATIAL_H */

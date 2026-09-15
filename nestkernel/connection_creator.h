@@ -28,11 +28,9 @@
 
 // Includes from nestkernel:
 #include "kernel_manager.h"
-#include "nest_names.h"
-#include "nestmodule.h"
-
-// Includes from spatial:
 #include "mask.h"
+#include "nest_names.h"
+#include "ntree.h"
 #include "position.h"
 
 namespace nest
@@ -45,8 +43,9 @@ class MaskedLayer;
 
 /**
  * This class is a representation of the dictionary of connection
- * properties given as an argument to the ConnectLayers function. The
- * connect method is responsible for generating the connection according
+ * properties given as an argument to the ConnectLayers function.
+ *
+ * The connect method is responsible for generating the connection according
  * to the given parameters. This method is templated with the dimension
  * of the layers, and is called via the Layer connect call using a
  * visitor pattern. The connect method relays to another method (e.g.,
@@ -67,13 +66,16 @@ public:
   {
     Pairwise_bernoulli_on_source,
     Pairwise_bernoulli_on_target,
+    Pairwise_poisson,
     Fixed_indegree,
     Fixed_outdegree
   };
 
   /**
    * Construct a ConnectionCreator with the properties defined in the
-   * given dictionary. Parameters for a ConnectionCreator are:
+   * given dictionary.
+   *
+   * Parameters for a ConnectionCreator are:
    * - "connection_type": Either "convergent" or "divergent".
    * - "allow_autapses": Boolean, true if autapses are allowed.
    * - "allow_multapses": Boolean, true if multapses are allowed.
@@ -83,18 +85,17 @@ public:
    * - "mask": Mask definition (dictionary or masktype).
    * - "kernel": Kernel definition (dictionary, parametertype, or double).
    * - "synapse_model": The synapse model to use.
-   * - "targets": Which targets (model or lid) to select (dictionary).
-   * - "sources": Which targets (model or lid) to select (dictionary).
    * - "weight": Synaptic weight (dictionary, parametertype, or double).
    * - "delay": Synaptic delays (dictionary, parametertype, or double).
    * - other parameters are interpreted as synapse parameters, and may
    *   be defined by a dictionary, parametertype, or double.
    * @param dict dictionary containing properties for the connections.
    */
-  ConnectionCreator( DictionaryDatum dict );
+  ConnectionCreator( const Dictionary& dict );
 
   /**
    * Connect two layers.
+   *
    * @param source source layer.
    * @param source NodeCollection of the source.
    * @param target target layer.
@@ -117,27 +118,35 @@ private:
     PoolWrapper_();
     ~PoolWrapper_();
     void define( MaskedLayer< D >* );
-    void define( std::vector< std::pair< Position< D >, index > >* );
+    void define( std::vector< std::pair< Position< D >, size_t > >* );
 
-    typename Ntree< D, index >::masked_iterator masked_begin( const Position< D >& pos ) const;
-    typename Ntree< D, index >::masked_iterator masked_end() const;
+    typename Ntree< D, size_t >::masked_iterator masked_begin( const Position< D >& pos ) const;
+    typename Ntree< D, size_t >::masked_iterator masked_end() const;
 
-    typename std::vector< std::pair< Position< D >, index > >::iterator begin() const;
-    typename std::vector< std::pair< Position< D >, index > >::iterator end() const;
+    typename std::vector< std::pair< Position< D >, size_t > >::iterator begin() const;
+    typename std::vector< std::pair< Position< D >, size_t > >::iterator end() const;
 
   private:
     MaskedLayer< D >* masked_layer_;
-    std::vector< std::pair< Position< D >, index > >* positions_;
+    std::vector< std::pair< Position< D >, size_t > >* positions_;
   };
 
-  void extract_params_( const DictionaryDatum&, std::vector< DictionaryDatum >& );
+  void extract_params_( const Dictionary&, std::vector< Dictionary >& );
 
   template < typename Iterator, int D >
   void connect_to_target_( Iterator from,
     Iterator to,
     Node* tgt_ptr,
     const Position< D >& tgt_pos,
-    thread tgt_thread,
+    size_t tgt_thread,
+    const Layer< D >& source );
+
+  template < typename Iterator, int D >
+  void connect_to_target_poisson_( Iterator from,
+    Iterator to,
+    Node* tgt_ptr,
+    const Position< D >& tgt_pos,
+    size_t tgt_thread,
     const Layer< D >& source );
 
   template < int D >
@@ -154,6 +163,10 @@ private:
 
   template < int D >
   void
+  pairwise_poisson_( Layer< D >& source, NodeCollectionPTR source_nc, Layer< D >& target, NodeCollectionPTR target_nc );
+
+  template < int D >
+  void
   fixed_indegree_( Layer< D >& source, NodeCollectionPTR source_nc, Layer< D >& target, NodeCollectionPTR target_nc );
 
   template < int D >
@@ -164,15 +177,17 @@ private:
   bool allow_autapses_;
   bool allow_multapses_;
   bool allow_oversized_;
-  index number_of_connections_;
-  std::shared_ptr< AbstractMask > mask_;
-  std::shared_ptr< Parameter > kernel_;
-  std::vector< index > synapse_model_;
-  std::vector< std::vector< DictionaryDatum > > param_dicts_;
-  std::vector< std::shared_ptr< Parameter > > weight_;
-  std::vector< std::shared_ptr< Parameter > > delay_;
+  ParameterPTR number_of_connections_;
+  MaskPTR mask_;
+  ParameterPTR kernel_;
+  std::vector< size_t > synapse_model_;
+  std::vector< std::vector< Dictionary > > param_dicts_;
+  std::vector< ParameterPTR > weight_;
+  std::vector< ParameterPTR > delay_;
+  std::vector< ParameterPTR > dendritic_delay_;
+  std::vector< ParameterPTR > axonal_delay_;
 };
 
-} // namespace nest
+}  // namespace nest
 
 #endif

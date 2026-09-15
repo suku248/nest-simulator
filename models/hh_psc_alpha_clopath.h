@@ -57,7 +57,7 @@ namespace nest
  */
 extern "C" int hh_psc_alpha_clopath_dynamics( double, const double*, double*, void* );
 
-/* BeginUserDocs: neuron, Hodgkin-Huxley, current-based, Clopath plasticity
+/* BeginUserDocs: neuron, Hodgkin-Huxley, current-based, Clopath plasticity, soft threshold
 
 Short description
 +++++++++++++++++
@@ -82,12 +82,16 @@ Spike detection is done by a combined threshold-and-local-maximum search: if
 there is a local maximum above a certain threshold of the membrane potential,
 it is considered a spike.
 
-See also [1]_, [2]_, [3]_, [4]_, [5]_, [6]_.
+See also :footcite:p:`Gerstner2002`, :footcite:p:`Dayan2001`, :footcite:p:`Hodgkin1952`, :footcite:p:`Clopath2010a`,
+:footcite:p:`Clopath2010b`, :footcite:p:`Torben-Nielsen2010`.
+
+For details on asynchronicity in spike and firing events with Hodgkin Huxley models
+see :ref:`here <hh_details>`.
 
 Parameters
 ++++++++++
 
-The following parameters can be set in the status dictionary.
+The following parameters can be set in the status Dictionary.
 
 =========== ======  ===================================================
 **Dynamic state variables**
@@ -103,6 +107,7 @@ u_bar_bar   mV      Low-pass filtered u_bar_minus
 -------------------------------------------------------------------------------
 E_L         mV      Leak reversal potential
 C_m         pF      Capacity of the membrane
+t_ref       ms      Duration of refractory period
 g_L         nS      Leak conductance
 tau_ex      ms      Rise time of the excitatory synaptic alpha function
 tau_in      ms      Rise time of the inhibitory synaptic alpha function
@@ -142,26 +147,7 @@ Problems/Todo
 References
 ++++++++++
 
-.. [1] Gerstner W and Kistler WM (2002). Spiking neuron models: Single neurons,
-       populations, plasticity. New York: Cambridge university press.
-.. [2] Dayan P and Abbott L (2001). Theoretical Neuroscience: Computational
-       and Mathematical Modeling of Neural Systems. Cambridge, MA: MIT Press.
-       https://pure.mpg.de/pubman/faces/ViewItemOverviewPage.jsp?itemId=item_3006127
-.. [3] Hodgkin AL and Huxley A F (1952). A quantitative description of
-       membrane current and its application to conduction and excitation in
-       nerve. The Journal of Physiology 117.
-       DOI: https://doi.org/10.1113/jphysiol.1952.sp004764
-.. [4] Clopath et al. (2010). Connectivity reflects coding: a model of
-       voltage-based STDP with homeostasis. Nature Neuroscience 13(3):344-352.
-       DOI: https://doi.org/10.1038/nn.2479
-.. [5] Clopath and Gerstner (2010). Voltage and spike timing interact
-       in STDP – a unified model. Frontiers in Synaptic Neuroscience. 2:25
-       DOI: https://doi.org/10.3389/fnsyn.2010.00025
-.. [6] Voltage-based STDP synapse (Clopath et al. 2010) connected to a
-       Hodgkin-Huxley neuron on ModelDB:
-       https://senselab.med.yale.edu/ModelDB/showmodel.cshtml?model=144566&file
-       =%2fmodeldb_package%2fstdp_cc.mod
-
+.. footbibliography::
 
 Sends
 +++++
@@ -178,7 +164,14 @@ See also
 
 hh_psc_alpha, clopath_synapse, aeif_psc_delta_clopath
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: hh_psc_alpha_clopath
+
 EndUserDocs */
+
+void register_hh_psc_alpha_clopath( const std::string& name );
 
 class hh_psc_alpha_clopath : public ClopathArchivingNode
 {
@@ -186,7 +179,7 @@ class hh_psc_alpha_clopath : public ClopathArchivingNode
 public:
   hh_psc_alpha_clopath();
   hh_psc_alpha_clopath( const hh_psc_alpha_clopath& );
-  ~hh_psc_alpha_clopath();
+  ~hh_psc_alpha_clopath() override;
 
   /**
    * Import sets of overloaded virtual functions.
@@ -196,23 +189,23 @@ public:
   using Node::handle;
   using Node::handles_test_event;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( SpikeEvent& );
-  void handle( CurrentEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( SpikeEvent& ) override;
+  void handle( CurrentEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( SpikeEvent&, rport );
-  port handles_test_event( CurrentEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CurrentEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
-  void update( Time const&, const long, const long );
+  void init_buffers_() override;
+  void pre_run_hook() override;
+  void update( Time const&, const long, const long ) override;
 
   // END Boilerplate function declarations ----------------------------
 
@@ -231,25 +224,25 @@ private:
   //! Independent parameters
   struct Parameters_
   {
-    double t_ref_;          //!< refractory time in ms
-    double g_Na;            //!< Sodium Conductance in nS
-    double g_K;             //!< Potassium Conductance in nS
-    double g_L;             //!< Leak Conductance in nS
-    double C_m;             //!< Membrane Capacitance in pF
-    double E_Na;            //!< Sodium Reversal Potential in mV
-    double E_K;             //!< Potassium Reversal Potential in mV
-    double E_L;             //!< Leak reversal Potential (aka resting potential) in mV
-    double tau_synE;        //!< Synaptic Time Constant Excitatory Synapse in ms
-    double tau_synI;        //!< Synaptic Time Constant for Inhibitory Synapse in ms
-    double I_e;             //!< Constant Current in pA
-    double tau_u_bar_plus;  //!< time constant of u_bar_plus in ms
-    double tau_u_bar_minus; //!< time constant of u_bar_minus in ms
-    double tau_u_bar_bar;   //!< time constant of u_bar_bar in ms
+    double t_ref_;           //!< refractory time in ms
+    double g_Na;             //!< Sodium Conductance in nS
+    double g_K;              //!< Potassium Conductance in nS
+    double g_L;              //!< Leak Conductance in nS
+    double C_m;              //!< Membrane Capacitance in pF
+    double E_Na;             //!< Sodium Reversal Potential in mV
+    double E_K;              //!< Potassium Reversal Potential in mV
+    double E_L;              //!< Leak reversal Potential (aka resting potential) in mV
+    double tau_synE;         //!< Synaptic Time Constant Excitatory Synapse in ms
+    double tau_synI;         //!< Synaptic Time Constant for Inhibitory Synapse in ms
+    double I_e;              //!< Constant Current in pA
+    double tau_u_bar_plus;   //!< time constant of u_bar_plus in ms
+    double tau_u_bar_minus;  //!< time constant of u_bar_minus in ms
+    double tau_u_bar_bar;    //!< time constant of u_bar_bar in ms
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dicitonary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
   };
 
 public:
@@ -270,31 +263,31 @@ public:
     enum StateVecElems
     {
       V_M = 0,
-      HH_M,        // 1
-      HH_H,        // 2
-      HH_N,        // 3
-      DI_EXC,      // 4
-      I_EXC,       // 5
-      DI_INH,      // 6
-      I_INH,       // 7
-      U_BAR_PLUS,  // 8
-      U_BAR_MINUS, // 9
-      U_BAR_BAR,   // 10
+      HH_M,         // 1
+      HH_H,         // 2
+      HH_N,         // 3
+      DI_EXC,       // 4
+      I_EXC,        // 5
+      DI_INH,       // 6
+      I_INH,        // 7
+      U_BAR_PLUS,   // 8
+      U_BAR_MINUS,  // 9
+      U_BAR_BAR,    // 10
       STATE_VEC_SIZE
     };
 
 
     //! neuron state, must be C-array for GSL solver
     double y_[ STATE_VEC_SIZE ];
-    int r_; //!< number of refractory steps remaining
+    int r_;  //!< number of refractory steps remaining
 
-    State_( const Parameters_& ); //!< Default initialization
+    State_( const Parameters_& );  //!< Default initialization
     State_( const State_& );
 
     State_& operator=( const State_& );
 
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, Node* node );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, Node* node );
   };
 
   // ----------------------------------------------------------------
@@ -305,8 +298,8 @@ private:
    */
   struct Buffers_
   {
-    Buffers_( hh_psc_alpha_clopath& );                  //!< Sets buffer pointers to 0
-    Buffers_( const Buffers_&, hh_psc_alpha_clopath& ); //!< Sets buffer pointers to 0
+    Buffers_( hh_psc_alpha_clopath& );                   //!< Sets buffer pointers to 0
+    Buffers_( const Buffers_&, hh_psc_alpha_clopath& );  //!< Sets buffer pointers to 0
 
     //! Logger for all analog data
     UniversalDataLogger< hh_psc_alpha_clopath > logger_;
@@ -317,16 +310,16 @@ private:
     RingBuffer currents_;
 
     /** GSL ODE stuff */
-    gsl_odeiv_step* s_;    //!< stepping function
-    gsl_odeiv_control* c_; //!< adaptive stepsize control function
-    gsl_odeiv_evolve* e_;  //!< evolution function
-    gsl_odeiv_system sys_; //!< struct describing system
+    gsl_odeiv_step* s_;     //!< stepping function
+    gsl_odeiv_control* c_;  //!< adaptive stepsize control function
+    gsl_odeiv_evolve* e_;   //!< evolution function
+    gsl_odeiv_system sys_;  //!< struct describing system
 
-    // Since IntergrationStep_ is initialized with step_, and the resolution
+    // Since IntegrationStep_ is initialized with step_, and the resolution
     // cannot change after nodes have been created, it is safe to place both
     // here.
-    double step_;            //!< step size in ms
-    double IntegrationStep_; //!< current integration time step, updated by GSL
+    double step_;             //!< step size in ms
+    double IntegrationStep_;  //!< current integration time step, updated by GSL
 
     /**
      * Input current injected by CurrentEvent.
@@ -376,8 +369,8 @@ private:
 };
 
 
-inline port
-hh_psc_alpha_clopath::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+hh_psc_alpha_clopath::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
@@ -386,8 +379,8 @@ hh_psc_alpha_clopath::send_test_event( Node& target, rport receptor_type, synind
 }
 
 
-inline port
-hh_psc_alpha_clopath::handles_test_event( SpikeEvent&, rport receptor_type )
+inline size_t
+hh_psc_alpha_clopath::handles_test_event( SpikeEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -396,8 +389,8 @@ hh_psc_alpha_clopath::handles_test_event( SpikeEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-hh_psc_alpha_clopath::handles_test_event( CurrentEvent&, rport receptor_type )
+inline size_t
+hh_psc_alpha_clopath::handles_test_event( CurrentEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -406,8 +399,8 @@ hh_psc_alpha_clopath::handles_test_event( CurrentEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-hh_psc_alpha_clopath::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+hh_psc_alpha_clopath::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -417,22 +410,22 @@ hh_psc_alpha_clopath::handles_test_event( DataLoggingRequest& dlr, rport recepto
 }
 
 inline void
-hh_psc_alpha_clopath::get_status( DictionaryDatum& d ) const
+hh_psc_alpha_clopath::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ClopathArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-hh_psc_alpha_clopath::set_status( const DictionaryDatum& d )
+hh_psc_alpha_clopath::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
-  State_ stmp = S_;      // temporary copy in case of errors
-  stmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
+  State_ stmp = S_;       // temporary copy in case of errors
+  stmp.set( d, this );    // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -445,7 +438,7 @@ hh_psc_alpha_clopath::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // HAVE_GSL
-#endif // HH_PSC_ALPHA_CLOPATH_H
+#endif  // HAVE_GSL
+#endif  // HH_PSC_ALPHA_CLOPATH_H

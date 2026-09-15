@@ -28,7 +28,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: synapse, instantaneous rate
+/* BeginUserDocs: synapse, abstract, rate
 
 Short description
 +++++++++++++++++
@@ -48,14 +48,14 @@ These two factor origin from the mean-field reduction of networks of
 leaky-integrate-and-fire neurons. In this reduction the input to the
 neurons is characterized by its mean and its variance. The mean is
 obtained by a sum over presynaptic activities (e.g as in eq.28 in
-[1]_), where each term of the sum consists of the presynaptic activity
+:footcite:p:`Hahne2017`), where each term of the sum consists of the presynaptic activity
 multiplied with the ``drift_factor``. Similarly, the variance is obtained
-by a sum over presynaptic activities (e.g as in eq.29 in [1]_), where
+by a sum over presynaptic activities (e.g as in eq.29 in :footcite:p:`Hahne2017`), where
 each term of the sum consists of the presynaptic activity multiplied
 with the ``diffusion_factor``. Note that in general the drift and
 diffusion factors might differ from the ones given in eq. 28 and 29.,
 for example in case of a reduction on the single neuron level or in
-case of distributed in-degrees (see discussion in chapter 5.2 of [1]_)
+case of distributed in-degrees (see discussion in chapter 5.2 of :footcite:p:`Hahne2017`)
 
 The values of the parameters delay and weight are ignored for
 connections of this type.
@@ -69,41 +69,44 @@ References
 ++++++++++
 
 
-.. [1] Hahne J, Dahmen D, Schuecker J, Frommer A,
-       Bolten M, Helias M, Diesmann, M. (2017).
-       Integration of continuous-time dynamics in a
-       spiking neural network simulator.
-       Frontiers in Neuroinformatics, 11:34.
-       DOI: https://doi.org/10.3389/fninf.2017.00034
-
+.. footbibliography::
 
 See also
 ++++++++
 
 siegert_neuron, rate_connection_instantaneous
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: diffusion_connection
+
 EndUserDocs */
 
-template < typename targetidentifierT >
-class DiffusionConnection : public Connection< targetidentifierT >
-{
+void register_diffusion_connection( const std::string& name );
 
+template < typename targetidentifierT >
+class diffusion_connection : public Connection< targetidentifierT, TotalDelay >
+{
 public:
   // this line determines which common properties to use
   typedef CommonSynapseProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
-  typedef DiffusionConnectionEvent EventType;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::SUPPORTS_WFR;
 
   /**
    * Default Constructor.
    * Sets default values for all parameters. Needed by GenericConnectorModel.
    */
-  DiffusionConnection()
+  diffusion_connection()
     : ConnectionBase()
     , drift_factor_( 1.0 )
     , diffusion_factor_( 1.0 )
   {
   }
+
+  std::unique_ptr< SecondaryEvent > get_secondary_event();
 
   // Explicitly declare all methods inherited from the dependent base
   // ConnectionBase.
@@ -116,14 +119,14 @@ public:
   using ConnectionBase::get_target;
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex, const CommonPropertiesType& )
   {
-    EventType ge;
+    DiffusionConnectionEvent ge;
 
     s.sends_secondary_event( ge );
     ge.set_sender( s );
-    Connection< targetidentifierT >::target_.set_rport( t.handles_test_event( ge, receptor_type ) );
-    Connection< targetidentifierT >::target_.set_target( &t );
+    Connection< targetidentifierT, TotalDelay >::target_.set_rport( t.handles_test_event( ge, receptor_type ) );
+    Connection< targetidentifierT, TotalDelay >::target_.set_target( &t );
   }
 
   /**
@@ -131,19 +134,21 @@ public:
    * \param e The event to send
    * \param p The port under which this connection is stored in the Connector.
    */
-  void
-  send( Event& e, thread t, const CommonSynapseProperties& )
+  bool
+  send( Event& e, size_t t, const CommonSynapseProperties& )
   {
     e.set_drift_factor( drift_factor_ );
     e.set_diffusion_factor( diffusion_factor_ );
     e.set_receiver( *get_target( t ) );
     e.set_rport( get_rport() );
     e();
+
+    return true;
   }
 
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   void
   set_weight( double )
@@ -154,7 +159,13 @@ public:
   }
 
   void
-  set_delay( double )
+  set_delay_ms( double )
+  {
+    throw BadProperty( "diffusion_connection has no delay." );
+  }
+
+  void
+  set_delay_steps( long )
   {
     throw BadProperty( "diffusion_connection has no delay." );
   }
@@ -166,27 +177,30 @@ private:
 };
 
 template < typename targetidentifierT >
+constexpr ConnectionModelProperties diffusion_connection< targetidentifierT >::properties;
+
+template < typename targetidentifierT >
 void
-DiffusionConnection< targetidentifierT >::get_status( DictionaryDatum& d ) const
+diffusion_connection< targetidentifierT >::get_status( Dictionary& d ) const
 {
   ConnectionBase::get_status( d );
-  def< double >( d, names::weight, weight_ );
-  def< double >( d, names::drift_factor, drift_factor_ );
-  def< double >( d, names::diffusion_factor, diffusion_factor_ );
-  def< long >( d, names::size_of, sizeof( *this ) );
+  d[ names::weight ] = weight_;
+  d[ names::drift_factor ] = drift_factor_;
+  d[ names::diffusion_factor ] = diffusion_factor_;
+  d[ names::size_of ] = static_cast< long >( sizeof( *this ) );
 }
 
 template < typename targetidentifierT >
 void
-DiffusionConnection< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+diffusion_connection< targetidentifierT >::set_status( const Dictionary& d, ConnectorModel& cm )
 {
   // If the delay is set, we throw a BadProperty
-  if ( d->known( names::delay ) )
+  if ( d.known( names::delay ) )
   {
     throw BadProperty( "diffusion_connection has no delay." );
   }
   // If the parameter weight is set, we throw a BadProperty
-  if ( d->known( names::weight ) )
+  if ( d.known( names::weight ) )
   {
     throw BadProperty(
       "Please use the parameters drift_factor and "
@@ -194,10 +208,18 @@ DiffusionConnection< targetidentifierT >::set_status( const DictionaryDatum& d, 
   }
 
   ConnectionBase::set_status( d, cm );
-  updateValue< double >( d, names::drift_factor, drift_factor_ );
-  updateValue< double >( d, names::diffusion_factor, diffusion_factor_ );
+  d.update_value( names::drift_factor, drift_factor_ );
+  d.update_value( names::diffusion_factor, diffusion_factor_ );
 }
 
-} // namespace
+
+template < typename targetidentifierT >
+std::unique_ptr< SecondaryEvent >
+diffusion_connection< targetidentifierT >::get_secondary_event()
+{
+  return std::make_unique< DiffusionConnectionEvent >();
+}
+
+}  // namespace
 
 #endif /* #ifndef DIFFUSION_CONNECTION_H */

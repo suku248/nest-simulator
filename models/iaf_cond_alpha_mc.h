@@ -45,9 +45,6 @@
 #include "ring_buffer.h"
 #include "universal_data_logger.h"
 
-// Includes from sli:
-#include "dictdatum.h"
-#include "name.h"
 
 namespace nest
 {
@@ -61,23 +58,27 @@ namespace nest
 extern "C" int iaf_cond_alpha_mc_dynamics( double, const double*, double*, void* );
 
 
-/* BeginUserDocs: neuron, integrate-and-fire, conductance-based
+/* BeginUserDocs: neuron, integrate-and-fire, conductance-based, hard threshold
 
 Short description
 +++++++++++++++++
 
 Multi-compartment conductance-based leaky integrate-and-fire neuron model
 
-
 Description
 +++++++++++
+
+.. admonition:: Deprecated model
+
+   ``iaf_cond_alpha_mc`` is deprecated because ``cm_default`` is an improved
+   implementation of compartmental models in NEST (see :doc:`cm_default`).
 
 THIS MODEL IS A PROTOTYPE FOR ILLUSTRATION PURPOSES. IT IS NOT YET
 FULLY TESTED. USE AT YOUR OWN PERIL!
 
 ``iaf_cond_alpha_mc`` is an implementation of a multi-compartment spiking
 neuron using IAF dynamics with conductance-based synapses. It serves
-mainly to illustrate the implementation of ref:`multicompartment models
+mainly to illustrate the implementation of :ref:`multicompartment models
 <multicompartment-models>` in NEST.
 
 The model has three compartments: soma, proximal and distal dendrite,
@@ -106,17 +107,17 @@ receive current input from a current generator, and an external (rheobase)
 current can be set for each compartment.
 
 Synapses, including those for injection external currents, are addressed through
-the receptor types given in the ``receptor_types`` entry of the state dictionary.
+the receptor types given in the ``receptor_types`` entry of the state Dictionary.
 Note that in contrast to the single-compartment ``iaf_cond_alpha`` model, all
 synaptic weights must be positive numbers!
 
-See also [1]_, [2]_.
+See also :footcite:p:`Meffin2004`, :footcite:p:`Bernander1991`.
 
 Parameters
 ++++++++++
 
-The following parameters can be set in the status dictionary. Parameters
-for each compartment are collected in a sub-dictionary; these sub-dictionaries
+The following parameters can be set in the status Dictionary. Parameters
+for each compartment are collected in a sub-Dictionary; these sub-dictionaries
 are called "soma", "proximal", and "distal", respectively. In the list below,
 these parameters are marked with an asterisk.
 
@@ -151,24 +152,21 @@ References
 ++++++++++
 
 
-.. [1] Meffin H, Burkitt AN, Grayden DB (2004). An analytical
-       model for the large, fluctuating synaptic conductance state typical of
-       neocortical neurons in vivo. Journal of Computational Neuroscience,
-       16:159-175.
-       DOI: https://doi.org/10.1023/B:JCNS.0000014108.03012.81
-.. [2] Bernander O, Douglas RJ, Martin KAC, Koch C (1991). Synaptic background
-       activity influences spatiotemporal integration in single pyramidal
-       cells.  Proceedings of the National Academy of Science USA,
-       88(24):11569-11573.
-       DOI: https://doi.org/10.1073/pnas.88.24.11569
-
+.. footbibliography::
 
 See also
 ++++++++
 
 iaf_cond_alpha
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: iaf_cond_alpha_mc
+
 EndUserDocs */
+
+void register_iaf_cond_alpha_mc( const std::string& name );
 
 class iaf_cond_alpha_mc : public ArchivingNode
 {
@@ -178,7 +176,7 @@ class iaf_cond_alpha_mc : public ArchivingNode
 public:
   iaf_cond_alpha_mc();
   iaf_cond_alpha_mc( const iaf_cond_alpha_mc& );
-  ~iaf_cond_alpha_mc();
+  ~iaf_cond_alpha_mc() override;
 
   /**
    * Import sets of overloaded virtual functions.
@@ -188,23 +186,23 @@ public:
   using Node::handle;
   using Node::handles_test_event;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( SpikeEvent& );
-  void handle( CurrentEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( SpikeEvent& ) override;
+  void handle( CurrentEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( SpikeEvent&, rport );
-  port handles_test_event( CurrentEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CurrentEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
-  void update( Time const&, const long, const long );
+  void init_buffers_() override;
+  void pre_run_hook() override;
+  void update( Time const&, const long, const long ) override;
 
   // Enumerations and constants specifying structure and properties ----
 
@@ -222,7 +220,7 @@ private:
    * @note Start with 1 so we can forbid port 0 to avoid accidental
    *       creation of connections with no receptor type set.
    */
-  static const port MIN_SPIKE_RECEPTOR = 1;
+  static const size_t MIN_SPIKE_RECEPTOR = 1;
 
   /**
    * Spike receptors.
@@ -245,7 +243,7 @@ private:
    *  @note Start with SUP_SPIKE_RECEPTOR to avoid any overlap and
    *        accidental mix-ups.
    */
-  static const port MIN_CURR_RECEPTOR = SUP_SPIKE_RECEPTOR;
+  static const size_t MIN_CURR_RECEPTOR = SUP_SPIKE_RECEPTOR;
 
   /**
    * Current receptors.
@@ -290,29 +288,29 @@ private:
    */
   struct Parameters_
   {
-    double V_th;                //!< Threshold Potential in mV
-    double V_reset;             //!< Reset Potential in mV
-    double t_ref;               //!< Refractory period in ms
-    double g_conn[ NCOMP - 1 ]; //!< Conductances connecting compartments,
-                                //!< in nS
-    double g_L[ NCOMP ];        //!< Leak Conductance in nS
-    double C_m[ NCOMP ];        //!< Membrane Capacitance in pF
-    double E_ex[ NCOMP ];       //!< Excitatory reversal Potential in mV
-    double E_in[ NCOMP ];       //!< Inhibitory reversal Potential in mV
-    double E_L[ NCOMP ];        //!< Leak reversal Potential (aka resting potential)
-                                //!< in mV
-    double tau_synE[ NCOMP ];   //!< Synaptic Time Constant Excitatory Synapse
-                                //!< in ms
-    double tau_synI[ NCOMP ];   //!< Synaptic Time Constant for Inhibitory
-                                //!< Synapse in ms
-    double I_e[ NCOMP ];        //!< Constant Current in pA
+    double V_th;                 //!< Threshold Potential in mV
+    double V_reset;              //!< Reset Potential in mV
+    double t_ref;                //!< Refractory period in ms
+    double g_conn[ NCOMP - 1 ];  //!< Conductances connecting compartments,
+                                 //!< in nS
+    double g_L[ NCOMP ];         //!< Leak Conductance in nS
+    double C_m[ NCOMP ];         //!< Membrane Capacitance in pF
+    double E_ex[ NCOMP ];        //!< Excitatory reversal Potential in mV
+    double E_in[ NCOMP ];        //!< Inhibitory reversal Potential in mV
+    double E_L[ NCOMP ];         //!< Leak reversal Potential (aka resting potential)
+                                 //!< in mV
+    double tau_synE[ NCOMP ];    //!< Synaptic Time Constant Excitatory Synapse
+                                 //!< in ms
+    double tau_synI[ NCOMP ];    //!< Synaptic Time Constant for Inhibitory
+                                 //!< Synapse in ms
+    double I_e[ NCOMP ];         //!< Constant Current in pA
 
-    Parameters_();                                //!< Sets default parameter values
-    Parameters_( const Parameters_& );            //!< needed to copy C-arrays
-    Parameters_& operator=( const Parameters_& ); //!< needed to copy C-arrays
+    Parameters_();                                 //!< Sets default parameter values
+    Parameters_( const Parameters_& );             //!< needed to copy C-arrays
+    Parameters_& operator=( const Parameters_& );  //!< needed to copy C-arrays
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dicitonary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
   };
 
 
@@ -342,19 +340,19 @@ public:
     };
 
     //! total size of state vector
-    static const size_t STATE_VEC_SIZE = STATE_VEC_COMPS * NCOMP;
+    static const size_t STATE_VEC_SIZE = to_underlying( STATE_VEC_COMPS ) * to_underlying( NCOMP );
 
     //! neuron state, must be C-array for GSL solver
     double y_[ STATE_VEC_SIZE ];
-    int r_; //!< number of refractory steps remaining
+    int r_;  //!< number of refractory steps remaining
 
-    State_( const Parameters_& ); //!< Default initialization
+    State_( const Parameters_& );  //!< Default initialization
     State_( const State_& );
 
     State_& operator=( const State_& );
 
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, const Parameters_&, Node* );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, const Parameters_&, Node* );
 
     /**
      * Compute linear index into state array from compartment and element.
@@ -378,7 +376,7 @@ private:
    */
   struct Buffers_
   {
-    Buffers_( iaf_cond_alpha_mc& ); //!< Sets buffer pointers to 0
+    Buffers_( iaf_cond_alpha_mc& );  //!< Sets buffer pointers to 0
     //! Sets buffer pointers to 0
     Buffers_( const Buffers_&, iaf_cond_alpha_mc& );
 
@@ -392,16 +390,16 @@ private:
     std::vector< RingBuffer > currents_;
 
     /** GSL ODE stuff */
-    gsl_odeiv_step* s_;    //!< stepping function
-    gsl_odeiv_control* c_; //!< adaptive stepsize control function
-    gsl_odeiv_evolve* e_;  //!< evolution function
-    gsl_odeiv_system sys_; //!< struct describing system
+    gsl_odeiv_step* s_;     //!< stepping function
+    gsl_odeiv_control* c_;  //!< adaptive stepsize control function
+    gsl_odeiv_evolve* e_;   //!< evolution function
+    gsl_odeiv_system sys_;  //!< struct describing system
 
-    // Since IntergrationStep_ is initialized with step_, and the resolution
+    // Since IntegrationStep_ is initialized with step_, and the resolution
     // cannot change after nodes have been created, it is safe to place both
     // here.
-    double step_;            //!< step size in ms
-    double IntegrationStep_; //!< current integration time step, updated by GSL
+    double step_;             //!< step size in ms
+    double IntegrationStep_;  //!< current integration time step, updated by GSL
 
     /**
      * Input currents injected by CurrentEvent.
@@ -410,7 +408,7 @@ private:
      * It must be a part of Buffers_, since it is initialized once before
      * the first simulation, but not modified before later Simulate calls.
      */
-    double I_stim_[ NCOMP ]; //!< External Stimulus in pA
+    double I_stim_[ NCOMP ];  //!< External Stimulus in pA
   };
 
   // Internal variables ---------------------------------------------
@@ -457,29 +455,28 @@ private:
   Buffers_ B_;
 
   //! Table of compartment names
-  static std::vector< Name > comp_names_;
+  static std::vector< std::string > comp_names_;
 
-  //! Dictionary of receptor types, leads to seg fault on exit, see #328
-  // static DictionaryDatum receptor_dict_;
+  // Dictionary of receptor types, leads to seg fault on exit, see #328
 
   //! Mapping of recordables names to access functions
   static RecordablesMap< iaf_cond_alpha_mc > recordablesMap_;
 };
 
-inline port
-iaf_cond_alpha_mc::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+iaf_cond_alpha_mc::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-iaf_cond_alpha_mc::handles_test_event( SpikeEvent&, rport receptor_type )
+inline size_t
+iaf_cond_alpha_mc::handles_test_event( SpikeEvent&, size_t receptor_type )
 {
-  if ( receptor_type < MIN_SPIKE_RECEPTOR || receptor_type >= SUP_SPIKE_RECEPTOR )
+  if ( receptor_type < MIN_SPIKE_RECEPTOR or receptor_type >= SUP_SPIKE_RECEPTOR )
   {
-    if ( receptor_type < 0 || receptor_type >= SUP_CURR_RECEPTOR )
+    if ( receptor_type >= SUP_CURR_RECEPTOR )
     {
       throw UnknownReceptorType( receptor_type, get_name() );
     }
@@ -491,12 +488,12 @@ iaf_cond_alpha_mc::handles_test_event( SpikeEvent&, rport receptor_type )
   return receptor_type - MIN_SPIKE_RECEPTOR;
 }
 
-inline port
-iaf_cond_alpha_mc::handles_test_event( CurrentEvent&, rport receptor_type )
+inline size_t
+iaf_cond_alpha_mc::handles_test_event( CurrentEvent&, size_t receptor_type )
 {
-  if ( receptor_type < MIN_CURR_RECEPTOR || receptor_type >= SUP_CURR_RECEPTOR )
+  if ( receptor_type < MIN_CURR_RECEPTOR or receptor_type >= SUP_CURR_RECEPTOR )
   {
-    if ( receptor_type >= 0 && receptor_type < MIN_CURR_RECEPTOR )
+    if ( receptor_type < MIN_CURR_RECEPTOR )
     {
       throw IncompatibleReceptorType( receptor_type, get_name(), "CurrentEvent" );
     }
@@ -508,12 +505,12 @@ iaf_cond_alpha_mc::handles_test_event( CurrentEvent&, rport receptor_type )
   return receptor_type - MIN_CURR_RECEPTOR;
 }
 
-inline port
-iaf_cond_alpha_mc::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+iaf_cond_alpha_mc::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
-    if ( receptor_type < 0 || receptor_type >= SUP_CURR_RECEPTOR )
+    if ( receptor_type >= SUP_CURR_RECEPTOR )
     {
       throw UnknownReceptorType( receptor_type, get_name() );
     }
@@ -526,42 +523,42 @@ iaf_cond_alpha_mc::handles_test_event( DataLoggingRequest& dlr, rport receptor_t
 }
 
 inline void
-iaf_cond_alpha_mc::get_status( DictionaryDatum& d ) const
+iaf_cond_alpha_mc::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 
   /**
-   * @todo dictionary construction should be done only once for
+   * @todo Dictionary construction should be done only once for
    * static member in default c'tor, but this leads to
    * a seg fault on exit, see #328
    */
-  DictionaryDatum receptor_dict_ = new Dictionary();
-  ( *receptor_dict_ )[ names::soma_exc ] = SOMA_EXC;
-  ( *receptor_dict_ )[ names::soma_inh ] = SOMA_INH;
-  ( *receptor_dict_ )[ names::soma_curr ] = I_SOMA;
+  Dictionary receptor_dict_;
+  receptor_dict_[ names::soma_exc ] = static_cast< long >( SOMA_EXC );
+  receptor_dict_[ names::soma_inh ] = static_cast< long >( SOMA_INH );
+  receptor_dict_[ names::soma_curr ] = static_cast< long >( I_SOMA );
 
-  ( *receptor_dict_ )[ names::proximal_exc ] = PROX_EXC;
-  ( *receptor_dict_ )[ names::proximal_inh ] = PROX_INH;
-  ( *receptor_dict_ )[ names::proximal_curr ] = I_PROX;
+  receptor_dict_[ names::proximal_exc ] = static_cast< long >( PROX_EXC );
+  receptor_dict_[ names::proximal_inh ] = static_cast< long >( PROX_INH );
+  receptor_dict_[ names::proximal_curr ] = static_cast< long >( I_PROX );
 
-  ( *receptor_dict_ )[ names::distal_exc ] = DIST_EXC;
-  ( *receptor_dict_ )[ names::distal_inh ] = DIST_INH;
-  ( *receptor_dict_ )[ names::distal_curr ] = I_DIST;
+  receptor_dict_[ names::distal_exc ] = static_cast< long >( DIST_EXC );
+  receptor_dict_[ names::distal_inh ] = static_cast< long >( DIST_INH );
+  receptor_dict_[ names::distal_curr ] = static_cast< long >( I_DIST );
 
-  ( *d )[ names::receptor_types ] = receptor_dict_;
+  d[ names::receptor_types ] = receptor_dict_;
 }
 
 inline void
-iaf_cond_alpha_mc::set_status( const DictionaryDatum& d )
+iaf_cond_alpha_mc::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;     // temporary copy in case of errors
-  ptmp.set( d, this );       // throws if BadProperty
-  State_ stmp = S_;          // temporary copy in case of errors
-  stmp.set( d, ptmp, this ); // throws if BadProperty
+  Parameters_ ptmp = P_;      // temporary copy in case of errors
+  ptmp.set( d, this );        // throws if BadProperty
+  State_ stmp = S_;           // temporary copy in case of errors
+  stmp.set( d, ptmp, this );  // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -574,8 +571,8 @@ iaf_cond_alpha_mc::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // HAVE_GSL
+#endif  // HAVE_GSL
 
-#endif // IAF_COND_ALPHA_MC_H
+#endif  // IAF_COND_ALPHA_MC_H

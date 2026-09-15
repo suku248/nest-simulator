@@ -28,21 +28,20 @@ below) are also declared in the corresponding implementation files and
 second if they are actually used somewhere in the code. It uses the
 variable NEST_SOURCES to determine the source directory to check.
 
-This script is supposed to be run from static_code_analysis.sh either
-during the run of the CI or invocation of check_code_style.sh.
+This script is supposed to be run from CI.
 
 In order to ease error reporting in this context, this script uses two
 distinct output channels: messages meant for immediate display are
 printed to stderr using the helper function eprint(). Messages meant
-for the summary at the end of static_code_analysis.sh are printed to
+for the summary at the end of the static code analysis are printed to
 stdout instead so they can be more easily captured and only printed if
-errors occured.
+errors occurred.
 
 """
 
 import os
-import sys
 import re
+import sys
 from subprocess import check_output
 
 
@@ -61,10 +60,15 @@ EXIT_UNUSED_NAME = 31
 EXIT_NO_SOURCE = 126
 
 try:
-    source_dir = os.environ['NEST_SOURCE']
+    heuristic_folders = "pynest nestkernel build_support models .git"
+    if "NEST_SOURCE" not in os.environ:
+        if all([name in os.listdir() for name in heuristic_folders.split()]):
+            os.environ["NEST_SOURCE"] = "."
+        else:
+            print("Script does not seem to be called from the NEST repository root.")
+    source_dir = os.environ["NEST_SOURCE"]
 except KeyError:
-    eprint("Please make NEST_SOURCE environment variable to point to " +
-           "the source tree you want to check!")
+    eprint("Please make NEST_SOURCE environment variable to point to the source tree you want to check!")
     sys.exit(EXIT_NO_SOURCE)
 
 # Base names of files that contain const Name definitions
@@ -89,18 +93,9 @@ def get_names(fname, pattern):
 names_defined = set()
 for names_file in names_files:
     fname = os.path.join(source_dir, names_file)
-
-    names_header = get_names(fname + ".h", r"extern\s+const\s+Name\s+(\w+)\s*;")
-    names_source = get_names(fname + ".cpp", r"const\s+Name\s+(\w+)\(.*")
-
-    for h, s in zip(names_header, names_source):
-        if h != s:
-            eprint("[NAME] {}: inconsistent declaration: {} != {}".format(
-                names_file, h, s))
-            print("... {}\\n".format(names_file))
-            sys.exit(EXIT_NAME_H_CPP_MISMATCH)
-        else:
-            names_defined.add(h)
+    names_header = get_names(fname + ".h", r"const\s+std::string\s+(\w+)\(.*")
+    for h in names_header:
+        names_defined.add(h)
 
 
 # We call to recursive grep in the shell here, because that's much
@@ -123,7 +118,7 @@ names_unused = names_defined - names_used
 if len(names_unused) != 0:
     msg = "unused Name definition(s): " + ", ".join(names_unused)
     eprint("[NAME] " + msg)
-    print("... {}\\n".format(msg))
+    print(f"... {msg}\\n")
     sys.exit(EXIT_UNUSED_NAME)
 
 

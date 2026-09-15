@@ -44,11 +44,10 @@
 #include "nest_types.h"
 #include "node_collection.h"
 
-// Includes from sli:
-#include "arraydatum.h"
 
 namespace nest
 {
+void register_music_cont_out_proxy( const std::string& name );
 
 /* BeginUserDocs: device, MUSIC
 
@@ -86,7 +85,7 @@ This model is only available if NEST was compiled with MUSIC.
 Parameters
 ++++++++++
 
-The following properties are available in the status dictionary:
+The following properties are available in the status Dictionary:
 
 ============ ========  ========================================================
  interval    ms        Recording interval
@@ -105,6 +104,11 @@ See also
 ++++++++
 
 music_cont_in_proxy, music_event_out_proxy, music_event_in_proxy, music_message_in_proxy
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: music_cont_out_proxy
 
 EndUserDocs */
 
@@ -139,14 +143,14 @@ public:
   using Node::handle;
   using Node::handles_test_event;
   using Node::sends_signal;
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool );
 
   void handle( DataLoggingReply& );
 
   SignalType sends_signal() const;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const;
+  void set_status( const Dictionary& );
 
   void calibrate_time( const TimeConverter& tc );
 
@@ -165,45 +169,45 @@ protected:
   void update( Time const&, const long, const long );
 
 private:
-  struct State_; //!< Forward declarations
+  struct State_;  //!< Forward declarations
 
   struct Buffers_;
 
   struct Parameters_
   {
-    Parameters_();                     //!< Sets default parameter values
-    Parameters_( const Parameters_& ); //!< Copy constructor for parameter values
+    Parameters_();                      //!< Sets default parameter values
+    Parameters_( const Parameters_& );  //!< Copy constructor for parameter values
 
-    Time interval_;                   //!< sampling interval, in ms
-    std::string port_name_;           //!< the name of MUSIC port to connect to
-    std::vector< Name > record_from_; //!< recordables to record from
-    NodeCollectionPTR targets_;       //!< nodes to be observed
+    Time interval_;                           //!< sampling interval, in ms
+    std::string port_name_;                   //!< the name of MUSIC port to connect to
+    std::vector< std::string > record_from_;  //!< recordables to record from
+    NodeCollectionPTR targets_;               //!< nodes to be observed
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
-    void set( const DictionaryDatum&, const Node&, const State_&, const Buffers_& ); //!< Set values from dictionary
+    void get( Dictionary& ) const;                                               //!< Store current values in Dictionary
+    void set( const Dictionary&, const Node&, const State_&, const Buffers_& );  //!< Set values from Dictionary
   };
 
   // ------------------------------------------------------------
 
   struct State_
   {
-    State_();                           //!< Sets default state value
-    State_( const State_& );            //!< Copy constructor for state values
-    bool published_;                    //!< indicates whether this node has been published
-                                        //!< already with MUSIC
-    size_t port_width_;                 //!< the width of the MUSIC port
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    State_();                       //!< Sets default state value
+    State_( const State_& );        //!< Copy constructor for state values
+    bool published_;                //!< indicates whether this node has been published
+                                    //!< already with MUSIC
+    size_t port_width_;             //!< the width of the MUSIC port
+    void get( Dictionary& ) const;  //!< Store current values in Dictionary
   };
 
   // ------------------------------------------------------------
 
   struct Buffers_
   {
-    Buffers_();                  //!< Initializes default buffer
-    Buffers_( const Buffers_& ); //!< Copy constructor for the data buffer
-    bool has_targets_;           //!< Indicates whether the proxy is recording from any
-                                 //! neurons or not
-    std::vector< double > data_; //!< Recorded data
+    Buffers_();                   //!< Initializes default buffer
+    Buffers_( const Buffers_& );  //!< Copy constructor for the data buffer
+    bool has_targets_;            //!< Indicates whether the proxy is recording from any
+                                  //! neurons or not
+    std::vector< double > data_;  //!< Recorded data
   };
 
   // ------------------------------------------------------------
@@ -214,18 +218,18 @@ private:
 };
 
 inline SignalType
-nest::music_cont_out_proxy::sends_signal() const
+music_cont_out_proxy::sends_signal() const
 {
   return ALL;
 }
 
 inline void
-nest::music_cont_out_proxy::calibrate_time( const TimeConverter& tc )
+music_cont_out_proxy::calibrate_time( const TimeConverter& tc )
 {
   P_.interval_ = tc.from_old_tics( P_.interval_.get_tics() );
 }
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef HAVE_MUSIC */
 #endif /* #ifndef MUSIC_CONT_OUT_PROXY_H */

@@ -78,7 +78,7 @@ Mask< D >::outside( const Box< D >& b ) const
   Box< D > bb = get_bbox();
   for ( int i = 0; i < D; ++i )
   {
-    if ( ( b.upper_right[ i ] < bb.lower_left[ i ] ) || ( b.lower_left[ i ] > bb.upper_right[ i ] ) )
+    if ( b.upper_right[ i ] < bb.lower_left[ i ] or b.lower_left[ i ] > bb.upper_right[ i ] )
     {
       return true;
     }
@@ -105,7 +105,7 @@ BoxMask< D >::outside( const Box< D >& b ) const
   // so we don't know if it is an actual problem.
   for ( int i = 0; i < D; ++i )
   {
-    if ( ( b.upper_right[ i ] < min_values_[ i ] ) || ( b.lower_left[ i ] > max_values_[ i ] ) )
+    if ( b.upper_right[ i ] < min_values_[ i ] or b.lower_left[ i ] > max_values_[ i ] )
     {
       return true;
     }
@@ -128,16 +128,16 @@ BoxMask< D >::clone() const
 }
 
 template < int D >
-DictionaryDatum
+Dictionary
 BoxMask< D >::get_dict() const
 {
-  DictionaryDatum d( new Dictionary );
-  DictionaryDatum maskd( new Dictionary );
-  def< DictionaryDatum >( d, get_name(), maskd );
-  def< std::vector< double > >( maskd, names::lower_left, lower_left_.get_vector() );
-  def< std::vector< double > >( maskd, names::upper_right, upper_right_.get_vector() );
-  def< double >( maskd, names::azimuth_angle, azimuth_angle_ );
-  def< double >( maskd, names::polar_angle, polar_angle_ );
+  Dictionary d;
+  Dictionary maskd;
+  d[ get_name() ] = maskd;
+  maskd[ names::lower_left ] = lower_left_.get_vector();
+  maskd[ names::upper_right ] = upper_right_.get_vector();
+  maskd[ names::azimuth_angle ] = azimuth_angle_;
+  maskd[ names::polar_angle ] = polar_angle_;
   return d;
 }
 
@@ -175,7 +175,7 @@ BallMask< D >::outside( const Box< D >& b ) const
   // the ball. This could be made more refined.
   for ( int i = 0; i < D; ++i )
   {
-    if ( ( b.upper_right[ i ] < center_[ i ] - radius_ ) || ( b.lower_left[ i ] > center_[ i ] + radius_ ) )
+    if ( b.upper_right[ i ] < center_[ i ] - radius_ or b.lower_left[ i ] > center_[ i ] + radius_ )
     {
       return true;
     }
@@ -204,14 +204,14 @@ BallMask< D >::clone() const
 }
 
 template < int D >
-DictionaryDatum
+Dictionary
 BallMask< D >::get_dict() const
 {
-  DictionaryDatum d( new Dictionary );
-  DictionaryDatum maskd( new Dictionary );
-  def< DictionaryDatum >( d, get_name(), maskd );
-  def< double >( maskd, names::radius, radius_ );
-  def< std::vector< double > >( maskd, names::anchor, center_.get_vector() );
+  Dictionary d;
+  Dictionary maskd;
+  maskd[ names::radius ] = radius_;
+  maskd[ names::anchor ] = center_.get_vector();
+  d[ get_name() ] = maskd;
   return d;
 }
 
@@ -259,7 +259,7 @@ EllipseMask< D >::outside( const Box< D >& b ) const
 
   for ( int i = 0; i < D; ++i )
   {
-    if ( ( b.upper_right[ i ] < bb.lower_left[ i ] ) || ( b.lower_left[ i ] > bb.upper_right[ i ] ) )
+    if ( b.upper_right[ i ] < bb.lower_left[ i ] or b.lower_left[ i ] > bb.upper_right[ i ] )
     {
       return true;
     }
@@ -282,18 +282,18 @@ EllipseMask< D >::clone() const
 }
 
 template < int D >
-DictionaryDatum
+Dictionary
 EllipseMask< D >::get_dict() const
 {
-  DictionaryDatum d( new Dictionary );
-  DictionaryDatum maskd( new Dictionary );
-  def< DictionaryDatum >( d, get_name(), maskd );
-  def< double >( maskd, names::major_axis, major_axis_ );
-  def< double >( maskd, names::minor_axis, minor_axis_ );
-  def< double >( maskd, names::polar_axis, polar_axis_ );
-  def< std::vector< double > >( maskd, names::anchor, center_.get_vector() );
-  def< double >( maskd, names::azimuth_angle, azimuth_angle_ );
-  def< double >( maskd, names::polar_angle, polar_angle_ );
+  Dictionary d;
+  Dictionary maskd;
+  maskd[ names::major_axis ] = major_axis_;
+  maskd[ names::minor_axis ] = minor_axis_;
+  maskd[ names::polar_axis ] = polar_axis_;
+  maskd[ names::anchor ] = center_.get_vector();
+  maskd[ names::azimuth_angle ] = azimuth_angle_;
+  maskd[ names::polar_angle ] = polar_angle_;
+  d[ get_name() ] = maskd;
   return d;
 }
 
@@ -302,21 +302,21 @@ template < int D >
 bool
 IntersectionMask< D >::inside( const Position< D >& p ) const
 {
-  return mask1_->inside( p ) && mask2_->inside( p );
+  return mask1_->inside( p ) and mask2_->inside( p );
 }
 
 template < int D >
 bool
 IntersectionMask< D >::inside( const Box< D >& b ) const
 {
-  return mask1_->inside( b ) && mask2_->inside( b );
+  return mask1_->inside( b ) and mask2_->inside( b );
 }
 
 template < int D >
 bool
 IntersectionMask< D >::outside( const Box< D >& b ) const
 {
-  return mask1_->outside( b ) || mask2_->outside( b );
+  return mask1_->outside( b ) or mask2_->outside( b );
 }
 
 template < int D >
@@ -350,21 +350,21 @@ template < int D >
 bool
 UnionMask< D >::inside( const Position< D >& p ) const
 {
-  return mask1_->inside( p ) || mask2_->inside( p );
+  return mask1_->inside( p ) or mask2_->inside( p );
 }
 
 template < int D >
 bool
 UnionMask< D >::inside( const Box< D >& b ) const
 {
-  return mask1_->inside( b ) || mask2_->inside( b );
+  return mask1_->inside( b ) or mask2_->inside( b );
 }
 
 template < int D >
 bool
 UnionMask< D >::outside( const Box< D >& b ) const
 {
-  return mask1_->outside( b ) && mask2_->outside( b );
+  return mask1_->outside( b ) and mask2_->outside( b );
 }
 
 template < int D >
@@ -398,21 +398,21 @@ template < int D >
 bool
 DifferenceMask< D >::inside( const Position< D >& p ) const
 {
-  return mask1_->inside( p ) && not mask2_->inside( p );
+  return mask1_->inside( p ) and not mask2_->inside( p );
 }
 
 template < int D >
 bool
 DifferenceMask< D >::inside( const Box< D >& b ) const
 {
-  return mask1_->inside( b ) && mask2_->outside( b );
+  return mask1_->inside( b ) and mask2_->outside( b );
 }
 
 template < int D >
 bool
 DifferenceMask< D >::outside( const Box< D >& b ) const
 {
-  return mask1_->outside( b ) || mask2_->inside( b );
+  return mask1_->outside( b ) or mask2_->inside( b );
 }
 
 template < int D >
@@ -502,14 +502,14 @@ AnchoredMask< D >::clone() const
 }
 
 template < int D >
-DictionaryDatum
+Dictionary
 AnchoredMask< D >::get_dict() const
 {
-  DictionaryDatum d = m_->get_dict();
-  def< std::vector< double > >( d, names::anchor, anchor_.get_vector() );
+  Dictionary d = m_->get_dict();
+  d[ names::anchor ] = anchor_.get_vector();
   return d;
 }
 
-} // namespace nest
+}  // namespace nest
 
 #endif

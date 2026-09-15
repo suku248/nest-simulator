@@ -24,7 +24,9 @@
 #define RANDOM_GENERATORS_H
 
 // C++ includes:
+#include <algorithm>
 #include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <random>
 #include <type_traits>
@@ -32,6 +34,9 @@
 
 // libnestutil includes:
 #include "randutils.hpp"
+
+// nestkernel includes:
+#include "node_collection.h"
 
 namespace nest
 {
@@ -46,13 +51,13 @@ using RngPtr = BaseRandomGenerator*;
 
 using uniform_int_distribution = RandomDistribution< std::uniform_int_distribution< unsigned long > >;
 using uniform_real_distribution = RandomDistribution< std::uniform_real_distribution<> >;
-using poisson_distribution = RandomDistribution< std::poisson_distribution< unsigned long > >;
 using normal_distribution = RandomDistribution< std::normal_distribution<> >;
 using lognormal_distribution = RandomDistribution< std::lognormal_distribution<> >;
 using binomial_distribution = RandomDistribution< std::binomial_distribution< unsigned long > >;
 using gamma_distribution = RandomDistribution< std::gamma_distribution<> >;
 using exponential_distribution = RandomDistribution< std::exponential_distribution<> >;
 using discrete_distribution = RandomDistribution< std::discrete_distribution< unsigned long > >;
+using poisson_distribution = RandomDistribution< std::poisson_distribution< unsigned long > >;
 
 
 /**
@@ -67,22 +72,24 @@ public:
 
   /**
    * @brief Calls the provided distribution with the wrapped RNG engine.
+   *
    * One operator per distribution must be defined.
    *
    * @param d Distribution that will be called.
    */
   virtual unsigned long operator()( std::uniform_int_distribution< unsigned long >& d ) = 0;
   virtual double operator()( std::uniform_real_distribution<>& d ) = 0;
-  virtual unsigned long operator()( std::poisson_distribution< unsigned long >& d ) = 0;
   virtual double operator()( std::normal_distribution<>& d ) = 0;
   virtual double operator()( std::lognormal_distribution<>& d ) = 0;
   virtual unsigned long operator()( std::binomial_distribution< unsigned long >& d ) = 0;
   virtual double operator()( std::gamma_distribution<>& d ) = 0;
   virtual double operator()( std::exponential_distribution<>& d ) = 0;
   virtual unsigned long operator()( std::discrete_distribution< unsigned long >& d ) = 0;
+  virtual unsigned long operator()( std::poisson_distribution< unsigned long >& d ) = 0;
 
   /**
    * @brief Calls the provided distribution with the wrapped RNG engine, using provided distribution parameters.
+   *
    * One operator per distribution must be defined.
    *
    * @param d Distribution that will be called.
@@ -91,8 +98,6 @@ public:
   virtual unsigned long operator()( std::uniform_int_distribution< unsigned long >& d,
     std::uniform_int_distribution< unsigned long >::param_type& p ) = 0;
   virtual double operator()( std::uniform_real_distribution<>& d, std::uniform_real_distribution<>::param_type& p ) = 0;
-  virtual unsigned long operator()( std::poisson_distribution< unsigned long >& d,
-    std::poisson_distribution< unsigned long >::param_type& p ) = 0;
   virtual double operator()( std::normal_distribution<>& d, std::normal_distribution<>::param_type& p ) = 0;
   virtual double operator()( std::lognormal_distribution<>& d, std::lognormal_distribution<>::param_type& p ) = 0;
   virtual unsigned long operator()( std::binomial_distribution< unsigned long >& d,
@@ -101,6 +106,8 @@ public:
   virtual double operator()( std::exponential_distribution<>& d, std::exponential_distribution<>::param_type& p ) = 0;
   virtual unsigned long operator()( std::discrete_distribution< unsigned long >& d,
     std::discrete_distribution< unsigned long >::param_type& p ) = 0;
+  virtual unsigned long operator()( std::poisson_distribution< unsigned long >& d,
+    std::poisson_distribution< unsigned long >::param_type& p ) = 0;
 
   /**
    * @brief Uses the wrapped RNG engine to draw a double from a uniform distribution in the range [0, 1).
@@ -109,13 +116,41 @@ public:
 
   /**
    * @brief Uses the wrapped RNG engine to draw an unsigned long from a uniform distribution in the range [0, N).
+   *
    * @param N Maximum value that can be drawn.
    */
   virtual unsigned long ulrand( unsigned long N ) = 0;
+
+  /**
+   * @brief Wrap std::sample for selection from NodeCollection
+   *
+   * Inserts random stable sample without replacement of size n from range `[first, last)`into `dest`.
+   *
+   * @note Running this with different random seeds will select different elements, but the order of elements
+   * will always be the same as in the node collection from which we sample. In particular, if `n == nc.size()`,
+   * then `dest` will contain the original node collection (as an explicit `vector`).
+   */
+  virtual void stable_sample( NodeCollection::const_iterator first,
+    NodeCollection::const_iterator last,
+    std::back_insert_iterator< std::vector< NodeIDTriple > > dest,
+    size_t n ) = 0;
+
+  /**
+   * @brief Select randomly shuffled elements from vector.
+   *
+   * Places `n` elements chosen from `data` without replacement, in random order, at the beginning of
+   * `data` and then reduces the size of `data` to `n`. If `n` exceeds `data.size()`, all elements are
+   * kept and only shuffled.
+   *
+   * @param data Vector to be shuffled and possibly shortened.
+   * @param n Number of elements to select.
+   */
+  virtual void partial_shuffle( std::vector< size_t >& data, const size_t n ) = 0;
 };
 
 /**
  * @brief Wrapper for RNG engines.
+ *
  * @tparam RandomEngineT Type of the wrapped engine, must conform with the C++11 random engine interface.
  */
 template < typename RandomEngineT >
@@ -127,7 +162,7 @@ public:
   RandomGenerator() = delete;
   RandomGenerator( const RandomEngineT& rng ) = delete;
 
-  RandomGenerator( std::initializer_list< std::uint32_t > seed )
+  explicit RandomGenerator( std::initializer_list< std::uint32_t > seed )
     : rng_()
     , uniform_double_dist_0_1_( 0.0, 1.0 )
   {
@@ -145,12 +180,6 @@ public:
 
   inline double
   operator()( std::uniform_real_distribution<>& d ) override
-  {
-    return d( rng_ );
-  }
-
-  inline unsigned long
-  operator()( std::poisson_distribution< unsigned long >& d ) override
   {
     return d( rng_ );
   }
@@ -192,6 +221,12 @@ public:
   }
 
   inline unsigned long
+  operator()( std::poisson_distribution< unsigned long >& d ) override
+  {
+    return d( rng_ );
+  }
+
+  inline unsigned long
   operator()( std::uniform_int_distribution< unsigned long >& d,
     std::uniform_int_distribution< unsigned long >::param_type& p ) override
   {
@@ -200,13 +235,6 @@ public:
 
   inline double
   operator()( std::uniform_real_distribution<>& d, std::uniform_real_distribution<>::param_type& p ) override
-  {
-    return d( rng_, p );
-  }
-
-  inline unsigned long
-  operator()( std::poisson_distribution< unsigned long >& d,
-    std::poisson_distribution< unsigned long >::param_type& p ) override
   {
     return d( rng_, p );
   }
@@ -249,6 +277,13 @@ public:
     return d( rng_, p );
   }
 
+  inline unsigned long
+  operator()( std::poisson_distribution< unsigned long >& d,
+    std::poisson_distribution< unsigned long >::param_type& p ) override
+  {
+    return d( rng_, p );
+  }
+
   inline double
   drand() override
   {
@@ -262,8 +297,33 @@ public:
     return uniform_ulong_dist_( rng_, param );
   }
 
+  inline void
+  stable_sample( NodeCollection::const_iterator first,
+    NodeCollection::const_iterator last,
+    std::back_insert_iterator< std::vector< NodeIDTriple > > dest,
+    size_t n ) override
+  {
+    std::sample( first, last, dest, n, rng_ );
+  }
+
+  inline void
+  partial_shuffle( std::vector< size_t >& data, const size_t n ) override
+  {
+    const size_t num_elems = std::min( n, data.size() );
+
+    // Partial Fisher-Yates-Durstenfeld-Knuth: at each step select an element from the remaining range
+    // [ next, data.size() ) and swap it to the front. Draws num_elems random numbers and
+    // leaves the selection in random order.
+    for ( size_t next = 0, remaining = data.size(); next < num_elems; ++next, --remaining )
+    {
+      const size_t rnd = next + ulrand( remaining );
+      std::swap( data[ next ], data[ rnd ] );
+    }
+    data.resize( num_elems );  // keep only the selected elements.
+  }
+
 private:
-  RandomEngineT rng_; //!< Wrapped RNG engine.
+  RandomEngineT rng_;  //!< Wrapped RNG engine.
   std::uniform_int_distribution< unsigned long > uniform_ulong_dist_;
   std::uniform_real_distribution<> uniform_double_dist_0_1_;
 };
@@ -278,6 +338,7 @@ public:
 
   /**
    * @brief Clones the RNG wrapper and sets the state of the cloned RNG engine.
+   *
    * @param seed_initializer Initializer list for C++11-conforming SeedSeq for RNG.
    */
   virtual RngPtr create( std::initializer_list< std::uint32_t > seed_initializer ) const = 0;
@@ -299,6 +360,7 @@ public:
 
 /**
  * @brief Wrapper for distributions.
+ *
  * The result_type of the distribution must be unsigned long or double.
  *
  * @tparam DistributionT Type of the wrapped RandomDistribution.
@@ -351,6 +413,7 @@ public:
 
   /**
    * @brief Sets the distribution's associated parameter set to params.
+   *
    * @param params New contents of the distribution's associated parameter set.
    */
   inline void
@@ -378,9 +441,9 @@ public:
   }
 
 private:
-  DistributionT distribution_; //!< Wrapped RandomDistribution
+  DistributionT distribution_;  //!< Wrapped RandomDistribution
 };
 
-} // namespace nest
+}  // namespace nest
 
 #endif /* #ifndef RANDOM_GENERATORS_H */

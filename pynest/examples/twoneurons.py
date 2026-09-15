@@ -39,11 +39,11 @@ See Also
 # Additionally, we set the verbosity to suppress info messages and reset
 # the kernel.
 
+import matplotlib.pyplot as plt
 import nest
 import nest.voltage_trace
-import matplotlib.pyplot as plt
 
-nest.set_verbosity("M_WARNING")
+nest.verbosity = nest.VerbosityLevel.WARNING
 nest.ResetKernel()
 
 ###############################################################################

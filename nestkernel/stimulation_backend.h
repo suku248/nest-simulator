@@ -26,17 +26,13 @@
 // C++ includes:
 #include <vector>
 
-// Includes from sli:
-#include "dictdatum.h"
-#include "dictutils.h"
-#include "name.h"
 #include "stimulation_device.h"
 
 namespace nest
 {
 
 /**
- * Abstract bass class for all NESTio stimulation backends
+ * Abstract base class for all NESTio stimulation backends
  *
  * This class provides the interface for NESTio stimulation backends
  * with which StimulationDevices can be enrolled for receiving
@@ -66,7 +62,6 @@ namespace nest
  *
  * @author Sandra Diaz
  *
- * @ingroup NESTio
  */
 
 class StimulationBackend
@@ -108,9 +103,8 @@ public:
    *
    * @see disenroll()
    *
-   * @ingroup NESTio
    */
-  virtual void enroll( StimulationDevice&, const DictionaryDatum& ) {};
+  virtual void enroll( StimulationDevice&, const Dictionary& ) {};
 
   /**
    * Disenroll a `StimulationDevice` from the `StimulationBackend`.
@@ -126,7 +120,6 @@ public:
    *
    * @see enroll()
    *
-   * @ingroup NESTio
    */
   virtual void disenroll( StimulationDevice& ) {};
 
@@ -142,7 +135,6 @@ public:
    *
    * @see post_run_hook()
    *
-   * @ingroup NESTio
    */
   virtual void pre_run_hook() = 0;
 
@@ -154,7 +146,6 @@ public:
    *
    * @see pre_run_hook()
    *
-   * @ingroup NESTio
    */
   virtual void post_run_hook() = 0;
 
@@ -164,7 +155,6 @@ public:
   // a very tight synchronization between incoming data and the simulation control itself. As the
   // requirements for this are currently not formally defined due to the lack of a suitable use-case,
   // we decided to omit the function from the interface until such a use-case arises.
-
   virtual void initialize() = 0;
   virtual void finalize() = 0;
 
@@ -176,7 +166,6 @@ public:
    *
    * @see cleanup()
    *
-   * @ingroup NESTio
    */
   virtual void prepare() = 0;
 
@@ -189,13 +178,12 @@ public:
    *
    * @see prepare()
    *
-   * @ingroup NESTio
    */
   virtual void cleanup() = 0;
 
   void clear( const StimulationDevice& ) {};
 };
 
-} // namespace
+}  // namespace
 
-#endif // STIMULATION_BACKEND_H
+#endif /* #ifndef STIMULATION_BACKEND_H */

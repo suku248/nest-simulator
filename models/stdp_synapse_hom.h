@@ -32,7 +32,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: synapse, spike-timing-dependent plasticity
+/* BeginUserDocs: synapse, chemical, functional, stdp
 
 Short description
 +++++++++++++++++
@@ -43,7 +43,7 @@ Description
 +++++++++++
 
 ``stdp_synapse_hom`` is a connector to create synapses with spike time
-dependent plasticity (as defined in [1]_). Here the weight dependence
+dependent plasticity (as defined in :footcite:p:`Guetig2003`). Here the weight dependence
 exponent can be set separately for potentiation and depression.
 
  Parameters controlling plasticity are identical for all synapses of the
@@ -51,10 +51,10 @@ exponent can be set separately for potentiation and depression.
 
 Examples:
 
-* multiplicative STDP [2]_  mu_plus = mu_minus = 1.0
-* additive STDP       [3]_  mu_plus = mu_minus = 0.0
-* Guetig STDP         [1]_  mu_plus = mu_minus = [0.0,1.0]
-* van Rossum STDP     [4]_  mu_plus = 0.0 mu_minus = 1.0
+* multiplicative STDP :footcite:p:`Rubin2001`  mu_plus = mu_minus = 1.0
+* additive STDP       :footcite:p:`Song2000`  mu_plus = mu_minus = 0.0
+* Guetig STDP         :footcite:p:`Guetig2003`  mu_plus = mu_minus = [0.0,1.0]
+* van Rossum STDP     :footcite:p:`vanRossum2000`  mu_plus = 0.0 mu_minus = 1.0
 
 .. warning::
 
@@ -88,25 +88,17 @@ SpikeEvent
 References
 ++++++++++
 
-.. [1] Guetig et al. (2003). Learning input correlations through nonlinear
-       temporally asymmetric hebbian plasticity. Journal of Neuroscience,
-       23:3697-3714 DOI: https://doi.org/10.1523/JNEUROSCI.23-09-03697.2003
-.. [2] Rubin J, Lee D, Sompolinsky H (2001). Equilibrium
-       properties of temporally asymmetric Hebbian plasticity. Physical Review
-       Letters, 86:364-367. DOI: https://doi.org/10.1103/PhysRevLett.86.364
-.. [3] Song S, Miller KD, Abbott LF (2000). Competitive Hebbian learning
-       through spike-timing-dependent synaptic plasticity. Nature Neuroscience
-       3(9):919-926.
-       DOI: https://doi.org/10.1038/78829
-.. [4] van Rossum MCW, Bi G-Q, Turrigiano GG (2000). Stable Hebbian learning
-       from spike timing-dependent plasticity. Journal of Neuroscience,
-       20(23):8812-8821.
-       DOI: https://doi.org/10.1523/JNEUROSCI.20-23-08812.2000
+.. footbibliography::
 
 See also
 ++++++++
 
 tsodyks_synapse, static_synapse
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: stdp_synapse_hom
 
 EndUserDocs */
 
@@ -128,12 +120,12 @@ public:
   /**
    * Get all properties and put them into a dictionary.
    */
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
   /**
    * Set properties from the values given in dictionary.
    */
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   // data members common to all connections
   double tau_plus_;
@@ -149,13 +141,19 @@ public:
  * Class representing an STDP connection with homogeneous parameters, i.e.
  * parameters are the same for all synapses.
  */
+void register_stdp_synapse_hom( const std::string& name );
+
 template < typename targetidentifierT >
-class stdp_synapse_hom : public Connection< targetidentifierT >
+class stdp_synapse_hom : public Connection< targetidentifierT, TotalDelay >
 {
 
 public:
   typedef STDPHomCommonProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
@@ -175,7 +173,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places these
   // functions are used. Since ConnectionBase depends on the template parameter,
   // they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -183,18 +181,18 @@ public:
   /**
    * Get all properties of this connection and put them into a dictionary.
    */
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
   /**
    * Set properties of this connection from the values given in dictionary.
    */
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   /**
    * Send an event to the receiver of this connection.
    * \param e The event to send
    */
-  void send( Event& e, thread t, const STDPHomCommonProperties& );
+  bool send( Event& e, size_t t, const STDPHomCommonProperties& );
 
   void
   set_weight( double w )
@@ -209,10 +207,10 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
@@ -230,12 +228,12 @@ public:
    * \param receptor_type The ID of the requested receptor type
    */
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
 
-    t.register_stdp_connection( t_lastspike_ - get_delay(), get_delay() );
+    t.register_stdp_connection( t_lastspike_ - get_delay_ms(), get_delay_ms(), 0 );
   }
 
 private:
@@ -259,6 +257,8 @@ private:
   double t_lastspike_;
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties stdp_synapse_hom< targetidentifierT >::properties;
 
 //
 // Implementation of class stdp_synapse_hom.
@@ -279,8 +279,8 @@ stdp_synapse_hom< targetidentifierT >::stdp_synapse_hom()
  * \param p The port under which this connection is stored in the Connector.
  */
 template < typename targetidentifierT >
-inline void
-stdp_synapse_hom< targetidentifierT >::send( Event& e, thread t, const STDPHomCommonProperties& cp )
+inline bool
+stdp_synapse_hom< targetidentifierT >::send( Event& e, size_t t, const STDPHomCommonProperties& cp )
 {
   // synapse STDP depressing/facilitation dynamics
 
@@ -289,7 +289,7 @@ stdp_synapse_hom< targetidentifierT >::send( Event& e, thread t, const STDPHomCo
   // t_lastspike_ = 0 initially
 
   Node* target = get_target( t );
-  double dendritic_delay = get_delay();
+  double dendritic_delay = get_delay_ms();
 
   // get spike history in relevant range (t1, t2] from postsynaptic neuron
   std::deque< histentry >::iterator start;
@@ -319,33 +319,35 @@ stdp_synapse_hom< targetidentifierT >::send( Event& e, thread t, const STDPHomCo
   Kplus_ = Kplus_ * std::exp( ( t_lastspike_ - t_spike ) / cp.tau_plus_ ) + 1.0;
 
   t_lastspike_ = t_spike;
+
+  return true;
 }
 
 template < typename targetidentifierT >
 void
-stdp_synapse_hom< targetidentifierT >::get_status( DictionaryDatum& d ) const
+stdp_synapse_hom< targetidentifierT >::get_status( Dictionary& d ) const
 {
 
   // base class properties, different for individual synapse
   ConnectionBase::get_status( d );
-  def< double >( d, names::weight, weight_ );
+  d[ names::weight ] = weight_;
 
   // own properties, different for individual synapse
-  def< double >( d, names::Kplus, Kplus_ );
-  def< long >( d, names::size_of, sizeof( *this ) );
+  d[ names::Kplus ] = Kplus_;
+  d[ names::size_of ] = static_cast< long >( sizeof( *this ) );
 }
 
 template < typename targetidentifierT >
 void
-stdp_synapse_hom< targetidentifierT >::set_status( const DictionaryDatum& d, ConnectorModel& cm )
+stdp_synapse_hom< targetidentifierT >::set_status( const Dictionary& d, ConnectorModel& cm )
 {
   // base class properties
   ConnectionBase::set_status( d, cm );
-  updateValue< double >( d, names::weight, weight_ );
+  d.update_value( names::weight, weight_ );
 
-  updateValue< double >( d, names::Kplus, Kplus_ );
+  d.update_value( names::Kplus, Kplus_ );
 }
 
-} // of namespace nest
+}  // of namespace nest
 
-#endif // of #ifndef STDP_SYNAPSE_HOM_H
+#endif  // of #ifndef STDP_SYNAPSE_HOM_H

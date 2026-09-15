@@ -29,18 +29,9 @@
 #endif
 #endif
 
-// C++ includes:
-//#include <cstdlib>
-
-// Includes from libnestutil:
-#include "compose.hpp"
-//#include "logging.h"
-
 // Includes from nestkernel:
 #include "kernel_manager.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
 namespace nest
 {
@@ -55,27 +46,22 @@ MUSICManager::MUSICManager()
 }
 
 void
-MUSICManager::initialize()
-{
-#ifdef HAVE_MUSIC
-  // Reset music_in_portlist_ to its pristine state.
-  // See comment above pristine_music_in_portlist_ in the header.
-  music_in_portlist_ = pristine_music_in_portlist_;
-#endif
-}
-
-void
-MUSICManager::finalize()
+MUSICManager::initialize( const bool )
 {
 }
 
 void
-MUSICManager::set_status( const DictionaryDatum& )
+MUSICManager::finalize( const bool )
 {
 }
 
 void
-MUSICManager::get_status( DictionaryDatum& )
+MUSICManager::set_status( const Dictionary& )
+{
+}
+
+void
+MUSICManager::get_status( Dictionary& )
 {
 }
 
@@ -93,7 +79,7 @@ MUSICManager::enter_runtime( double h_min_delay )
 {
   publish_music_in_ports_();
   std::string msg = String::compose( "Entering MUSIC runtime with tick = %1 ms", h_min_delay );
-  LOG( M_INFO, "MUSICManager::enter_runtime", msg );
+  LOG( VerbosityLevel::INFO, "MUSICManager::enter_runtime", msg );
 
   // MUSIC needs the step size in seconds
   // std::cout << "nest::MPIManager::enter_runtime\n";
@@ -140,7 +126,7 @@ MUSICManager::music_finalize()
 
 #ifdef HAVE_MUSIC
 
-MPI::Intracomm
+MPI_Comm
 MUSICManager::communicator()
 {
   return music_setup->communicator();
@@ -165,7 +151,7 @@ MUSICManager::advance_music_time()
 }
 
 void
-MUSICManager::register_music_in_port( std::string portname, bool pristine )
+MUSICManager::register_music_in_port( std::string portname )
 {
   std::map< std::string, MusicPortData >::iterator it;
   it = music_in_portlist_.find( portname );
@@ -176,12 +162,6 @@ MUSICManager::register_music_in_port( std::string portname, bool pristine )
   else
   {
     music_in_portlist_[ portname ].n_input_proxies++;
-  }
-
-  // pristine is true if we are building up the initial portlist
-  if ( pristine )
-  {
-    pristine_music_in_portlist_[ portname ] = music_in_portlist_[ portname ];
   }
 }
 
@@ -206,7 +186,7 @@ MUSICManager::unregister_music_in_port( std::string portname )
 }
 
 void
-MUSICManager::register_music_event_in_proxy( std::string portname, int channel, nest::Node* mp )
+MUSICManager::register_music_event_in_proxy( std::string portname, int channel, Node* mp )
 {
   std::map< std::string, MusicEventHandler >::iterator it;
   it = music_event_in_portmap_.find( portname );
@@ -224,7 +204,7 @@ MUSICManager::register_music_event_in_proxy( std::string portname, int channel, 
 }
 
 void
-MUSICManager::register_music_rate_in_proxy( std::string portname, int channel, nest::Node* mp )
+MUSICManager::register_music_rate_in_proxy( std::string portname, int channel, Node* mp )
 {
   std::map< std::string, MusicRateInHandler >::iterator it;
   it = music_rate_in_portmap_.find( portname );
@@ -274,15 +254,15 @@ void
 MUSICManager::publish_music_in_ports_()
 {
   for ( std::map< std::string, MusicEventHandler >::iterator it = music_event_in_portmap_.begin();
-        it != music_event_in_portmap_.end();
-        ++it )
+    it != music_event_in_portmap_.end();
+    ++it )
   {
     it->second.publish_port();
   }
 
   for ( std::map< std::string, MusicRateInHandler >::iterator it = music_rate_in_portmap_.begin();
-        it != music_rate_in_portmap_.end();
-        ++it )
+    it != music_rate_in_portmap_.end();
+    ++it )
   {
     it->second.publish_port();
   }
@@ -292,15 +272,15 @@ void
 MUSICManager::update_music_event_handlers( Time const& origin, const long from, const long to )
 {
   for ( std::map< std::string, MusicEventHandler >::iterator it = music_event_in_portmap_.begin();
-        it != music_event_in_portmap_.end();
-        ++it )
+    it != music_event_in_portmap_.end();
+    ++it )
   {
     it->second.update( origin, from, to );
   }
 
   for ( std::map< std::string, MusicRateInHandler >::iterator it = music_rate_in_portmap_.begin();
-        it != music_rate_in_portmap_.end();
-        ++it )
+    it != music_rate_in_portmap_.end();
+    ++it )
   {
     it->second.update( origin, from, to );
   }
@@ -308,4 +288,4 @@ MUSICManager::update_music_event_handlers( Time const& origin, const long from, 
 
 #endif
 
-} // namespace nest
+}  // namespace nest

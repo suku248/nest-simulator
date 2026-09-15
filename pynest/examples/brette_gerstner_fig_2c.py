@@ -24,7 +24,7 @@ Testing the adapting exponential integrate and fire model in NEST (Brette and Ge
 ----------------------------------------------------------------------------------------------
 
 This example tests the adaptive integrate and fire model (AdEx) according to
-Brette and Gerstner [1]_ reproduces Figure 2C of the paper.
+Brette and Gerstner :footcite:p:`Brette2005` reproduces Figure 2C of the paper.
 Note that Brette and Gerstner give the value for `b` in `nA`.
 To be consistent with the other parameters in the equations, `b` must be
 converted to `pA` (pico Ampere).
@@ -32,15 +32,12 @@ converted to `pA` (pico Ampere).
 References
 ~~~~~~~~~~
 
-.. [1] Brette R and Gerstner W (2005). Adaptive exponential integrate-and-fire model as an effective
-       description of neuronal activity J. Neurophysiology. https://doi.org/10.1152/jn.00686.2005
-
+.. footbibliography::
 """
 
-
+import matplotlib.pyplot as plt
 import nest
 import nest.voltage_trace
-import matplotlib.pyplot as plt
 
 nest.ResetKernel()
 
@@ -67,13 +64,13 @@ dc.set(amplitude=[500.0, 800.0], start=[0.0, 500.0], stop=[200.0, 1000.0])
 ###############################################################################
 # We connect the DC generators.
 
-nest.Connect(dc, neuron, 'all_to_all')
+nest.Connect(dc, neuron, "all_to_all")
 
 ###############################################################################
 # And add a ``voltmeter`` to sample the membrane potentials from the neuron
 # in intervals of 0.1 ms.
 
-voltmeter = nest.Create("voltmeter", params={'interval': 0.1})
+voltmeter = nest.Create("voltmeter", params={"interval": 0.1})
 nest.Connect(voltmeter, neuron)
 
 ###############################################################################

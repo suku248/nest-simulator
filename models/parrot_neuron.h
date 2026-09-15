@@ -27,6 +27,7 @@
 #include "archiving_node.h"
 #include "connection.h"
 #include "event.h"
+#include "flush_event_mechanism.h"
 #include "nest_types.h"
 #include "ring_buffer.h"
 
@@ -63,6 +64,20 @@ and postsynaptic spike times for STDP protocols by connecting
 two parrot neurons spiking at desired times by, for example, a
 ``stdp_synapse`` onto port 1 on the postsynaptic parrot neuron.
 
+Parameters
+++++++++++
+
+The following parameters can be set in the status dictionary.
+
+============================= ==== ================== =================================
+Parameter                     Unit Default            Description
+============================= ==== ================== =================================
+``flush_event_send_interval`` ms   maximum value      Interval since previous event
+                                   representable by   after which a flush event is sent
+                                   ``double`` type in
+                                   C++
+============================= ==== ================== =================================
+
 Receives
 ++++++++
 
@@ -73,9 +88,16 @@ Sends
 
 SpikeEvent
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: parrot_neuron
+
 EndUserDocs */
 
-class parrot_neuron : public ArchivingNode
+void register_parrot_neuron( const std::string& name );
+
+class parrot_neuron : public ArchivingNode, public FlushEventMechanism
 {
 
 public:
@@ -91,24 +113,27 @@ public:
   using Node::receives_signal;
   using Node::sends_signal;
 
-  port send_test_event( Node&, rport, synindex, bool );
-  SignalType sends_signal() const;
-  SignalType receives_signal() const;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
+  SignalType sends_signal() const override;
+  SignalType receives_signal() const override;
 
-  void handle( SpikeEvent& );
-  port handles_test_event( SpikeEvent&, rport );
+  void handle( SpikeEvent& ) override;
+  void handle( CorrectionSpikeEvent& ) override;
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CorrectionSpikeEvent&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
+  void init_buffers_() override;
   void
-  pre_run_hook()
+  pre_run_hook() override
   {
-  } // no variables
+    FlushEventMechanism::pre_run_hook();
+  }
 
-  void update( Time const&, const long, const long );
+  void update( Time const&, const long, const long ) override;
 
   /**
      Buffers and accumulates the number of incoming spikes per time step;
@@ -122,8 +147,8 @@ private:
   Buffers_ B_;
 };
 
-inline port
-parrot_neuron::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+parrot_neuron::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
@@ -131,8 +156,23 @@ parrot_neuron::send_test_event( Node& target, rport receptor_type, synindex, boo
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-parrot_neuron::handles_test_event( SpikeEvent&, rport receptor_type )
+inline size_t
+parrot_neuron::handles_test_event( SpikeEvent&, size_t receptor_type )
+{
+  // Allow connections to port 0 (spikes to be repeated)
+  // and port 1 (spikes to be ignored).
+  if ( receptor_type == 0 or receptor_type == 1 )
+  {
+    return receptor_type;
+  }
+  else
+  {
+    throw UnknownReceptorType( receptor_type, get_name() );
+  }
+}
+
+inline size_t
+parrot_neuron::handles_test_event( CorrectionSpikeEvent&, size_t receptor_type )
 {
   // Allow connections to port 0 (spikes to be repeated)
   // and port 1 (spikes to be ignored).
@@ -158,6 +198,6 @@ parrot_neuron::receives_signal() const
   return ALL;
 }
 
-} // namespace
+}  // namespace
 
-#endif // PARROT_NEURON_H
+#endif  // PARROT_NEURON_H

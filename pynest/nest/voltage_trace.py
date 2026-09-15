@@ -27,13 +27,14 @@ import nest
 import numpy
 
 __all__ = [
-    'from_device',
-    'from_file',
+    "from_device",
+    "from_file",
 ]
 
 
 def from_file(fname, title=None, grayscale=False):
-    """Plot voltage trace from file.
+    """
+    Plot voltage trace from file.
 
     Parameters
     ----------
@@ -43,20 +44,17 @@ def from_file(fname, title=None, grayscale=False):
         Plot title
     grayscale : bool, optional
         Plot in grayscale
-
-    Raises
-    ------
-    ValueError
     """
+
     import matplotlib.pyplot as plt
 
     if isinstance(fname, (list, tuple)):
         data = None
-        for f in fname:
+        for file in fname:
             if data is None:
-                data = numpy.loadtxt(f)
+                data = numpy.loadtxt(file)
             else:
-                data = numpy.concatenate((data, numpy.loadtxt(f)))
+                data = numpy.concatenate((data, numpy.loadtxt(file)))
     else:
         data = numpy.loadtxt(fname)
 
@@ -66,8 +64,7 @@ def from_file(fname, title=None, grayscale=False):
         line_style = ""
 
     if len(data.shape) == 1:
-        print("INFO: only found 1 column in the file. \
-            Assuming that only one neuron was recorded.")
+        print("INFO: only found 1 column in the file. Assuming that only one neuron was recorded.")
         plotid = plt.plot(data, line_style)
         plt.xlabel("Time (steps of length interval)")
 
@@ -77,16 +74,14 @@ def from_file(fname, title=None, grayscale=False):
 
         plotid = []
         data_dict = {}
-        for d in data:
-            if not d[0] in data_dict:
-                data_dict[d[0]] = [d[1]]
+        for dat in data:
+            if not dat[0] in data_dict:
+                data_dict[dat[0]] = [dat[1]]
             else:
-                data_dict[d[0]].append(d[1])
+                data_dict[dat[0]].append(dat[1])
 
-        for d in data_dict:
-            plotid.append(
-                plt.plot(data_dict[d], line_style, label="Neuron %i" % d)
-            )
+        for dat in data_dict:
+            plotid.append(plt.plot(data_dict[dat], line_style, label="Neuron %i" % dat))
 
         plt.xlabel("Time (steps of length interval)")
         plt.legend()
@@ -105,9 +100,7 @@ def from_file(fname, title=None, grayscale=False):
                 t.append(d[1])
 
         for d in data_dict:
-            plotid.append(
-                plt.plot(t, data_dict[d], line_style, label="Neuron %i" % d)
-            )
+            plotid.append(plt.plot(t, data_dict[d], line_style, label="Neuron %i" % d))
 
         plt.xlabel("Time (ms)")
         plt.legend()
@@ -125,10 +118,12 @@ def from_file(fname, title=None, grayscale=False):
     return plotid
 
 
-def from_device(detec, neurons=None, title=None, grayscale=False,
-                timeunit="ms"):
-    """Plot the membrane potential of a set of neurons recorded by
-    the given voltmeter or multimeter.
+def from_device(detec, neurons=None, title=None, grayscale=False, timeunit="ms"):
+    """
+    Plot voltage trace from device.
+
+    Plots the membrane potential of a set of neurons recorded by the given
+    ``voltmeter`` or ``multimeter``.
 
     Parameters
     ----------
@@ -142,34 +137,25 @@ def from_device(detec, neurons=None, title=None, grayscale=False,
         Plot in grayscale
     timeunit : str, optional
         Unit of time
-
-    Raises
-    ------
-    nest.kernel.NESTError
-        Description
     """
+
     import matplotlib.pyplot as plt
 
     if len(detec) > 1:
-        raise nest.kernel.NESTError("Please provide a single voltmeter.")
+        raise ValueError("Please provide a single 'voltmeter' or 'multimeter'.")
 
-    type_id = nest.GetDefaults(detec.get('model'), 'type_id')
-    if type_id not in ('voltmeter', 'multimeter'):
-        raise nest.kernel.NESTError("Please provide a voltmeter or a \
-            multimeter measuring V_m.")
-    elif type_id == 'multimeter':
+    type_id = nest.GetDefaults(detec.get("model"), "type_id")
+    if type_id not in ("voltmeter", "multimeter"):
+        raise TypeError("Please provide a 'voltmeter' or a 'multimeter' measuring V_m.")
+    elif type_id == "multimeter":
         if "V_m" not in detec.get("record_from"):
-            raise nest.kernel.NESTError("Please provide a multimeter \
-                measuring V_m.")
-        elif (not detec.get("record_to") == "memory" and
-              len(detec.get("record_from")) > 1):
-            raise nest.kernel.NESTError("Please provide a multimeter \
-                measuring only V_m or record to memory!")
+            raise ValueError("Please provide a 'multimeter' measuring 'V_m'.")
+        elif not detec.get("record_to") == "memory" and len(detec.get("record_from")) > 1:
+            raise ValueError("Please provide a 'multimeter' measuring only 'V_m' or record to memory.")
 
     if detec.get("record_to") == "memory":
-
         timefactor = 1.0
-        if not detec.get('time_in_steps'):
+        if not detec.get("time_in_steps"):
             if timeunit == "s":
                 timefactor = 1000.0
             else:
@@ -178,7 +164,7 @@ def from_device(detec, neurons=None, title=None, grayscale=False,
         times, voltages = _from_memory(detec)
 
         if not len(times):
-            raise nest.NESTError("No events recorded!")
+            raise ValueError("No events recorded.")
 
         if neurons is None:
             neurons = voltages.keys()
@@ -193,10 +179,7 @@ def from_device(detec, neurons=None, title=None, grayscale=False,
                 line_style = ""
 
             try:
-                plotids.append(
-                    plt.plot(time_values, voltages[neuron],
-                             line_style, label="Neuron %i" % neuron)
-                )
+                plotids.append(plt.plot(time_values, voltages[neuron], line_style, label="Neuron %i" % neuron))
             except KeyError:
                 print("INFO: Wrong ID: {0}".format(neuron))
 
@@ -206,7 +189,7 @@ def from_device(detec, neurons=None, title=None, grayscale=False,
 
         plt.ylabel("Membrane potential (mV)")
 
-        if nest.GetStatus(detec)[0]['time_in_steps']:
+        if detec.time_in_steps:
             plt.xlabel("Steps")
         else:
             plt.xlabel("Time (%s)" % timeunit)
@@ -220,47 +203,48 @@ def from_device(detec, neurons=None, title=None, grayscale=False,
         fname = detec.get("filenames")
         return from_file(fname, title, grayscale)
     else:
-        raise nest.kernel.NESTError("Provided devices neither record to \
-            ascii file, nor to memory.")
+        raise ValueError("Provided device neither records to ascii file nor to memory.")
 
 
 def _from_memory(detec):
     """Get voltage traces from memory.
+
+    Parameters
     ----------
     detec : list
         Global id of voltmeter or multimeter
     """
+
     import array
 
-    ev = detec.get('events')
-    potentials = ev['V_m']
-    senders = ev['senders']
+    ev = detec.get("events")
+    potentials = ev["V_m"]
+    senders = ev["senders"]
 
     v = {}
     t = {}
 
-    if 'times' in ev:
-        times = ev['times']
+    if "times" in ev:
+        times = ev["times"]
         for s, currentsender in enumerate(senders):
             if currentsender not in v:
-                v[currentsender] = array.array('f')
-                t[currentsender] = array.array('f')
+                v[currentsender] = array.array("f")
+                t[currentsender] = array.array("f")
 
             v[currentsender].append(float(potentials[s]))
             t[currentsender].append(float(times[s]))
     else:
         # reconstruct the time vector, if not stored explicitly
-        origin = detec.get('origin')
-        start = detec.get('start')
-        interval = detec.get('interval')
+        origin = detec.get("origin")
+        start = detec.get("start")
+        interval = detec.get("interval")
         senders_uniq = numpy.unique(senders)
         num_intvls = len(senders) / len(senders_uniq)
-        times_s = origin + start + interval + \
-            interval * numpy.array(range(num_intvls))
+        times_s = origin + start + interval + interval * numpy.array(range(num_intvls))
 
         for s, currentsender in enumerate(senders):
             if currentsender not in v:
-                v[currentsender] = array.array('f')
+                v[currentsender] = array.array("f")
                 t[currentsender] = times_s
             v[currentsender].append(float(potentials[s]))
 

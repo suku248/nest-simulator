@@ -85,21 +85,22 @@ represents phi) or to each input individually (False, input represents psi).
 In case of multiplicative coupling the nonlinearity is applied separately
 to the summed excitatory and inhibitory inputs if ``linear_summation=True``.
 
-See also [1]_.
+See also :footcite:p:`Hahne2017`.
 
 References
 ++++++++++
 
-.. [1] Hahne J, Dahmen D, Schuecker J, Frommer A, Bolten M, Helias M,
-       Diesmann M (2017). Integration of continuous-time dynamics in a
-       spiking neural network simulator. Frontiers in Neuroinformatics, 11:34.
-       DOI: https://doi.org/10.3389/fninf.2017.00034
-
+.. footbibliography::
 
 See also
 ++++++++
 
 lin_rate, tanh_rate, threshold_lin_rate
+
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: rate_neuron_ipn
 
 EndUserDocs  */
 
@@ -122,29 +123,29 @@ public:
   using Node::handles_test_event;
   using Node::sends_secondary_event;
 
-  void handle( InstantaneousRateConnectionEvent& );
-  void handle( DelayedRateConnectionEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( InstantaneousRateConnectionEvent& ) override;
+  void handle( DelayedRateConnectionEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( InstantaneousRateConnectionEvent&, rport );
-  port handles_test_event( DelayedRateConnectionEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( InstantaneousRateConnectionEvent&, size_t ) override;
+  size_t handles_test_event( DelayedRateConnectionEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
   void
-  sends_secondary_event( InstantaneousRateConnectionEvent& )
+  sends_secondary_event( InstantaneousRateConnectionEvent& ) override
   {
   }
   void
-  sends_secondary_event( DelayedRateConnectionEvent& )
+  sends_secondary_event( DelayedRateConnectionEvent& ) override
   {
   }
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
+  void init_buffers_() override;
+  void pre_run_hook() override;
 
   TNonlinearities nonlinearities_;
 
@@ -153,8 +154,8 @@ private:
    */
   bool update_( Time const&, const long, const long, const bool );
 
-  void update( Time const&, const long, const long );
-  bool wfr_update( Time const&, const long, const long );
+  void update( Time const&, const long, const long ) override;
+  bool wfr_update( Time const&, const long, const long ) override;
 
   // The next two classes need to be friends to access the State_ class/member
   friend class RecordablesMap< rate_neuron_ipn< TNonlinearities > >;
@@ -198,11 +199,11 @@ private:
     /** use multiplicative coupling? Default is false */
     bool mult_coupling_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in dictionary
 
-    void set( const DictionaryDatum&, Node* node );
+    void set( const Dictionary&, Node* node );
   };
 
   // ----------------------------------------------------------------
@@ -212,19 +213,19 @@ private:
    */
   struct State_
   {
-    double rate_;  //!< Rate
-    double noise_; //!< Noise
+    double rate_;   //!< Rate
+    double noise_;  //!< Noise
 
-    State_(); //!< Default initialization
+    State_();  //!< Default initialization
 
-    void get( DictionaryDatum& ) const;
+    void get( Dictionary& ) const;
 
     /** Set values from dictionary.
      * @param dictionary to take data from
      * @param current parameters
      * @param Change in reversal potential E_L specified by this dict
      */
-    void set( const DictionaryDatum&, Node* node );
+    void set( const Dictionary&, Node* node );
   };
 
   // ----------------------------------------------------------------
@@ -237,20 +238,20 @@ private:
     Buffers_( rate_neuron_ipn& );
     Buffers_( const Buffers_&, rate_neuron_ipn& );
 
-    RingBuffer delayed_rates_ex_; //!< buffer for rate vector received by
+    RingBuffer delayed_rates_ex_;  //!< buffer for rate vector received by
     // RateConnectionDelayed from excitatory neurons
-    RingBuffer delayed_rates_in_; //!< buffer for rate vector received by
+    RingBuffer delayed_rates_in_;  //!< buffer for rate vector received by
     // RateConnectionDelayed from inhibitory neurons
-    std::vector< double > instant_rates_ex_; //!< buffer for rate vector received
+    std::vector< double > instant_rates_ex_;  //!< buffer for rate vector received
     // by RateConnectionInstantaneous from excitatory neurons
-    std::vector< double > instant_rates_in_; //!< buffer for rate vector received
+    std::vector< double > instant_rates_in_;  //!< buffer for rate vector received
     // by RateConnectionInstantaneous from inhibitory neurons
-    std::vector< double > last_y_values;  //!< remembers y_values from last wfr_update
-    std::vector< double > random_numbers; //!< remembers the random_numbers in
+    std::vector< double > last_y_values;   //!< remembers y_values from last wfr_update
+    std::vector< double > random_numbers;  //!< remembers the random_numbers in
     // order to apply the same random
     // numbers in each iteration when wfr
     // is used
-    UniversalDataLogger< rate_neuron_ipn > logger_; //!< Logger for all analog data
+    UniversalDataLogger< rate_neuron_ipn > logger_;  //!< Logger for all analog data
   };
 
   // ----------------------------------------------------------------
@@ -267,7 +268,7 @@ private:
     // propagator for noise
     double input_noise_factor_;
 
-    normal_distribution normal_dist_; //!< normal distribution
+    normal_distribution normal_dist_;  //!< normal distribution
   };
 
   //! Read out the rate
@@ -306,16 +307,16 @@ template < class TNonlinearities >
 inline bool
 rate_neuron_ipn< TNonlinearities >::wfr_update( Time const& origin, const long from, const long to )
 {
-  State_ old_state = S_; // save state before wfr update
+  State_ old_state = S_;  // save state before wfr update
   const bool wfr_tol_exceeded = update_( origin, from, to, true );
-  S_ = old_state; // restore old state
+  S_ = old_state;  // restore old state
 
   return not wfr_tol_exceeded;
 }
 
 template < class TNonlinearities >
-inline port
-rate_neuron_ipn< TNonlinearities >::handles_test_event( InstantaneousRateConnectionEvent&, rport receptor_type )
+inline size_t
+rate_neuron_ipn< TNonlinearities >::handles_test_event( InstantaneousRateConnectionEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -325,8 +326,8 @@ rate_neuron_ipn< TNonlinearities >::handles_test_event( InstantaneousRateConnect
 }
 
 template < class TNonlinearities >
-inline port
-rate_neuron_ipn< TNonlinearities >::handles_test_event( DelayedRateConnectionEvent&, rport receptor_type )
+inline size_t
+rate_neuron_ipn< TNonlinearities >::handles_test_event( DelayedRateConnectionEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -336,8 +337,8 @@ rate_neuron_ipn< TNonlinearities >::handles_test_event( DelayedRateConnectionEve
 }
 
 template < class TNonlinearities >
-inline port
-rate_neuron_ipn< TNonlinearities >::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+rate_neuron_ipn< TNonlinearities >::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -348,24 +349,24 @@ rate_neuron_ipn< TNonlinearities >::handles_test_event( DataLoggingRequest& dlr,
 
 template < class TNonlinearities >
 inline void
-rate_neuron_ipn< TNonlinearities >::get_status( DictionaryDatum& d ) const
+rate_neuron_ipn< TNonlinearities >::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ArchivingNode::get_status( d );
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 
   nonlinearities_.get( d );
 }
 
 template < class TNonlinearities >
 inline void
-rate_neuron_ipn< TNonlinearities >::set_status( const DictionaryDatum& d )
+rate_neuron_ipn< TNonlinearities >::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
-  State_ stmp = S_;      // temporary copy in case of errors
-  stmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
+  State_ stmp = S_;       // temporary copy in case of errors
+  stmp.set( d, this );    // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -380,6 +381,6 @@ rate_neuron_ipn< TNonlinearities >::set_status( const DictionaryDatum& d )
   nonlinearities_.set( d, this );
 }
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef RATE_NEURON_IPN_H */

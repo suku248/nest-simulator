@@ -29,7 +29,7 @@
 namespace nest
 {
 
-/* BeginUserDocs: synapse, short-term plasticity
+/* BeginUserDocs: synapse, chemical, functional, stp
 
 Short description
 +++++++++++++++++
@@ -41,13 +41,13 @@ Description
 
 This synapse model implements synaptic short-term depression and
 short-term facilitation according to the quantal release model
-described by Fuhrmann et al. [1]_ and Loebel et al. [2]_.
+described by Fuhrmann et al. :footcite:p:`Fuhrmann2002` and Loebel et al. :footcite:p:`Loebel2009`.
 
 Each presynaptic spike will stochastically activate a fraction of
 the available release sites.  This fraction is binomialy
 distributed and the release probability per site is governed by the
 Fuhrmann et al. (2002) model. The solution of the differential
-equations is taken from Maass and Markram 2002 [3]_.
+equations is taken from Maass and Markram 2002 :footcite:p:`Maass2002`.
 
 The connection weight is interpreted as the maximal weight that can
 be obtained if all n release sites are activated.
@@ -66,29 +66,18 @@ The following parameters can be set in the status dictionary:
 
 ==========  ======= =========================================================
  U          real    Maximal fraction of available resources [0,1],
-                    default=0.5
- u          real    Available fraction of resources [0,1], default=0.5
- p          real    Probability that a vesicle is available, default = 1.0
+                    default = 0.5
+ u          real    Available fraction of resources [0,1], default = U
  n          integer Total number of release sites, default = 1
  a          integer Number of available release sites, default = n
- tau_rec    ms      Time constant for depression, default=800 ms
- tau_rec    ms      Time constant for facilitation, default=0 (off)
+ tau_fac    ms      Time constant for facilitation, default = 0 (off)
+ tau_rec    ms      Time constant for depression, default = 800
 ==========  ======= =========================================================
 
 References
 ++++++++++
 
-.. [1] Fuhrmann G, Segev I, Markram H, Tsodyks MV (2002). Coding of
-       temporal information by activity-dependent synapses. Journal of
-       neurophysiology, 87(1):140-8.
-       DOI: https://doi.org/10.1152/jn.00258.2001
-.. [2] Loebel A, Silberberg G, Helbig D, Markram H, Tsodyks  MV, Richardson MJE
-       (2009). Multiquantal release underlies the distribution of synaptic
-       efficacies in the neocortex. Frontiers in Computational Neuroscience,
-       3, 27.  DOI: https://doi.org/10.3389/neuro.10.027.2009
-.. [3] Maass W, Markram H (2002). Synapses as dynamic memory buffers.
-       Neural Networks, 15(2):155-161.
-       DOI: https://doi.org/10.1016/S0893-6080(01)00144-7
+.. footbibliography::
 
 Transmits
 +++++++++
@@ -100,20 +89,32 @@ See also
 
 tsodyks2_synapse, stdp_synapse, static_synapse
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: quantal_stp_synapse
+
 EndUserDocs */
 
+void register_quantal_stp_synapse( const std::string& name );
+
 template < typename targetidentifierT >
-class quantal_stp_synapse : public Connection< targetidentifierT >
+class quantal_stp_synapse : public Connection< targetidentifierT, TotalDelay >
 {
 public:
   typedef CommonSynapseProperties CommonPropertiesType;
-  typedef Connection< targetidentifierT > ConnectionBase;
+  typedef Connection< targetidentifierT, TotalDelay > ConnectionBase;
+
+  static constexpr ConnectionModelProperties properties = ConnectionModelProperties::HAS_DELAY
+    | ConnectionModelProperties::IS_PRIMARY | ConnectionModelProperties::SUPPORTS_HPC
+    | ConnectionModelProperties::SUPPORTS_LBL;
 
   /**
    * Default Constructor.
    * Sets default values for all parameters. Needed by GenericConnectorModel.
    */
   quantal_stp_synapse();
+
   /**
    * Copy constructor to propagate common properties.
    */
@@ -124,7 +125,7 @@ public:
   // ConnectionBase. This avoids explicit name prefixes in all places these
   // functions are used. Since ConnectionBase depends on the template parameter,
   // they are not automatically found in the base class.
-  using ConnectionBase::get_delay;
+  using ConnectionBase::get_delay_ms;
   using ConnectionBase::get_delay_steps;
   using ConnectionBase::get_rport;
   using ConnectionBase::get_target;
@@ -132,20 +133,20 @@ public:
   /**
    * Get all properties of this connection and put them into a dictionary.
    */
-  void get_status( DictionaryDatum& d ) const;
+  void get_status( Dictionary& d ) const;
 
   /**
    * Set default properties of this connection from the values given in
    * dictionary.
    */
-  void set_status( const DictionaryDatum& d, ConnectorModel& cm );
+  void set_status( const Dictionary& d, ConnectorModel& cm );
 
   /**
    * Send an event to the receiver of this connection.
    * \param e The event to send
    * \param cp Common properties to all synapses (empty).
    */
-  void send( Event& e, thread t, const CommonSynapseProperties& cp );
+  bool send( Event& e, size_t t, const CommonSynapseProperties& cp );
 
   class ConnTestDummyNode : public ConnTestDummyNodeBase
   {
@@ -153,18 +154,18 @@ public:
     // Ensure proper overriding of overloaded virtual functions.
     // Return values from functions are ignored.
     using ConnTestDummyNodeBase::handles_test_event;
-    port
-    handles_test_event( SpikeEvent&, rport )
+    size_t
+    handles_test_event( SpikeEvent&, size_t ) override
     {
-      return invalid_port_;
+      return invalid_port;
     }
   };
 
   void
-  check_connection( Node& s, Node& t, rport receptor_type, const CommonPropertiesType& )
+  check_connection( Node& s, Node& t, const size_t receptor_type, const synindex syn_id, const CommonPropertiesType& )
   {
     ConnTestDummyNode dummy_target;
-    ConnectionBase::check_connection_( dummy_target, s, t, receptor_type );
+    ConnectionBase::check_connection_( dummy_target, s, t, syn_id, receptor_type );
   }
 
   void
@@ -174,16 +175,18 @@ public:
   }
 
 private:
-  double weight_;      //!< synaptic weight
-  double U_;           //!< unit increment of a facilitating synapse (U)
-  double u_;           //!< dynamic value of probability of release
-  double tau_rec_;     //!< [ms] time constant for recovery from depression (D)
-  double tau_fac_;     //!< [ms] time constant for facilitation (F)
-  int n_;              //!< Number of release sites
-  int a_;              //!< Number of available release sites
-  double t_lastspike_; //!< Time point of last spike emitted
+  double weight_;       //!< synaptic weight
+  double U_;            //!< unit increment of a facilitating synapse (U)
+  double u_;            //!< dynamic value of probability of release
+  double tau_rec_;      //!< [ms] time constant for recovery from depression (D)
+  double tau_fac_;      //!< [ms] time constant for facilitation (F)
+  int n_;               //!< Number of release sites
+  int a_;               //!< Number of available release sites
+  double t_lastspike_;  //!< Time point of last spike emitted
 };
 
+template < typename targetidentifierT >
+constexpr ConnectionModelProperties quantal_stp_synapse< targetidentifierT >::properties;
 
 /**
  * Send an event to the receiver of this connection.
@@ -192,15 +195,32 @@ private:
  * \param cp Common properties object, containing the quantal_stp parameters.
  */
 template < typename targetidentifierT >
-inline void
-quantal_stp_synapse< targetidentifierT >::send( Event& e, thread t, const CommonSynapseProperties& )
+inline bool
+quantal_stp_synapse< targetidentifierT >::send( Event& e, size_t t, const CommonSynapseProperties& )
 {
   const double t_spike = e.get_stamp().get_ms();
-  const double h = t_spike - t_lastspike_;
 
-  // Compute the decay factors, based on the time since the last spike.
-  const double p_decay = std::exp( -h / tau_rec_ );
-  const double u_decay = ( tau_fac_ < 1.0e-10 ) ? 0.0 : std::exp( -h / tau_fac_ );
+  if ( t_lastspike_ >= 0.0 )
+  {
+    // only update a and u if this is not the first spike to pass through the synapse
+
+    // Compute the decay factors, based on the time since the last spike.
+    const double h = t_spike - t_lastspike_;
+    const double p_decay = std::exp( -h / tau_rec_ );
+    const double u_decay = ( tau_fac_ < 1.0e-10 ) ? 0.0 : std::exp( -h / tau_fac_ );
+
+    // Compute release probability
+    u_ = U_ + u_ * ( 1. - U_ ) * u_decay;  // Eq. 4 from Loebel et al. (2009)
+
+    // Compute number of sites that recovered during the interval.
+    for ( int depleted = n_ - a_; depleted > 0; --depleted )
+    {
+      if ( get_vp_specific_rng( t )->drand() < ( 1.0 - p_decay ) )
+      {
+        ++a_;
+      }
+    }
+  }
 
   // Compute number of released sites
   int n_release = 0;
@@ -212,7 +232,9 @@ quantal_stp_synapse< targetidentifierT >::send( Event& e, thread t, const Common
     }
   }
 
-  if ( n_release > 0 )
+  const bool send_spike = n_release > 0;
+
+  if ( send_spike )
   {
     e.set_receiver( *get_target( t ) );
     e.set_weight( n_release * weight_ );
@@ -222,21 +244,11 @@ quantal_stp_synapse< targetidentifierT >::send( Event& e, thread t, const Common
     a_ -= n_release;
   }
 
-  // Compute release probability
-  u_ = U_ + u_ * ( 1. - U_ ) * u_decay; // Eq. 4 from [2]_
-
-  // Compute number of sites that recovered during the interval.
-  for ( int depleted = n_ - a_; depleted > 0; --depleted )
-  {
-    if ( get_vp_specific_rng( t )->drand() < ( 1.0 - p_decay ) )
-    {
-      ++a_;
-    }
-  }
-
   t_lastspike_ = t_spike;
+
+  return send_spike;
 }
 
-} // namespace
+}  // namespace
 
-#endif // QUANTAL_STP_SYNAPSE_H
+#endif  // QUANTAL_STP_SYNAPSE_H

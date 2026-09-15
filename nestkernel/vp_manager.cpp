@@ -22,6 +22,9 @@
 
 #include "vp_manager.h"
 
+// C++ includes:
+#include <cstdlib>
+
 // Includes from libnestutil:
 #include "logging.h"
 
@@ -31,10 +34,10 @@
 #include "mpi_manager_impl.h"
 #include "vp_manager_impl.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
-nest::VPManager::VPManager()
+namespace nest
+{
+VPManager::VPManager()
 #ifdef _OPENMP
   : force_singlethreading_( false )
 #else
@@ -45,35 +48,62 @@ nest::VPManager::VPManager()
 }
 
 void
-nest::VPManager::initialize()
+VPManager::initialize( const bool adjust_number_of_threads_or_rng_only )
 {
+  if ( adjust_number_of_threads_or_rng_only )
+  {
+    return;
+  }
+
 // When the VPManager is initialized, you will have 1 thread again.
 // Setting more threads will be done via nest::set_kernel_status
 #ifdef _OPENMP
-  /* The next line is required because we use the OpenMP
-   threadprivate() directive in the allocator, see OpenMP
-   API Specifications v 3.1, Ch 2.9.2, p 89, l 14f.
-   It keeps OpenMP from automagically changing the number
-   of threads used for parallel regions.
-   */
+  // The next line is required because we use the OpenMP
+  // threadprivate() directive in the allocator, see OpenMP
+  // API Specifications v 3.1, Ch 2.9.2, p 89, l 14f.
+  // It keeps OpenMP from automagically changing the number
+  // of threads used for parallel regions.
   omp_set_dynamic( false );
 #endif
+
+  if ( get_OMP_NUM_THREADS() > 1 )
+  {
+    std::string msg = "OMP_NUM_THREADS is set in your environment, but NEST ignores it.\n";
+    msg += "For details, see the Guide to parallel computing in the NEST Documentation.";
+
+    LOG( VerbosityLevel::INFO, "VPManager::initialize()", msg );
+  }
+
   set_num_threads( 1 );
 }
 
 void
-nest::VPManager::finalize()
+VPManager::finalize( const bool )
 {
 }
 
-void
-nest::VPManager::set_status( const DictionaryDatum& d )
+size_t
+VPManager::get_OMP_NUM_THREADS() const
 {
-  long n_threads = get_num_threads();
-  long n_vps = get_num_virtual_processes();
+  const char* const omp_num_threads = std::getenv( "OMP_NUM_THREADS" );
+  if ( omp_num_threads )
+  {
+    return std::atoi( omp_num_threads );
+  }
+  else
+  {
+    return 0;
+  }
+}
 
-  bool n_threads_updated = updateValue< long >( d, names::local_num_threads, n_threads );
-  bool n_vps_updated = updateValue< long >( d, names::total_num_virtual_procs, n_vps );
+void
+VPManager::set_status( const Dictionary& d )
+{
+  size_t n_threads = get_num_threads();
+  size_t n_vps = get_num_virtual_processes();
+
+  bool n_threads_updated = d.update_integer_value( names::local_num_threads, n_threads );
+  bool n_vps_updated = d.update_integer_value( names::total_num_virtual_procs, n_vps );
 
   if ( n_vps_updated )
   {
@@ -93,24 +123,12 @@ nest::VPManager::set_status( const DictionaryDatum& d )
     }
   }
 
-  if ( force_singlethreading_ and n_threads > 1 )
-  {
-    std::string msg = "Multithreading requested, but unavailable. Using a single thread.";
-    LOG( M_WARNING, "VPManager::set_status", msg );
-    n_threads = 1;
-  }
-
   // We only want to act if new values differ from the old
   n_threads_updated = n_threads != get_num_threads();
   n_vps_updated = n_vps != get_num_virtual_processes();
 
   if ( n_threads_updated or n_vps_updated )
   {
-    if ( kernel().sp_manager.is_structural_plasticity_enabled() and ( n_threads > 1 ) )
-    {
-      throw KernelException( "Structural plasticity enabled: multithreading cannot be enabled." );
-    }
-
     std::vector< std::string > errors;
     if ( kernel().node_manager.size() > 0 )
     {
@@ -128,12 +146,16 @@ nest::VPManager::set_status( const DictionaryDatum& d )
     {
       errors.push_back( "Model defaults were modified" );
     }
-
-    if ( errors.size() == 1 )
+    if ( kernel().sp_manager.is_structural_plasticity_enabled() and n_threads > 1 )
     {
-      throw KernelException( errors[ 0 ] + ": number of threads cannot be changed." );
+      errors.push_back( "Structural plasticity enabled: multithreading cannot be enabled" );
     }
-    if ( errors.size() > 1 )
+    if ( force_singlethreading_ and n_threads > 1 )
+    {
+      errors.push_back( "This installation of NEST does not support multiple threads" );
+    }
+
+    if ( not errors.empty() )
     {
       std::string msg = "Number of threads unchanged. Error conditions:";
       for ( auto& error : errors )
@@ -143,24 +165,28 @@ nest::VPManager::set_status( const DictionaryDatum& d )
       throw KernelException( msg );
     }
 
+    if ( get_OMP_NUM_THREADS() > 0 and get_OMP_NUM_THREADS() != n_threads )
+    {
+      std::string msg = "OMP_NUM_THREADS is set in your environment, but NEST ignores it.\n";
+      msg += "For details, see the Guide to parallel computing in the NEST Documentation.";
+      LOG( VerbosityLevel::WARNING, "VPManager::set_status()", msg );
+    }
+
     kernel().change_number_of_threads( n_threads );
   }
 }
 
 void
-nest::VPManager::get_status( DictionaryDatum& d )
+VPManager::get_status( Dictionary& d )
 {
-  def< long >( d, names::local_num_threads, get_num_threads() );
-  def< long >( d, names::total_num_virtual_procs, get_num_virtual_processes() );
+  d[ names::local_num_threads ] = static_cast< long >( get_num_threads() );
+  d[ names::total_num_virtual_procs ] = static_cast< long >( get_num_virtual_processes() );
 }
 
 void
-nest::VPManager::set_num_threads( nest::thread n_threads )
+VPManager::set_num_threads( size_t n_threads )
 {
-  if ( kernel().sp_manager.is_structural_plasticity_enabled() and ( n_threads > 1 ) )
-  {
-    throw KernelException( "Multiple threads can not be used if structural plasticity is enabled" );
-  }
+  assert( not( kernel().sp_manager.is_structural_plasticity_enabled() and n_threads > 1 ) );
   n_threads_ = n_threads;
 
 #ifdef _OPENMP
@@ -168,10 +194,4 @@ nest::VPManager::set_num_threads( nest::thread n_threads )
 #endif
 }
 
-void
-nest::VPManager::assert_single_threaded()
-{
-#ifdef _OPENMP
-  assert( omp_get_num_threads() == 1 );
-#endif
-}
+}  // namespace nest

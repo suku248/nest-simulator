@@ -34,14 +34,10 @@
 #include "manager_interface.h"
 #include "nest_types.h"
 
-// Includes from sli:
-#include "dict.h"
-
 #ifdef HAVE_MUSIC
 #include "music_event_handler.h"
 #include "music_rate_in_handler.h"
 #endif
-
 
 namespace nest
 {
@@ -52,17 +48,19 @@ namespace nest
 class MUSICManager : public ManagerInterface
 {
 public:
-  virtual void initialize() override;
-  virtual void finalize() override;
-  virtual void set_status( const DictionaryDatum& ) override;
-  virtual void get_status( DictionaryDatum& ) override;
+  void initialize( const bool ) override;
+  void finalize( const bool ) override;
+  void set_status( const Dictionary& ) override;
+  void get_status( Dictionary& ) override;
 
   MUSICManager();
 
   void init_music( int* argc, char** argv[] );
 
   /**
-   * Enter the runtime mode. This must be done before simulating. After having
+   * Enter the runtime mode.
+   *
+   * This must be done before simulating. After having
    * entered runtime mode ports cannot be published anymore.
    * \param h_min_delay is the length of a time slice, after which
    * communication should take place.
@@ -74,27 +72,21 @@ public:
    */
   void advance_music_time();
 
-  void music_finalize(); // called from MPIManager::mpi_finalize
+  void music_finalize();  // called from MPIManager::mpi_finalize
 
 #ifdef HAVE_MUSIC
-  MPI::Intracomm communicator();
+  MPI_Comm communicator();
 
   MUSIC::Setup* get_music_setup();
   MUSIC::Runtime* get_music_runtime();
 
   /**
    * Register a MUSIC input port (portname) with the port list.
+   *
    * This will increment the counter of the respective entry in the
    * music_in_portlist.
-   *
-   * The argument pristine should be set to true when a model
-   * registers the initial port name. This typically happens when the
-   * copy constructor of the model registers a port, as in
-   * models/music_event_in_proxy.cpp. Setting pristine = true causes
-   * the port to be also added to pristine_music_in_portlist. See
-   * also pristine_music_in_portlist_.
    */
-  void register_music_in_port( std::string portname, bool pristine = false );
+  void register_music_in_port( std::string portname );
 
   /**
    * Unregister a MUSIC input port (portname) from the port list.
@@ -106,19 +98,21 @@ public:
 
   /**
    * Register a node (of type music_input_proxy) with a given MUSIC
-   * port (portname) and a specific channel. The proxy will be
-   * notified, if a MUSIC event is being received on the respective
+   * port (portname) and a specific channel.
+   *
+   * The proxy will be notified, if a MUSIC event is being received on the respective
    * channel and port.
    */
-  void register_music_event_in_proxy( std::string portname, int channel, nest::Node* mp );
+  void register_music_event_in_proxy( std::string portname, int channel, Node* mp );
 
   /**
    * Register a node (of type music_input_proxy) with a given MUSIC
-   * port (portname) and a specific channel. The proxy will be
-   * notified, if a MUSIC event is being received on the respective
+   * port (portname) and a specific channel.
+   *
+   * The proxy will be notified, if a MUSIC event is being received on the respective
    * channel and port.
    */
-  void register_music_rate_in_proxy( std::string portname, int channel, nest::Node* mp );
+  void register_music_rate_in_proxy( std::string portname, int channel, Node* mp );
 
   /**
    * Set the acceptable latency (latency) for a music input port (portname).
@@ -139,8 +133,8 @@ public:
     MusicPortData()
     {
     }
-    size_t n_input_proxies; // Counter for number of music_input proxies
-                            // connected to this port
+    size_t n_input_proxies;  // Counter for number of music_input proxies
+                             // connected to this port
     double acceptable_latency;
     int max_buffered;
   };
@@ -148,20 +142,11 @@ public:
   /**
    * The mapping between MUSIC input ports identified by portname
    * and the corresponding port variables and parameters.
+   *
    * @see register_music_in_port()
    * @see unregister_music_in_port()
    */
   std::map< std::string, MusicPortData > music_in_portlist_;
-
-  /**
-   * A copy of music_in_portlist_ at the pristine state.
-   *
-   * This is used to reset music_in_portlist_ to its pristine state in
-   * initialize (a default state). Pristine here refers to the
-   * initial state of music_in_portlist_ after the loading of the
-   * pristine_models_.
-   */
-  std::map< std::string, MusicPortData > pristine_music_in_portlist_;
 
   /**
    * The mapping between MUSIC input ports identified by portname
@@ -185,8 +170,8 @@ public:
 
 private:
 #ifdef HAVE_MUSIC
-  MUSIC::Setup* music_setup;     //!< pointer to a MUSIC setup object
-  MUSIC::Runtime* music_runtime; //!< pointer to a MUSIC runtime object
+  MUSIC::Setup* music_setup;      //!< pointer to a MUSIC setup object
+  MUSIC::Runtime* music_runtime;  //!< pointer to a MUSIC runtime object
 #endif
 };
 }

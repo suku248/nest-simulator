@@ -31,30 +31,28 @@ Networks <pynest_examples>`, or
 have a look at at the source directory of your NEST installation in the
 subdirectory: ``pynest/examples/``.
 
-PyNEST - an interface to the NEST simulator
+PyNEST - an interface to the NEST Simulator
 -------------------------------------------
 
 .. _Python-Interface:
 
-.. figure:: ../../static/img/python_interface.png
+.. figure:: ../../static/img/python_interface_ng.svg
    :alt: Python Interface
-   :width: 600px
 
    Python Interface Figure.
-   The Python interpreter imports NEST as a module and
-   dynamically loads the NEST simulator kernel (``pynestkernel.so``).
-   A simulation script of
-   the user (``mysimulation.py``) uses functions defined in this high-level
-   API. These functions generate code in SLI (Simulation Language
-   Interpreter), the native language of the interpreter of NEST. This
-   interpreter, in turn, controls the NEST simulation kernel.
 
-The NEural Simulation Tool (NEST: www.nest-initiative.org) [1]_
+   The Python interpreter imports NEST as a package, which loads the Cython extension `nestkernel_api`, which is a
+   direct binding to the NEST C++ API. This C++ API provides the interface to the NEST kernel, using dedicated managers
+   for specific functions alongside classes that represent neuron, device, and synapse models. When a user runs a
+   simulation script (``my-simulation.py``), its calls to the PyNEST high-level API are forwarded through ``ll_api.py``
+   and the Cython layer directly to the C++ KernelManager, which controls the simulation.
+
+The NEural Simulation Tool (NEST: www.nest-initiative.org) :footcite:p:`Gewaltig2007`
 is designed for the simulation of large heterogeneous networks of point
 neurons. It is open source software released under the GPL licence. The
-simulator comes with an interface to Python [2]_. :numref:`Python-Interface`
-illustrates the interaction between the user’s simulation script
-(``mysimulation.py``) and the NEST simulator. Eppler et al. [3]_
+simulator comes with an interface to Python :footcite:p:`Python2008`. :numref:`Python-Interface`
+illustrates the interaction between the user's simulation script
+(``mysimulation.py``) and the NEST Simulator. Eppler et al. :footcite:p:`Eppler2009`
 contains a technically detailed description of the implementation of this
 interface and parts of this text are based on this reference. The
 simulation kernel is written in C++ to obtain the highest possible performance
@@ -68,7 +66,7 @@ simulations in text files. These can in turn be run from the command
 line or from the Python or ipython prompt.
 
 Whether working interactively, semi-interactively, or purely executing
-scripts, the first thing that needs to happen is importing NEST’s
+scripts, the first thing that needs to happen is importing NEST's
 functionality into the Python interpreter.
 
 ::
@@ -93,12 +91,10 @@ prompted for.
     dir(nest)
 
 If you want to obtain more information about a particular command, you
-may use Python’s standard help system, which will return the help text
-(docstring) explaining the use of this particular function. There is a
-help system within NEST as well. You can open the help pages in a
-browser using ``nest.helpdesk()`` and you can get the help page for a
-particular NEST object (like a synapse or neuron model) using
-``nest.help('object')``.
+may use Python's standard help system, which will return the help text
+(docstring) explaining the use of this particular function. You can get
+the help page for a particular NEST object (like a synapse or neuron model)
+using ``nest.help('object')``.
 
 Creating nodes
 --------------
@@ -119,7 +115,7 @@ or return a :py:class:`.NodeCollection` (see `command overview`_). Thus, it is
 easy to apply functions to large sets of nodes with a single function
 call.
 
-After having imported NEST and Matplotlib [4]_,
+After having imported NEST and Matplotlib :footcite:p:`Hunter2007`,
 which we will use to display the results, we can start creating nodes.
 As a first example, we will create a neuron of type
 ``iaf_psc_alpha``. This neuron is an integrate-and-fire neuron with
@@ -145,9 +141,9 @@ to see which properties a neuron has, you may ask it for its status.
 This will print out the corresponding dictionary in the Python console.
 Many of these properties are not relevant for the dynamics of the
 neuron. To find out what the interesting properties are, look at the
-documentation of the model through the helpdesk. If you already know
-which properties you are interested in, you can specify a key, or a list
-of keys, as an optional argument to :py:meth:`~.NodeCollection.get`:
+online documentation. If you already know which properties you are interested
+in, you can specify a key, or a list of keys, as an optional argument to
+:py:meth:`~.NodeCollection.get`:
 
 ::
 
@@ -155,7 +151,7 @@ of keys, as an optional argument to :py:meth:`~.NodeCollection.get`:
     neuron.get(["V_reset", "V_th"])
 
 In the first case we query the value of the constant background current
-``I_e``; the result is given as a floating point element. In the second
+:hxt_ref:`I_e`; the result is given as a floating point element. In the second
 case, we query the values of the reset potential and threshold of the
 neuron, and receive the result as a dictionary . If :py:meth:`~.NodeCollection.get` is
 called on a NodeCollection with more than one element, the returned dictionary
@@ -165,12 +161,12 @@ called with a specific key on a NodeCollection with several elements, a list
 the size of the NodeCollection will be returned.
 
 To modify the properties in the dictionary, we use :py:meth:`~.NodeCollection.set`. In the
-following example, the background current is set to 375.0pA, a value
+following example, the background current is set to 376.0pA, a value
 causing the neuron to spike periodically.
 
 ::
 
-    neuron.set(I_e=375.0)
+    neuron.set(I_e=376.0)
 
 Note that we can set several properties at the same time by giving
 multiple comma separated key:value pairs in a dictionary. Also be
@@ -179,7 +175,7 @@ aware that NEST is type sensitive - if a particular property is of type
 
 ::
 
-    neuron.set({"I_e": 375})
+    neuron.set({"I_e": 376})
 
 will result in an error. This conveniently protects us from making
 integer division errors, which are hard to catch.
@@ -192,12 +188,12 @@ directly
     neuron.I_e = 376.0
     neuron.I_e
 
-Next we create a ``multimeter``, a *device* we can use to record the
+Next we create a :hxt_ref:`multimeter`, a *device* we can use to record the
 membrane voltage of a neuron over time. The property ``record_from``
 expects a list of the names of the variables we would like to
 record. The variables exposed to the multimeter vary from model to
 model. For a specific model, you can check the names of the exposed
-variables by looking at the neuron’s property ``recordables``.
+variables by looking at the neuron's property ``recordables``.
 
 ::
 
@@ -276,9 +272,9 @@ the multimeter.
     Vms = dmm["events"]["V_m"]
     ts = dmm["events"]["times"]
 
-In the first line, we obtain a dictionary with status parameters for the ``multimeter``.
+In the first line, we obtain a dictionary with status parameters for the :hxt_ref:`multimeter`.
 This dictionary contains an entry named ``events`` which holds the
-recorded data. It is itself a dictionary with the entries ``V_m`` and
+recorded data. It is itself a dictionary with the entries :hxt_ref:`V_m` and
 ``times``, which we store separately in ``Vms`` and ``ts``, in the
 second and third line, respectively. If you are having trouble imagining
 dictionaries of dictionaries and what you are extracting from where, try
@@ -296,17 +292,17 @@ use of ``matplotlib`` and the ``pyplot`` module.
     plt.plot(ts, Vms)
 
 The second line opens a figure (with the number 1), and the third line
-actually produces the plot. You can’t see it yet because we have not
+actually produces the plot. You can't see it yet because we have not
 used ``plt.show()``. Before we do that, we proceed analogously to
 obtain and display the spikes from the spike recorder.
 
 ::
 
-    dSD = spikerecorder.get("events")
-    evs = dSD["senders"]
-    ts = dSD["times"]
+    events = spikerecorder.get("events")
+    senders = events["senders"]
+    ts = events["times"]
     plt.figure(2)
-    plt.plot(ts, evs, ".")
+    plt.plot(ts, senders, ".")
     plt.show()
 
 Here we extract the events more concisely by sending the parameter name to
@@ -341,7 +337,7 @@ now connect this newly created neuron to the multimeter:
 
 Run the simulation and plot the results, they will look incorrect. To
 fix this you must plot the two neuron traces separately. Replace the
-code that extracts the events from the ``multimeter`` with the following
+code that extracts the events from the :hxt_ref:`multimeter` with the following
 lines.
 
 ::
@@ -475,7 +471,7 @@ the following sections of this introduction will add more.
 Getting information about NEST
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-See the :ref:`Getting Help Section <getting_help>`
+See the :ref:`Getting Help Section <command_help>`
 
 Nodes
 ~~~~~
@@ -487,7 +483,9 @@ Nodes
       - A dictionary with either single values or lists of size n.
         The single values will be applied to all nodes, while the lists will be distributed across
         the nodes. Both single values and lists can be given at the same time.
+
       - A list with n dictionaries, one dictionary for each node.
+
     If omitted, the ``model``\ ’s defaults are used.
 
 -  ``get(*params, **kwargs)``
@@ -507,8 +505,8 @@ Connections
 ~~~~~~~~~~~
 
 This is an abbreviated version of the documentation for the :py:func:`.Connect`
-function, please see NEST’s online help for the full version and
-:ref:`Connection Management <connection_management>` for an introduction
+function, please see NEST's online help for the full version and
+:ref:`Connectivity concepts <connectivity_concepts>` for an introduction
 and examples.
 
 -  ``Connect(pre, post, conn_spec=None, syn_spec=None, return_synapsecollection=False)``
@@ -561,14 +559,4 @@ Simulation control
 References
 ----------
 
-.. [1] Gewaltig MO. and Diesmann M. 2007. NEural Simulation
-   Tool. 2(4):1430.
-
-.. [2] Python Software Foundation. The Python programming language,
-   2008. http://www.python.org.
-
-.. [3] Eppler JM et al. 2009 PyNEST: A convenient interface to the NEST simulator.
-   2:12. 10.3389/neuro.11.012.2008.
-
-.. [4] Hunter JD. 2007 Matplotlib: A 2d graphics environment.
-   9(3):90–95.
+.. footbibliography::

@@ -58,7 +58,7 @@ namespace nest
  */
 extern "C" int aeif_psc_delta_clopath_dynamics( double, const double*, double*, void* );
 
-/* BeginUserDocs: neuron, adaptive threshold, integrate-and-fire, Clopath plasticity, current-based
+/* BeginUserDocs: neuron, adaptation, integrate-and-fire, Clopath plasticity, current-based, soft threshold
 
 Short description
 +++++++++++++++++
@@ -69,13 +69,13 @@ Description
 +++++++++++
 
 ``aeif_psc_delta_clopath`` is an implementation of the neuron model as it is used
-in [1]_. It is an extension of the ``aeif_psc_delta`` model and capable of
+in :footcite:p:`Clopath2010a`. It is an extension of the ``aeif_psc_delta`` model and capable of
 connecting to a Clopath synapse.
 
 Note that there are two points that are not mentioned in the paper but
-present in a MATLAB implementation by Claudia Clopath [3]_. The first one is the
-clamping of the membrane potential to a fixed value after a spike occured to
-mimik a real spike and not just the upswing. This is important since the finite
+present in a MATLAB implementation by Claudia Clopath :footcite:p:`Torben-Nielsen2010`. The first one is the
+clamping of the membrane potential to a fixed value after a spike occurred to
+mimic a real spike and not just the upswing. This is important since the finite
 duration of the spike influences the evolution of the convolved versions
 (``u_bar_[plus/minus]``) of the membrane potential and thus the change of the
 synaptic weight. Secondly, there is a delay with which ``u_bar_[plus/minus]`` are
@@ -83,20 +83,28 @@ used to compute the change of the synaptic weight.
 
 Note:
 Neither the clamping nor the delayed processing of u_bar_[plus/minus] are
-mentioned in [1]_. However, they are part of an reference implementation
-by Claudia Clopath et al. that can be found on ModelDB [3]_. The clamping is
+mentioned in :footcite:p:`Clopath2010a`. However, they are part of an reference implementation
+by Claudia Clopath et al. that can be found on ModelDB :footcite:p:`Torben-Nielsen2010`. The clamping is
 important to mimic a spike which is otherwise not described by the aeif neuron
 model.
 
 For implementation details see the
 `aeif_models_implementation <../model_details/aeif_models_implementation.ipynb>`_ notebook.
 
-See also [2]_.
+See also :footcite:p:`Clopath2010b`.
+
+.. note::
+
+    The default refractory period for ``aeif`` models is zero, consistent with the model definition in
+    Brette & Gerstner :footcite:p:`Brette2005`.  Thus, an ``aeif`` neuron with default parameters can fire multiple
+    spikes in a single time step, which can lead to exploding spike numbers and extreme slow-down of simulations.
+
+    To avoid such unphysiological behavior, you should set a refractory time ``t_ref > 0``.
 
 Parameters
 ++++++++++
 
-The following parameters can be set in the status dictionary.
+The following parameters can be set in the status Dictionary.
 
 =========== ======  ===================================================
 **Dynamic state variables**
@@ -112,7 +120,7 @@ u_bar_bar   mV      Low-pass filtered u_bar_minus
 
 ================== ======= =================================================
 **Membrane Parameters**
-----------------------------------------------------------------------
+----------------------------------------------------------------------------
  C_m               pF      Capacity of the membrane
  t_ref             ms      Duration of refractory period
  V_reset           mV      Reset value for V_m after a spike
@@ -134,7 +142,7 @@ tau_w      ms      Adaptation time constant
 tau_z      ms      Spike afterpotential current time constant
 I_sp       pA      Depolarizing spike afterpotential current magnitude
 V_peak     mV      Spike detection threshold
-V_th_max   mV      Value of V_th afer a spike
+V_th_max   mV      Value of V_th after a spike
 V_th_rest  mV      Resting value of V_th
 ========== ======  ===================================================
 
@@ -158,7 +166,7 @@ U_ref_squared real    Reference value for u_bar_bar_^2.
 -----------------------------------------------------------------------------
 t_clamp  ms     Duration of clamping of Membrane potential after a spike
 V_clamp  mV     Value to which the Membrane potential is clamped
-=======  ====== ============================================================
+=======  ====== =============================================================
 
 ============= ======= =========================================================
 **Integration parameters**
@@ -181,22 +189,21 @@ SpikeEvent, CurrentEvent, DataLoggingRequest
 References
 ++++++++++
 
-.. [1] Clopath et al. (2010). Connectivity reflects coding: a model of
-       voltage-based STDP with homeostasis. Nature Neuroscience 13(3):344-352.
-       DOI: https://doi.org/10.1038/nn.2479
-.. [2] Clopath and Gerstner (2010). Voltage and spike timing interact
-       in STDP – a unified model. Frontiers in Synaptic Neuroscience. 2:25
-       DOI: https://doi.org/10.3389/fnsyn.2010.00025
-.. [3] Voltage-based STDP synapse (Clopath et al. 2010) on ModelDB
-       https://senselab.med.yale.edu/ModelDB/showmodel.cshtml?model=144566&file=%2f
-       modeldb_package%2fVoTriCode%2faEIF.m
+.. footbibliography::
 
 See also
 ++++++++
 
 aeif_psc_delta, clopath_synapse, hh_psc_alpha_clopath
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: aeif_psc_delta_clopath
+
 EndUserDocs */
+
+void register_aeif_psc_delta_clopath( const std::string& name );
 
 class aeif_psc_delta_clopath : public ClopathArchivingNode
 {
@@ -204,7 +211,7 @@ class aeif_psc_delta_clopath : public ClopathArchivingNode
 public:
   aeif_psc_delta_clopath();
   aeif_psc_delta_clopath( const aeif_psc_delta_clopath& );
-  ~aeif_psc_delta_clopath();
+  ~aeif_psc_delta_clopath() override;
 
   /**
    * Import sets of overloaded virtual functions.
@@ -214,23 +221,23 @@ public:
   using Node::handle;
   using Node::handles_test_event;
 
-  port send_test_event( Node&, rport, synindex, bool );
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void handle( SpikeEvent& );
-  void handle( CurrentEvent& );
-  void handle( DataLoggingRequest& );
+  void handle( SpikeEvent& ) override;
+  void handle( CurrentEvent& ) override;
+  void handle( DataLoggingRequest& ) override;
 
-  port handles_test_event( SpikeEvent&, rport );
-  port handles_test_event( CurrentEvent&, rport );
-  port handles_test_event( DataLoggingRequest&, rport );
+  size_t handles_test_event( SpikeEvent&, size_t ) override;
+  size_t handles_test_event( CurrentEvent&, size_t ) override;
+  size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const;
-  void set_status( const DictionaryDatum& );
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
-  void init_buffers_();
-  void pre_run_hook();
-  void update( const Time&, const long, const long );
+  void init_buffers_() override;
+  void pre_run_hook() override;
+  void update( const Time&, const long, const long ) override;
 
   // END Boilerplate function declarations ----------------------------
 
@@ -249,37 +256,37 @@ private:
   //! Independent parameters
   struct Parameters_
   {
-    double V_peak_;  //!< Spike detection threshold in mV
-    double V_reset_; //!< Reset Potential in mV
-    double t_ref_;   //!< Refractory period in ms
+    double V_peak_;   //!< Spike detection threshold in mV
+    double V_reset_;  //!< Reset Potential in mV
+    double t_ref_;    //!< Refractory period in ms
 
-    double g_L;             //!< Leak Conductance in nS
-    double C_m;             //!< Membrane Capacitance in pF
-    double E_L;             //!< Leak reversal Potential (aka resting potential) in mV
-    double Delta_T;         //!< Slope factor in ms
-    double tau_w;           //!< Adaptation time constant in ms
-    double tau_z;           //!< Spike afterpotential current time constant in ms
-    double tau_V_th;        //!< Adaptive threshold time constant in ms
-    double V_th_max;        //!< Value of V_th afer a spike in mV
-    double V_th_rest;       //!< Resting value of V_th in mV
-    double tau_u_bar_plus;  //!< Time constant of u_bar_plus in ms
-    double tau_u_bar_minus; //!< Time constant of u_bar_minus in ms
-    double tau_u_bar_bar;   //!< Time constant of u_bar_bar in ms
-    double a;               //!< Subthreshold adaptation in nS
-    double b;               //!< Spike-triggered adaptation in pA
-    double I_sp;            //!< Depolarizing spike afterpotential current in pA
-    double I_e;             //!< Intrinsic current in pA
+    double g_L;              //!< Leak Conductance in nS
+    double C_m;              //!< Membrane Capacitance in pF
+    double E_L;              //!< Leak reversal Potential (aka resting potential) in mV
+    double Delta_T;          //!< Slope factor in mV
+    double tau_w;            //!< Adaptation time constant in ms
+    double tau_z;            //!< Spike afterpotential current time constant in ms
+    double tau_V_th;         //!< Adaptive threshold time constant in ms
+    double V_th_max;         //!< Value of V_th after a spike in mV
+    double V_th_rest;        //!< Resting value of V_th in mV
+    double tau_u_bar_plus;   //!< Time constant of u_bar_plus in ms
+    double tau_u_bar_minus;  //!< Time constant of u_bar_minus in ms
+    double tau_u_bar_bar;    //!< Time constant of u_bar_bar in ms
+    double a;                //!< Subthreshold adaptation in nS
+    double b;                //!< Spike-triggered adaptation in pA
+    double I_sp;             //!< Depolarizing spike afterpotential current in pA
+    double I_e;              //!< Intrinsic current in pA
 
-    double gsl_error_tol; //!< Error bound for GSL integrator
+    double gsl_error_tol;  //!< Error bound for GSL integrator
 
-    double t_clamp_; //!< The membrane potential is clamped for the duration of t_clamp (in ms) after each spike
-    double V_clamp_; //!< The membrane potential is clamped to V_clamp (in mV)
+    double t_clamp_;  //!< The membrane potential is clamped for the duration of t_clamp (in ms) after each spike
+    double V_clamp_;  //!< The membrane potential is clamped to V_clamp (in mV)
 
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dicitonary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
   };
 
 public:
@@ -300,27 +307,27 @@ public:
     enum StateVecElems
     {
       V_M = 0,
-      W,           // 1
-      Z,           // 2
-      V_TH,        // 3
-      U_BAR_PLUS,  // 4
-      U_BAR_MINUS, // 5
-      U_BAR_BAR,   // 6
+      W,            // 1
+      Z,            // 2
+      V_TH,         // 3
+      U_BAR_PLUS,   // 4
+      U_BAR_MINUS,  // 5
+      U_BAR_BAR,    // 6
       STATE_VEC_SIZE
     };
 
     //! neuron state, must be C-array for GSL solver
     double y_[ STATE_VEC_SIZE ];
-    unsigned int r_;       //!< number of refractory steps remaining
-    unsigned int clamp_r_; //!< number of clamp steps remaining
+    unsigned int r_;        //!< number of refractory steps remaining
+    unsigned int clamp_r_;  //!< number of clamp steps remaining
 
-    State_( const Parameters_& ); //!< Default initialization
+    State_( const Parameters_& );  //!< Default initialization
     State_( const State_& );
 
     State_& operator=( const State_& );
 
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, const Parameters_&, Node* );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, const Parameters_&, Node* );
   };
 
   // ----------------------------------------------------------------
@@ -330,8 +337,8 @@ public:
    */
   struct Buffers_
   {
-    Buffers_( aeif_psc_delta_clopath& );                  //!< Sets buffer pointers to 0
-    Buffers_( const Buffers_&, aeif_psc_delta_clopath& ); //!< Sets buffer pointers to 0
+    Buffers_( aeif_psc_delta_clopath& );                   //!< Sets buffer pointers to 0
+    Buffers_( const Buffers_&, aeif_psc_delta_clopath& );  //!< Sets buffer pointers to 0
 
     //! Logger for all analog data
     UniversalDataLogger< aeif_psc_delta_clopath > logger_;
@@ -341,16 +348,16 @@ public:
     RingBuffer currents_;
 
     /** GSL ODE stuff */
-    gsl_odeiv_step* s_;    //!< stepping function
-    gsl_odeiv_control* c_; //!< adaptive stepsize control function
-    gsl_odeiv_evolve* e_;  //!< evolution function
-    gsl_odeiv_system sys_; //!< struct describing the GSL system
+    gsl_odeiv_step* s_;     //!< stepping function
+    gsl_odeiv_control* c_;  //!< adaptive stepsize control function
+    gsl_odeiv_evolve* e_;   //!< evolution function
+    gsl_odeiv_system sys_;  //!< struct describing the GSL system
 
-    // Since IntergrationStep_ is initialized with step_, and the resolution
+    // Since IntegrationStep_ is initialized with step_, and the resolution
     // cannot change after nodes have been created, it is safe to place both
     // here.
-    double step_;            //!< step size in ms
-    double IntegrationStep_; //!< current integration time step, updated by GSL
+    double step_;             //!< step size in ms
+    double IntegrationStep_;  //!< current integration time step, updated by GSL
 
     /**
      * Input current injected by CurrentEvent.
@@ -400,8 +407,8 @@ public:
   static RecordablesMap< aeif_psc_delta_clopath > recordablesMap_;
 };
 
-inline port
-aeif_psc_delta_clopath::send_test_event( Node& target, rport receptor_type, synindex, bool )
+inline size_t
+aeif_psc_delta_clopath::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
@@ -409,8 +416,8 @@ aeif_psc_delta_clopath::send_test_event( Node& target, rport receptor_type, syni
   return target.handles_test_event( e, receptor_type );
 }
 
-inline port
-aeif_psc_delta_clopath::handles_test_event( SpikeEvent&, rport receptor_type )
+inline size_t
+aeif_psc_delta_clopath::handles_test_event( SpikeEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -419,8 +426,8 @@ aeif_psc_delta_clopath::handles_test_event( SpikeEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-aeif_psc_delta_clopath::handles_test_event( CurrentEvent&, rport receptor_type )
+inline size_t
+aeif_psc_delta_clopath::handles_test_event( CurrentEvent&, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -429,8 +436,8 @@ aeif_psc_delta_clopath::handles_test_event( CurrentEvent&, rport receptor_type )
   return 0;
 }
 
-inline port
-aeif_psc_delta_clopath::handles_test_event( DataLoggingRequest& dlr, rport receptor_type )
+inline size_t
+aeif_psc_delta_clopath::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type )
 {
   if ( receptor_type != 0 )
   {
@@ -440,22 +447,22 @@ aeif_psc_delta_clopath::handles_test_event( DataLoggingRequest& dlr, rport recep
 }
 
 inline void
-aeif_psc_delta_clopath::get_status( DictionaryDatum& d ) const
+aeif_psc_delta_clopath::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ClopathArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-aeif_psc_delta_clopath::set_status( const DictionaryDatum& d )
+aeif_psc_delta_clopath::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;     // temporary copy in case of errors
-  ptmp.set( d, this );       // throws if BadProperty
-  State_ stmp = S_;          // temporary copy in case of errors
-  stmp.set( d, ptmp, this ); // throws if BadProperty
+  Parameters_ ptmp = P_;      // temporary copy in case of errors
+  ptmp.set( d, this );        // throws if BadProperty
+  State_ stmp = S_;           // temporary copy in case of errors
+  stmp.set( d, ptmp, this );  // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -468,8 +475,8 @@ aeif_psc_delta_clopath::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // HAVE_GSL
+#endif  // HAVE_GSL
 
-#endif // AEIF_PSC_DELTA_CLOPATH_H
+#endif  // AEIF_PSC_DELTA_CLOPATH_H

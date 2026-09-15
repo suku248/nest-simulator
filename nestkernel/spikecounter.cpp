@@ -21,7 +21,6 @@
  */
 
 /**
- * \file spikecounter.cpp
  * Implementation of volume_transmitter to record and manage spike times and
  * multiplicity of neurons releasing a neuromodulator
  * (volume_transmitter is not included in the current release version of NEST)
@@ -32,8 +31,13 @@
 
 #include "spikecounter.h"
 
-nest::spikecounter::spikecounter( double spike_time, double multiplicity )
+
+namespace nest
+{
+spikecounter::spikecounter( double spike_time, double multiplicity )
   : spike_time_( spike_time )
   , multiplicity_( multiplicity )
 {
 }
+
+}  // namespace nest

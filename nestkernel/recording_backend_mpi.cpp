@@ -29,19 +29,22 @@
 #include "recording_backend_mpi.h"
 #include "recording_device.h"
 
-nest::RecordingBackendMPI::RecordingBackendMPI()
+
+namespace nest
+{
+RecordingBackendMPI::RecordingBackendMPI()
   : enrolled_( false )
   , prepared_( false )
 {
 }
 
-nest::RecordingBackendMPI::~RecordingBackendMPI() throw()
+RecordingBackendMPI::~RecordingBackendMPI() throw()
 {
 }
 
 
 void
-nest::RecordingBackendMPI::initialize()
+RecordingBackendMPI::initialize()
 {
   auto nthreads = kernel().vp_manager.get_num_threads();
   std::vector< std::vector< std::vector< std::array< double, 3 > > > > empty_vector( nthreads );
@@ -51,7 +54,7 @@ nest::RecordingBackendMPI::initialize()
 }
 
 void
-nest::RecordingBackendMPI::finalize()
+RecordingBackendMPI::finalize()
 {
   // clear vector of buffer
   for ( auto& it_buffer : buffer_ )
@@ -69,12 +72,12 @@ nest::RecordingBackendMPI::finalize()
 }
 
 void
-nest::RecordingBackendMPI::enroll( const RecordingDevice& device, const DictionaryDatum& )
+RecordingBackendMPI::enroll( const RecordingDevice& device, const Dictionary& params )
 {
   if ( device.get_type() == RecordingDevice::SPIKE_RECORDER )
   {
-    thread tid = device.get_thread();
-    index node_id = device.get_node_id();
+    size_t tid = device.get_thread();
+    size_t node_id = device.get_node_id();
 
     auto device_it = devices_[ tid ].find( node_id );
     if ( device_it != devices_[ tid ].end() )
@@ -85,6 +88,8 @@ nest::RecordingBackendMPI::enroll( const RecordingDevice& device, const Dictiona
     std::tuple< int, MPI_Comm*, const RecordingDevice* > tuple = std::make_tuple( -1, nullptr, &device );
     devices_[ tid ].insert( std::make_pair( node_id, tuple ) );
     enrolled_ = true;
+
+    params.update_value( names::mpi_address, mpi_address_ );
   }
   else
   {
@@ -93,7 +98,7 @@ nest::RecordingBackendMPI::enroll( const RecordingDevice& device, const Dictiona
 }
 
 void
-nest::RecordingBackendMPI::disenroll( const RecordingDevice& device )
+RecordingBackendMPI::disenroll( const RecordingDevice& device )
 {
   const auto tid = device.get_thread();
   const auto node_id = device.get_node_id();
@@ -106,15 +111,15 @@ nest::RecordingBackendMPI::disenroll( const RecordingDevice& device )
 }
 
 void
-nest::RecordingBackendMPI::set_value_names( const RecordingDevice&,
-  const std::vector< Name >&,
-  const std::vector< Name >& )
+RecordingBackendMPI::set_value_names( const RecordingDevice&,
+  const std::vector< std::string >&,
+  const std::vector< std::string >& )
 {
   // nothing to do
 }
 
 void
-nest::RecordingBackendMPI::prepare()
+RecordingBackendMPI::prepare()
 {
   if ( not enrolled_ )
   {
@@ -126,7 +131,7 @@ nest::RecordingBackendMPI::prepare()
     throw BackendPrepared( "RecordingBackendMPI" );
   }
   prepared_ = true;
-  thread thread_id_master = 0;
+  size_t thread_id_master = 0;
 #pragma omp parallel default( none ) shared( thread_id_master )
   {
 #pragma omp master
@@ -174,19 +179,21 @@ nest::RecordingBackendMPI::prepare()
   // 2) connect the thread to the MPI process it needs to be connected to
   for ( auto& it_comm : commMap_ )
   {
-    MPI_Comm_connect( it_comm.first.data(),
-      MPI_INFO_NULL,
-      0,
-      MPI_COMM_WORLD,
-      std::get< 1 >( it_comm.second ) ); // should use the status for handle error
+    int ret =
+      MPI_Comm_connect( it_comm.first.data(), MPI_INFO_NULL, 0, MPI_COMM_WORLD, std::get< 1 >( it_comm.second ) );
+
+    if ( ret != MPI_SUCCESS )
+    {
+      throw MPIErrorCode( ret );
+    }
     std::ostringstream msg;
     msg << "Connect to " << it_comm.first.data() << "\n";
-    LOG( M_INFO, "MPI Record connect", msg.str() );
+    LOG( VerbosityLevel::INFO, "MPI Record connect", msg.str() );
   }
 #pragma omp parallel default( none ) shared( thread_id_master )
   {
     // Update all the threads
-    thread thread_id = kernel().vp_manager.get_thread_id();
+    size_t thread_id = kernel().vp_manager.get_thread_id();
     if ( thread_id != thread_id_master )
     {
       for ( auto& it_device : devices_[ thread_id ] )
@@ -200,7 +207,7 @@ nest::RecordingBackendMPI::prepare()
 }
 
 void
-nest::RecordingBackendMPI::pre_run_hook()
+RecordingBackendMPI::pre_run_hook()
 {
 #pragma omp master
   {
@@ -215,13 +222,13 @@ nest::RecordingBackendMPI::pre_run_hook()
 
 
 void
-nest::RecordingBackendMPI::post_step_hook()
+RecordingBackendMPI::post_step_hook()
 {
   // nothing to do
 }
 
 void
-nest::RecordingBackendMPI::post_run_hook()
+RecordingBackendMPI::post_run_hook()
 {
 #pragma omp master
   {
@@ -265,7 +272,7 @@ nest::RecordingBackendMPI::post_run_hook()
 }
 
 void
-nest::RecordingBackendMPI::cleanup()
+RecordingBackendMPI::cleanup()
 {
 // Disconnect all the MPI connections and send information about this disconnection
 // Clean all the elements in the map
@@ -286,7 +293,7 @@ nest::RecordingBackendMPI::cleanup()
     }
     // clear map of device
     commMap_.clear();
-    thread thread_id_master = kernel().vp_manager.get_thread_id();
+    size_t thread_id_master = kernel().vp_manager.get_thread_id();
     for ( auto& it_device : devices_[ thread_id_master ] )
     {
       std::get< 0 >( it_device.second ) = -1;
@@ -297,34 +304,34 @@ nest::RecordingBackendMPI::cleanup()
 }
 
 void
-nest::RecordingBackendMPI::check_device_status( const DictionaryDatum& ) const
+RecordingBackendMPI::check_device_status( const Dictionary& ) const
 {
   // nothing to do
 }
 
 void
-nest::RecordingBackendMPI::get_device_defaults( DictionaryDatum& ) const
+RecordingBackendMPI::get_device_defaults( Dictionary& ) const
 {
   // nothing to do
 }
 
 void
-nest::RecordingBackendMPI::get_device_status( const nest::RecordingDevice&, DictionaryDatum& ) const
+RecordingBackendMPI::get_device_status( const RecordingDevice&, Dictionary& ) const
 {
   // nothing to do
 }
 
 
 void
-nest::RecordingBackendMPI::write( const RecordingDevice& device,
+RecordingBackendMPI::write( const RecordingDevice& device,
   const Event& event,
   const std::vector< double >&,
   const std::vector< long >& )
 {
   // For each event send a message through the right MPI communicator
-  const thread thread_id = kernel().get_kernel_manager().vp_manager.get_thread_id();
-  const index sender = event.get_sender_node_id();
-  const index recorder = device.get_node_id();
+  const size_t thread_id = kernel().get_kernel_manager().vp_manager.get_thread_id();
+  const size_t sender = event.get_sender_node_id();
+  const size_t recorder = device.get_node_id();
   const Time stamp = event.get_stamp();
 
   auto it_devices = devices_[ thread_id ].find( recorder );
@@ -343,25 +350,40 @@ nest::RecordingBackendMPI::write( const RecordingDevice& device,
  * Parameter extraction and manipulation functions
  * ---------------------------------------------------------------- */
 void
-nest::RecordingBackendMPI::get_status( DictionaryDatum& ) const
+RecordingBackendMPI::get_status( Dictionary& ) const
 {
   // nothing to do
 }
 
 void
-nest::RecordingBackendMPI::set_status( const DictionaryDatum& )
+RecordingBackendMPI::set_status( const Dictionary& )
 {
   // nothing to do
 }
 
 void
-nest::RecordingBackendMPI::get_port( const RecordingDevice* device, std::string* port_name )
+RecordingBackendMPI::get_port( const RecordingDevice* device, std::string* port_name )
 {
-  get_port( device->get_node_id(), device->get_label(), port_name );
+  const std::string& label = device->get_label();
+
+  // The MPI address can be provided by two different means.
+  // a) the address is given via the mpi_address device status
+  // b) the file is provided via a file: {data_path}/{data_prefix}{label}/{node_id}.txt
+
+  // Case a: MPI address is given via device status, use the supplied address
+  if ( not mpi_address_.empty() )
+  {
+    *port_name = mpi_address_;
+  }
+  // Case b: fallback to get_port implementation that reads the address from file
+  else
+  {
+    get_port( device->get_node_id(), label, port_name );
+  }
 }
 
 void
-nest::RecordingBackendMPI::get_port( const index index_node, const std::string& label, std::string* port_name )
+RecordingBackendMPI::get_port( const size_t index_node, const std::string& label, std::string* port_name )
 {
   // path of the file : path+label+id+.txt
   // (file contains only one line with name of the port )
@@ -383,8 +405,11 @@ nest::RecordingBackendMPI::get_port( const index index_node, const std::string& 
   }
 
   basename << "/" << index_node << ".txt";
-  std::cout << basename.rdbuf() << std::endl;
   std::ifstream file( basename.str() );
+  if ( !file.good() )
+  {
+    throw MPIPortsFileMissing( index_node, basename.str() );
+  }
   if ( file.is_open() )
   {
     getline( file, *port_name );
@@ -393,7 +418,7 @@ nest::RecordingBackendMPI::get_port( const index index_node, const std::string& 
 }
 
 void
-nest::RecordingBackendMPI::send_data( const MPI_Comm* comm, const double data[], const int size )
+RecordingBackendMPI::send_data( const MPI_Comm* comm, const double data[], const int size )
 {
   // Send the size of data
   int shape = { size };
@@ -401,3 +426,5 @@ nest::RecordingBackendMPI::send_data( const MPI_Comm* comm, const double data[],
   // Receive the data ( for the moment only spike time )
   MPI_Send( data, shape, MPI_DOUBLE, 0, 0, *comm );
 }
+
+}  // namespace nest

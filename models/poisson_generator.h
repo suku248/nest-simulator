@@ -46,7 +46,7 @@ Description
 
 The ``poisson_generator`` simulates a neuron that is firing with Poisson
 statistics, that is, exponentially distributed interspike intervals. It will
-generate a `unique` spike train for each of it's targets. If you do not want
+generate a `unique` spike train for each of its targets. If you do not want
 this behavior and need the same spike train for all targets, you have to use a
 ``parrot_neuron`` between the poisson generator and the targets.
 
@@ -75,7 +75,14 @@ See also
 
 poisson_generator_ps
 
+Examples using this model
++++++++++++++++++++++++++
+
+.. listexamples:: poisson_generator
+
 EndUserDocs */
+
+void register_poisson_generator( const std::string& name );
 
 class poisson_generator : public StimulationDevice
 {
@@ -95,10 +102,10 @@ public:
    */
   using Node::event_hook;
 
-  port send_test_event( Node&, rport, synindex, bool ) override;
+  size_t send_test_event( Node&, size_t, synindex, bool ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   StimulationDevice::Type get_type() const override;
   void set_data_from_stimulation_backend( std::vector< double >& input_param ) override;
@@ -118,19 +125,19 @@ private:
    */
   struct Parameters_
   {
-    double rate_; //!< process rate in Hz
+    double rate_;  //!< process rate in Hz
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dicitonary
+    void get( Dictionary& ) const;              //!< Store current values in dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from dictionary
   };
 
   // ------------------------------------------------------------
 
   struct Variables_
   {
-    poisson_distribution poisson_dist_; //!< poisson distribution
+    poisson_distribution poisson_dist_;  //!< poisson distribution
   };
 
   // ------------------------------------------------------------
@@ -139,8 +146,8 @@ private:
   Variables_ V_;
 };
 
-inline port
-poisson_generator::send_test_event( Node& target, rport receptor_type, synindex syn_id, bool dummy_target )
+inline size_t
+poisson_generator::send_test_event( Node& target, size_t receptor_type, synindex syn_id, bool dummy_target )
 {
   StimulationDevice::enforce_single_syn_type( syn_id );
 
@@ -159,17 +166,17 @@ poisson_generator::send_test_event( Node& target, rport receptor_type, synindex 
 }
 
 inline void
-poisson_generator::get_status( DictionaryDatum& d ) const
+poisson_generator::get_status( Dictionary& d ) const
 {
   P_.get( d );
   StimulationDevice::get_status( d );
 }
 
 inline void
-poisson_generator::set_status( const DictionaryDatum& d )
+poisson_generator::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
 
   // We now know that ptmp is consistent. We do not write it back
   // to P_ before we are also sure that the properties to be set
@@ -186,6 +193,6 @@ poisson_generator::get_type() const
   return StimulationDevice::Type::SPIKE_GENERATOR;
 }
 
-} // namespace nest
+}  // namespace nest
 
 #endif
